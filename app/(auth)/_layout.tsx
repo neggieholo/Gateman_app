@@ -1,39 +1,28 @@
 import { Stack } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { UserProvider } from "./UserContext";
 
-export default function RootLayout() {
+export default function AuthLayout() {
   return (
     <SafeAreaProvider>
-      <UserProvider>
         <Stack>
           {/* Login screen */}
           <Stack.Screen
-            name="(auth)"           // maps to app/index.tsx
+            name="index"           // maps to app/index.tsx
             options={{
-              title: "Auth", // custom title
+              title: "Login", // custom title
               headerShown: false,    // hide the header
             }}
           />
 
           {/* Register screen */}
           <Stack.Screen
-            name="(app)"
+            name="register"
             options={{
-              title: "App",
+              title: "Register",
               headerShown: false,
             }}
           />
-
-           <Stack.Screen
-            name="JoinRequest"
-            options={{
-              title: "Join Estate",
-              headerShown: true,
-            }}
-          />
         </Stack>
-      </UserProvider>
     </SafeAreaProvider>
   );
 }
