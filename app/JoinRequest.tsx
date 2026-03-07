@@ -11,12 +11,11 @@ import {
   View,
 } from "react-native";
 
+import { useNavigation } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
 import { createJoinRequest, fetchAllEstates } from "./services/api";
 import { Estate } from "./services/interfaces";
 import { UserContext } from "./UserContext";
-import { useNavigation } from "@react-navigation/native";
-
 
 type IDType = "voters" | "nin" | "drivers";
 
@@ -86,7 +85,7 @@ export default function JoinRequestForm() {
     const result = await ImagePicker.launchCameraAsync({
       allowsEditing: true,
       aspect: type === "selfie" ? [3, 4] : undefined,
-      quality: 0.5, 
+      quality: 0.5,
     });
 
     if (!result.canceled) {
@@ -98,7 +97,6 @@ export default function JoinRequestForm() {
     }
   };
 
-  // 3. Final Multi-part Submission
   const handleSubmit = async () => {
     if (!estateId || !block.trim() || !unit.trim()) {
       return Alert.alert("Validation", "Please complete all estate details.");
@@ -147,11 +145,11 @@ export default function JoinRequestForm() {
           "Application Submitted",
           "Your application has been submitted for review.",
           [
-            { 
-              text: "OK", 
-              onPress: () => navigation.goBack() // 👈 This pops the screen
-            }
-          ]
+            {
+              text: "OK",
+              onPress: () => navigation.goBack(), // 👈 This pops the screen
+            },
+          ],
         );
         // Reset or Navigate away
       }
@@ -165,7 +163,10 @@ export default function JoinRequestForm() {
   const nextStep = () => setStep((prev) => prev + 1);
   const prevStep = () => setStep((prev) => prev - 1);
 
-
+  const isStep2Valid =
+    idType === "nin"
+      ? !!idFront
+      : !!idFront && !!idBack;
 
   return (
     <ScrollView className="flex-1 bg-gray-50 p-4">
@@ -237,7 +238,8 @@ export default function JoinRequestForm() {
             </TouchableOpacity>
             <TouchableOpacity
               onPress={nextStep}
-              className="bg-indigo-600 p-4 px-10 rounded-xl"
+              disabled={!isStep2Valid}
+              className={`p-4 px-10 rounded-xl ${isStep2Valid ? "bg-indigo-600" : "bg-gray-300"}`}
             >
               <Text className="text-white font-bold">Next</Text>
             </TouchableOpacity>
@@ -268,7 +270,8 @@ export default function JoinRequestForm() {
             </TouchableOpacity>
             <TouchableOpacity
               onPress={nextStep}
-              className="bg-indigo-600 p-4 px-10 rounded-xl"
+              disabled={!utilityBill}
+              className={`${utilityBill ? "bg-indigo-600" : "bg-gray-300"} p-4 px-10 rounded-xl`}
             >
               <Text className="text-white font-bold">Final Step</Text>
             </TouchableOpacity>
@@ -387,19 +390,22 @@ export default function JoinRequestForm() {
               <Text className="p-4">Back</Text>
             </TouchableOpacity>
             <TouchableOpacity
-            onPress={handleSubmit}
-            disabled={loading}
-            style={{
-              backgroundColor: "#4f46e5",
-              paddingVertical: 14,
-              borderRadius: 8,
-              alignItems: "center",
-            }}
-          >
-              <Text className = 'p-2' style={{ color: "white", fontWeight: "bold", fontSize: 16 }}>
+              onPress={handleSubmit}
+              disabled={loading}
+              style={{
+                backgroundColor: "#4f46e5",
+                paddingVertical: 14,
+                borderRadius: 8,
+                alignItems: "center",
+              }}
+            >
+              <Text
+                className="p-2"
+                style={{ color: "white", fontWeight: "bold", fontSize: 16 }}
+              >
                 {loading ? "Submitting..." : "Submit Application"}
               </Text>
-          </TouchableOpacity>
+            </TouchableOpacity>
           </View>
         </View>
       )}

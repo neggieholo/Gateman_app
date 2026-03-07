@@ -1,6 +1,6 @@
 import { Estate } from "./interfaces";
 
-const BASE_URL = "http://10.21.77.113:3003/api"
+const BASE_URL = "http://192.168.100.17:3003/api"
 
 export const postLogin = async (email: string, password: string) => {
   try {

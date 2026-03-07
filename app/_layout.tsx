@@ -6,13 +6,24 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <UserProvider>
-        <Stack>
-          {/* Login screen */}
+        <Stack
+          screenOptions={{
+            headerStyle: { 
+              backgroundColor: "#2563eb",
+            },
+            headerTintColor: "#ffffff",
+            headerTitleStyle: {
+              color: "#ffffff",
+              fontWeight: "bold",
+            },
+            headerTitleAlign: 'center', 
+          }}
+        >
           <Stack.Screen
-            name="(auth)"           // maps to app/index.tsx
+            name="(auth)"          
             options={{
-              title: "Auth", // custom title
-              headerShown: false,    // hide the header
+              title: "Auth",
+              headerShown: false,
             }}
           />
 

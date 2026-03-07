@@ -5,23 +5,21 @@ export default function AuthLayout() {
   return (
     <SafeAreaProvider>
         <Stack>
-          {/* Login screen */}
           <Stack.Screen
-            name="index"           // maps to app/index.tsx
+            name="index"   
             options={{
-              title: "Login", // custom title
-              headerShown: false,    // hide the header
+              title: "Login", 
+              headerShown: false,   
             }}
           />
 
-          {/* Register screen */}
-          <Stack.Screen
+          {/* <Stack.Screen
             name="register"
             options={{
               title: "Register",
               headerShown: false,
             }}
-          />
+          /> */}
         </Stack>
     </SafeAreaProvider>
   );

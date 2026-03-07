@@ -79,12 +79,12 @@ export default function LoginScreen() {
           {/* Logo + App Name at the top */}
           <View className="w-full flex-row justify-center items-center mt-12 mb-4 px-4 rounded-lg">
             <Image
-              source={require("../../assets/images/gateman_large_nobg.png")}
+              source={require("../../assets/images/gateman_w_nobg_cropped.png")}
               style={{
                 width: "100%",
                 height: 120,
               }}
-              resizeMode="cover"
+              resizeMode="contain"
             />
           </View>
 

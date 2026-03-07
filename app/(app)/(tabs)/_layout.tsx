@@ -1,7 +1,6 @@
 import { Tabs } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { Platform } from "react-native";
 
 export default function TenantTabsLayout() {
   return (
@@ -9,8 +8,8 @@ export default function TenantTabsLayout() {
       <Tabs
         screenOptions={{
           tabBarActiveTintColor: "#2563EB",
-          // Common options for all tabs except dashboard
-          headerStyle: { backgroundColor: "#f9fafb" }, // Scaffold color
+          headerShown: false,
+          headerStyle: { backgroundColor: "#f9fafb" },
           headerTitleAlign: "center",
         }}
       >
@@ -18,7 +17,6 @@ export default function TenantTabsLayout() {
         <Tabs.Screen
           name="dashboard"
           options={{
-            headerShown: false,
             tabBarIcon: ({ color, size }) => <Ionicons name="home" size={size} color={color} />,
           }}
         />
