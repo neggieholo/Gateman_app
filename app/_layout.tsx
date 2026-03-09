@@ -43,6 +43,14 @@ export default function RootLayout() {
               headerShown: true,
             }}
           />
+
+           <Stack.Screen
+            name="NotificationsPage"
+            options={{
+              title: "Notifications",
+              headerShown: true,
+            }}
+          />
         </Stack>
       </UserProvider>
     </SafeAreaProvider>

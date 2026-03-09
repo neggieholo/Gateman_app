@@ -39,7 +39,7 @@ export default function JoinRequestForm() {
   const [estates, setEstates] = useState<Estate[]>([]);
   const [selectorOpen, setSelectorOpen] = useState<boolean>(false);
 
-  const { user } = useContext(UserContext);
+  const { user, triggerRefresh } = useContext(UserContext);
 
   const RadioButton = ({ label, value }: { label: string; value: IDType }) => (
     <TouchableOpacity
@@ -147,7 +147,10 @@ export default function JoinRequestForm() {
           [
             {
               text: "OK",
-              onPress: () => navigation.goBack(), // 👈 This pops the screen
+              onPress: () => {
+                navigation.goBack();
+                triggerRefresh();
+              },
             },
           ],
         );
@@ -163,10 +166,7 @@ export default function JoinRequestForm() {
   const nextStep = () => setStep((prev) => prev + 1);
   const prevStep = () => setStep((prev) => prev - 1);
 
-  const isStep2Valid =
-    idType === "nin"
-      ? !!idFront
-      : !!idFront && !!idBack;
+  const isStep2Valid = idType === "nin" ? !!idFront : !!idFront && !!idBack;
 
   return (
     <ScrollView className="flex-1 bg-gray-50 p-4">
@@ -217,7 +217,7 @@ export default function JoinRequestForm() {
           <View className="mt-4 space-y-4">
             <TouchableOpacity
               onPress={() => handleCapture("idFront")}
-              className="bg-gray-100 p-4 rounded-xl border border-gray-200 items-center"
+              className="border-dashed border-2 border-indigo-200 h-16 rounded-xl items-center justify-center p-2 bg-indigo-50"
             >
               <Text>{idFront ? "✅ Front Captured" : "📸 Capture Front"}</Text>
             </TouchableOpacity>
@@ -225,9 +225,9 @@ export default function JoinRequestForm() {
             {idType !== "nin" && (
               <TouchableOpacity
                 onPress={() => handleCapture("idBack")}
-                className="bg-gray-100 p-4 rounded-xl border border-gray-200 items-center mt-3"
+                className="border-dashed border-2 border-indigo-200 h-16 rounded-xl items-center justify-center mt-3 p-2 bg-indigo-50"
               >
-                <Text>{idBack ? "✅ Back Captured" : "📸 Capture Back"}</Text>
+                <Text>{!idBack ? "📸 Capture Back" : "✅ Back Captured"}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -253,7 +253,7 @@ export default function JoinRequestForm() {
           <Text className="text-lg font-semibold mb-2">Utility Bill</Text>
           <TouchableOpacity
             onPress={() => handleCapture("utility")}
-            className="border-dashed border-2 border-gray-200 h-40 rounded-xl items-center justify-center mt-4"
+            className="border-dashed border-2 border-indigo-200 h-48 rounded-2xl items-center justify-center bg-indigo-50"
           >
             {utilityBill ? (
               <Image

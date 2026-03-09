@@ -1,6 +1,6 @@
-import { Estate } from "./interfaces";
+import { Estate, tempNotification } from "./interfaces";
 
-const BASE_URL = "http://192.168.100.17:3003/api"
+const BASE_URL = "http://localhost:3003/api"
 
 export const postLogin = async (email: string, password: string) => {
   try {
@@ -81,4 +81,52 @@ export const fetchAllEstates = async (): Promise<Estate[]> => {
   }
 
   return data.estates;
+};
+
+export const fetchRequests = async (sessionId: string ) => {
+  console.log("Fetching temp notifications...");
+  try {
+    const response = await fetch(`${BASE_URL}/admin/my-request`, {
+      headers: {
+        'Content-Type': 'application/json',
+        'x-session-id': sessionId, // Manual session tracking
+      }, 
+    });
+
+    const contentType = response.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/json")) {
+      const text = await response.text();
+      console.error("Server returned non-JSON:", text);
+      return null;
+    }
+
+    const data = await response.json();
+
+    if (data.success) {
+      let standardized: tempNotification | null = null;
+      console.log("Raw notification data:", data);
+
+      if (data.activeRequest) {
+        standardized = {
+          from: "Gateman",
+          message: `Your join request to ${data.activeRequest.estate_name} is still pending`,
+          reason: "" 
+        };
+      } 
+     
+      else if (data.feedback) {
+        standardized = {
+          from: data.feedback.estate,
+          message: data.feedback.type === "decline" 
+            ? "Your request was declined" 
+            : "You have been blocked",
+          reason: data.feedback.message || "No reason was given"
+        };
+      }
+
+      return standardized;
+    }
+  } catch (error) {
+    console.error("Error fetching temp notifications:", error);
+  }
 };

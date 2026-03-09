@@ -23,7 +23,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState<boolean>(false);
   const [isLogin, setIsLogin] = useState<boolean>(true);
   const [error, setError] = useState<string>("");
-  const { setUser } = useContext(UserContext);
+  const { setUser, setSessionId } = useContext(UserContext);
 
   const handleLogin = async () => {
     setLoading(true);
@@ -33,6 +33,8 @@ export default function LoginScreen() {
       const response = await postLogin(email, password);
       if (response.success) {
         setUser(response.user);
+        console.log("Login successful, session ID:", response.sessionId);
+        setSessionId?.(response.sessionId);
         router.replace("/dashboard");
       } else {
         setError(response.message || "Login failed");
