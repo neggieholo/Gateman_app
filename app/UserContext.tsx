@@ -1,8 +1,14 @@
 // app/context/UserContext.tsx
-import React, { createContext, useState, ReactNode, useEffect, useRef } from "react";
-import { tempNotification, User } from "./services/interfaces";
-import { fetchRequests } from "./services/api";
+import React, {
+  createContext,
+  ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { io, Socket } from "socket.io-client";
+import { fetchRequests } from "./services/api";
+import { tempNotification, User } from "./services/interfaces";
 
 interface UserContextType {
   user: Partial<User> | null;
@@ -10,8 +16,10 @@ interface UserContextType {
   sessionId?: string;
   setSessionId?: (sessionId: string) => void;
   tempnotification: tempNotification | null;
+  setTempnotification: (notification: tempNotification | null) => void;
   triggerRefresh: () => void;
   badgeCount: number;
+  setBadgeCount: (count: number) => void;
 }
 
 export const UserContext = createContext<UserContextType>({
@@ -20,17 +28,19 @@ export const UserContext = createContext<UserContextType>({
   sessionId: "",
   setSessionId: () => {},
   tempnotification: null,
+  setTempnotification: () => {},
   triggerRefresh: () => {},
   badgeCount: 0,
+  setBadgeCount: () => {},
 });
 
 export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<Partial<User> | null>(null);
-  const [tempnotification, setTempNotification] =
+  const [tempnotification, setTempnotification] =
     useState<tempNotification | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState<boolean>(false);
   const [badgeCount, setBadgeCount] = useState<number>(0);
-  const [sessionId, setSessionId] = useState<string >("");
+  const [sessionId, setSessionId] = useState<string>("");
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const socketRef = useRef<Socket | null>(null);
 
@@ -54,7 +64,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       autoConnect: true,
       extraHeaders: {
         cookie: `connect.sid=${sessionId}`,
-      }
+      },
     });
 
     newSocket.on("connect", () => {
@@ -66,7 +76,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     newSocket.on("status_update", (data) => {
       console.log("Real-time update received:", data);
       // You can update tempnotification state directly here!
-      setTempNotification(data); 
+      setTempnotification(data);
       setBadgeCount(1);
     });
 
@@ -83,19 +93,29 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [sessionId]);
 
-  
+  // app/context/UserContext.tsx
+
   useEffect(() => {
     const getStatus = async () => {
       if (user?.isTemp) {
-        const tempStatus = await fetchRequests(sessionId);
-        setTempNotification(tempStatus || null);
-        if (tempStatus) {
-          setBadgeCount(1);
+        const result = await fetchRequests();
+
+        if (result && result.notification) {
+          setTempnotification(result.notification);
+
+          // 🚀 Only increase badge if notification exists AND isRead is false
+          if (result.isRead === false) {
+            setBadgeCount(1);
+          } else {
+            setBadgeCount(0);
+          }
         } else {
+          setTempnotification(null);
           setBadgeCount(0);
         }
       } else {
-        setTempNotification(null);
+        setTempnotification(null);
+        setBadgeCount(0);
       }
     };
 
@@ -104,7 +124,17 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <UserContext.Provider
-      value={{ user, setUser, tempnotification, triggerRefresh, badgeCount, sessionId, setSessionId }}
+      value={{
+        user,
+        setUser,
+        tempnotification,
+        setTempnotification,
+        triggerRefresh,
+        badgeCount,
+        setBadgeCount,
+        sessionId,
+        setSessionId,
+      }}
     >
       {children}
     </UserContext.Provider>

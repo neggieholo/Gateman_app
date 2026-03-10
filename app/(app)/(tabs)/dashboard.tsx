@@ -1,16 +1,10 @@
-import { ArrowUp, Bell, FileText, HelpCircle } from "lucide-react-native";
-import React, { useContext } from "react";
-import { ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { ArrowUp, Bell, FileText} from "lucide-react-native";
+import React, { useContext, useEffect } from "react";
+import { Modal, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "../../components/Button"; // Assuming this is your custom button
 import { UserContext } from "../../UserContext";
 
-interface User {
-  name: string;
-  wallet_balance: string;
-}
-
-// Helper component for the dashboard stat tiles
 const StatCard = ({ title, value, icon: Icon, colorClass, highlight }: { title: string, value: string | number, icon: React.FC<any>, colorClass: string, highlight?: boolean }) => (
     <View className={`flex-1 p-4 rounded-xl shadow-sm border border-gray-100 ${highlight ? 'bg-white' : 'bg-white'}`}>
         <View className="flex-row items-center justify-between mb-1">
@@ -23,24 +17,73 @@ const StatCard = ({ title, value, icon: Icon, colorClass, highlight }: { title: 
 
 
 export default function Dashboard() {
-  const { user } = useContext(UserContext);
+  const { user, setUser } = useContext(UserContext);
+  const [showBanner, setShowBanner] = React.useState(false);
+
+  useEffect(() => {
+    const welcomeShown = () => {
+      if (user?.showWelcome) {
+        setShowBanner(true);
+      } else {
+        setShowBanner(false);
+      }
+    }
+    welcomeShown();
+  }, [user]);
+
+  const handleDismissWelcome = () => {
+    setShowBanner(false);
+    // Update context state so it doesn't reappear until the next "first login" event
+    if (user) {
+      setUser({ ...user, showWelcome: false });
+    }
+  };
 
   
   if (!user) return <Text className="text-center mt-10">Loading...</Text>;
 
-  const walletBalance = user.wallet_balance ? parseFloat(user.wallet_balance).toFixed(2) : "0.00";
+  const walletBalance = user.wallet_balance ? parseFloat(String(user.wallet_balance)).toFixed(2) : "0.00";
 
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
+    <SafeAreaView className="flex-1 bg-gray-50">      
+      <Modal
+      animationType="fade"
+      transparent={true}
+      visible={showBanner}
+      onRequestClose={handleDismissWelcome}
+      >
+        <View className="flex-1 justify-center items-center bg-black/50 px-6">
+          <View className="bg-sky-50 rounded-3xl p-6 shadow-2xl border border-sky-100 w-full">
+            <View className="items-center mb-4">
+               <View className="bg-sky-500 p-3 rounded-full mb-4">
+                  <Bell size={30} color="white" />
+               </View>
+               <Text className="text-gray-900 font-black text-2xl text-center mb-2">
+                 Welcome to {user.estate_name || "the Estate"}! 🎉
+               </Text>
+               <Text className="text-gray-600 text-center leading-5 px-2">
+                 Your join request has been approved. You can now manage your payments, access estate services, and stay updated.
+               </Text>
+            </View>
+
+            <TouchableOpacity 
+              onPress={handleDismissWelcome}
+              className="bg-indigo-600 py-4 rounded-xl shadow-md shadow-indigo-300 active:bg-indigo-700"
+            >
+              <Text className="text-white text-center font-bold text-lg">Get Started</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
       <ScrollView 
         className="flex-1 px-5 pt-3"
         showsVerticalScrollIndicator={false}
-      >
+      >        
         {/* --- 1. Welcome Header & Icons --- */}
         <View className="flex-row items-center justify-start mb-8">
           <Text className="text-3xl font-extrabold text-gray-900 tracking-tight">
-            Hello, {user.name.split(" ")[0]}
+            Hello, {user.name ? user.name.split(" ")[0] : "Guest"}
           </Text>
         </View>
 

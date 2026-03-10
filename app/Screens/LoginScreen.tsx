@@ -1,3 +1,4 @@
+import CookieManager from "@react-native-cookies/cookies";
 import { useRouter } from "expo-router";
 import React, { useContext, useState } from "react";
 import {
@@ -30,8 +31,20 @@ export default function LoginScreen() {
     setError("");
     console.log("Login details:", email, password);
     try {
+      await CookieManager.clearAll();
+      console.log("🧹 Cookie Jar Wiped!");
       const response = await postLogin(email, password);
       if (response.success) {
+        const cookies = await CookieManager.get("http://10.21.77.113:3003");
+        console.log("🍪 Captured Cookies:", cookies);
+
+        if (cookies["gateman.sid"]) {
+          console.log("✅ gateman.sid found in Cookie Jar!");
+        } else {
+          console.warn(
+            "⚠️ Login success but gateman.sid missing from manager.",
+          );
+        }
         setUser(response.user);
         console.log("Login successful, session ID:", response.sessionId);
         setSessionId?.(response.sessionId);
@@ -78,8 +91,8 @@ export default function LoginScreen() {
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           className="flex-1 px-6"
         >
-          {/* Logo + App Name at the top */}
-          <View className="w-full flex-row justify-center items-center mt-12 mb-4 px-4 rounded-lg">
+
+          <View className="w-full flex-row justify-center items-center mt-12 px-4 rounded-lg">
             <Image
               source={require("../../assets/images/gateman_w_nobg_cropped.png")}
               style={{
@@ -90,7 +103,6 @@ export default function LoginScreen() {
             />
           </View>
 
-          {/* Centered form container */}
           {isLogin && (
             <View className="flex-1 justify-center">
               <View className="bg-white/70 rounded-md p-6">

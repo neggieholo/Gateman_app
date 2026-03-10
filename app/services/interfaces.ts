@@ -39,6 +39,8 @@ export interface User {
   id_front_url?: string;
   id_back_url?: string;
   utility_bill_url?: string;
+  showWelcome?: boolean;
+  estate_name?: string;
 }
 
 export interface tempNotification {

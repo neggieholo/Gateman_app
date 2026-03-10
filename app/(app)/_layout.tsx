@@ -1,14 +1,29 @@
 import { DrawerContentScrollView, DrawerItem } from "@react-navigation/drawer";
 import { DrawerActions } from "@react-navigation/native";
-import { router, usePathname } from "expo-router";
+import { router, usePathname, useRouter } from "expo-router";
 import { Drawer } from "expo-router/drawer";
 import { Bell, HelpCircle, LogOut, X } from "lucide-react-native";
 import { useContext } from "react";
 import { Image, TouchableOpacity, View, Text } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { UserContext } from "../UserContext";
+import CookieManager from '@react-native-cookies/cookies';
 
 function CustomDrawerContent(props: any) {
+const { setUser, setSessionId } = useContext(UserContext);
+const router = useRouter();
+
+const logout = async () => {
+  try {
+
+    await CookieManager.clearAll(); 
+    
+    setUser(null);
+    router.replace("/");
+  } catch (e) {
+    console.error("Logout failed", e);
+  }
+};
   return (
     <DrawerContentScrollView
       {...props}

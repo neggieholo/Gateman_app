@@ -1,6 +1,6 @@
 import { Estate, tempNotification } from "./interfaces";
 
-const BASE_URL = "http://localhost:3003/api"
+const BASE_URL = "http://192.168.100.17:3003/api"
 
 export const postLogin = async (email: string, password: string) => {
   try {
@@ -83,14 +83,15 @@ export const fetchAllEstates = async (): Promise<Estate[]> => {
   return data.estates;
 };
 
-export const fetchRequests = async (sessionId: string ) => {
+export const fetchRequests = async () => { 
   console.log("Fetching temp notifications...");
   try {
     const response = await fetch(`${BASE_URL}/admin/my-request`, {
+      method: 'GET', // Explicitly set method
       headers: {
         'Content-Type': 'application/json',
-        'x-session-id': sessionId, // Manual session tracking
-      }, 
+      },
+      credentials: 'include',
     });
 
     const contentType = response.headers.get("content-type");
@@ -113,7 +114,6 @@ export const fetchRequests = async (sessionId: string ) => {
           reason: "" 
         };
       } 
-     
       else if (data.feedback) {
         standardized = {
           from: data.feedback.estate,
@@ -124,9 +124,51 @@ export const fetchRequests = async (sessionId: string ) => {
         };
       }
 
-      return standardized;
+      return { 
+        notification: standardized, 
+        isRead: data.isRead
+      };
     }
   } catch (error) {
     console.error("Error fetching temp notifications:", error);
+  }
+};
+
+export const dismissNotification = async () => {
+  try {
+    const response = await fetch(`${BASE_URL}/admin/notification/dismiss`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+    });
+
+    return await response.json();
+  } catch (error) {
+    console.error("Error dismissing notification:", error);
+    return { success: false };
+  }
+};
+
+
+export const markNotificationAsRead = async () => {
+  try {
+    const response = await fetch(`${BASE_URL}/admin/notification/read`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Error marking notification as read:", error);
+    return { success: false, error: "Failed to sync read status" };
   }
 };
