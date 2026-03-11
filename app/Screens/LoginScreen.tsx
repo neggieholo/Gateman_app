@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "../components/Button";
 import { FormInput } from "../components/FormInput";
-import { postLogin, postRegister } from "../services/api";
+import registerForPushNotificationsAsync, { postLogin, postRegister } from "../services/api";
 import { UserContext } from "../UserContext";
 
 export default function LoginScreen() {
@@ -24,13 +24,25 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState<boolean>(false);
   const [isLogin, setIsLogin] = useState<boolean>(true);
   const [error, setError] = useState<string>("");
-  const { setUser, setSessionId } = useContext(UserContext);
+  const { setUser, setSessionId, setPushToken } = useContext(UserContext);
 
   const handleLogin = async () => {
     setLoading(true);
     setError("");
     console.log("Login details:", email, password);
     try {
+
+      try {
+        const pushTokenResponse = await registerForPushNotificationsAsync();
+        if (pushTokenResponse) {
+          console.log("📱 Push token obtained:", pushTokenResponse);
+          setPushToken(pushTokenResponse);
+        }
+      } catch (pushErr) {
+        console.warn("Push token failed, continuing login:", pushErr);
+      }
+
+
       await CookieManager.clearAll();
       console.log("🧹 Cookie Jar Wiped!");
       const response = await postLogin(email, password);

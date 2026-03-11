@@ -9,6 +9,8 @@ import React, {
 import { io, Socket } from "socket.io-client";
 import { fetchRequests } from "./services/api";
 import { tempNotification, User } from "./services/interfaces";
+import * as Notifications from "expo-notifications"
+import { Platform } from "react-native";
 
 interface UserContextType {
   user: Partial<User> | null;
@@ -20,7 +22,11 @@ interface UserContextType {
   triggerRefresh: () => void;
   badgeCount: number;
   setBadgeCount: (count: number) => void;
+  pushToken?: string | null;
+  setPushToken: (token: string | null) => void;
 }
+
+// export const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export const UserContext = createContext<UserContextType>({
   user: null,
@@ -32,6 +38,8 @@ export const UserContext = createContext<UserContextType>({
   triggerRefresh: () => {},
   badgeCount: 0,
   setBadgeCount: () => {},
+  pushToken: null,
+  setPushToken: () => {},
 });
 
 export const UserProvider = ({ children }: { children: ReactNode }) => {
@@ -42,9 +50,11 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [badgeCount, setBadgeCount] = useState<number>(0);
   const [sessionId, setSessionId] = useState<string>("");
   const [isConnected, setIsConnected] = useState<boolean>(false);
+  const [pushToken, setPushToken] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
 
   const triggerRefresh = () => setRefreshTrigger((prev) => !prev);
+
 
   // --- SOCKET LOGIC ---
   useEffect(() => {
@@ -122,6 +132,34 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     getStatus();
   }, [user, refreshTrigger]);
 
+  useEffect(() => {
+    const setupNotifications = async () => {
+      // 1. Create the Channel (Mandatory for Android Dev Builds)
+      if (Platform.OS === "android") {
+        await Notifications.setNotificationChannelAsync("default", {
+          name: "Default Channel",
+          importance: Notifications.AndroidImportance.MAX,
+          showBadge: true,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: "#FF231F7C",
+        });
+      }
+
+      // 2. Set the handler
+      Notifications.setNotificationHandler({
+        handleNotification: async () => ({
+          shouldShowAlert: true,
+          shouldPlaySound: true,
+          shouldSetBadge: true,
+          shouldShowBanner: true,
+          shouldShowList: true,
+        }),
+      });
+    }; 
+
+    setupNotifications(); // 
+  }, []);
+
   return (
     <UserContext.Provider
       value={{
@@ -134,6 +172,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         setBadgeCount,
         sessionId,
         setSessionId,
+        pushToken,
+        setPushToken,
       }}
     >
       {children}
