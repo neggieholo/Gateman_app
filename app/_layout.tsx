@@ -53,6 +53,14 @@ export default function RootLayout() {
                 headerShown: true,
               }}
             />
+
+            <Stack.Screen
+              name="ChatScreen"
+              options={{
+                title: "Messages",
+                headerShown: true,
+              }}
+            />
           </Stack>
         </UserProvider>
       </GestureHandlerRootView>

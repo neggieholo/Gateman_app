@@ -226,7 +226,7 @@ export default async function registerForPushNotificationsAsync() {
 }
 
 export const fetchAllTenants = async () => {
-    const res = await fetch('/api/admin/tenants', {
+    const res = await fetch(`${BASE_URL}/admin/tenants`, {
       credentials: "include",
     });
     if (!res.ok) {

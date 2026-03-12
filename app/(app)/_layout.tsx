@@ -1,20 +1,26 @@
+import CookieManager from "@react-native-cookies/cookies";
+import auth from "@react-native-firebase/auth";
 import { DrawerContentScrollView, DrawerItem } from "@react-navigation/drawer";
 import { DrawerActions } from "@react-navigation/native";
 import { router, usePathname, useRouter } from "expo-router";
 import { Drawer } from "expo-router/drawer";
-import { Bell, HelpCircle, LogOut, X } from "lucide-react-native";
+import {
+  Bell,
+  HelpCircle,
+  LogOut,
+  MessageSquare,
+  X,
+} from "lucide-react-native";
 import { useContext } from "react";
-import { Image, TouchableOpacity, View, Text } from "react-native";
+import { Image, Text, TouchableOpacity, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { UserContext } from "../UserContext";
-import CookieManager from '@react-native-cookies/cookies';
-import auth from "@react-native-firebase/auth";
 
 function CustomDrawerContent(props: any) {
-const { setUser } = useContext(UserContext);
-const router = useRouter();
+  const { setUser } = useContext(UserContext);
+  const router = useRouter();
 
-const handleLogout = async () => {
+  const handleLogout = async () => {
     try {
       // 1. Sign out from Firebase (The Chat Door)
       if (auth().currentUser) {
@@ -23,8 +29,8 @@ const handleLogout = async () => {
       }
 
       // 2. Clear Postgres session cookies
-      await CookieManager.clearAll(); 
-      
+      await CookieManager.clearAll();
+
       // 3. Reset local state
       setUser(null);
 
@@ -33,8 +39,7 @@ const handleLogout = async () => {
     } catch (e) {
       console.error("Logout failed", e);
     }
-  }
-
+  };
 
   return (
     <DrawerContentScrollView
@@ -109,22 +114,31 @@ export default function AppLayout() {
           headerRight: () => {
             if (isDashboard) {
               return (
-                <TouchableOpacity
-                  style={{ marginRight: 16 }}
-                  onPress={() => {router.push("/NotificationsPage")}}
-                >
-                  <Bell size={24} color="#ffffff" />
-                  {badgeCount > 0 && (
-                    <View
-                      className="absolute -top-1 -right-1 bg-red-500 rounded-full flex items-center justify-center border-2 border-[#36AA8F]"
-                      style={{ minWidth: 20, height: 20, paddingHorizontal: 4 }}
-                    >
-                      <Text className="text-white text-[10px] font-bold">
-                        {badgeCount > 99 ? "99+" : badgeCount}
-                      </Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
+                <View className="flex-row items-center mr-4">
+                  <TouchableOpacity
+                    onPress={() => router.push("/ChatScreen")} 
+                    className="mr-10"
+                  >
+                    <MessageSquare size={24} color="#ffffff" />
+                  </TouchableOpacity>
+
+                  {/* Notification Bell */}
+                  <TouchableOpacity
+                    onPress={() => router.push("/NotificationsPage")}
+                  >
+                    <Bell size={24} color="#ffffff" />
+                    {badgeCount > 0 && (
+                      <View
+                        className="absolute -top-1 -right-1 bg-red-500 rounded-full flex items-center justify-center border-2 border-[#2563eb]"
+                        style={{ minWidth: 18, height: 18 }}
+                      >
+                        <Text className="text-white text-[9px] font-bold">
+                          {badgeCount}
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                </View>
               );
             }
             return <View style={{ width: 40, marginRight: 16 }} />;
