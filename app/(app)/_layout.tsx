@@ -8,22 +8,34 @@ import { Image, TouchableOpacity, View, Text } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { UserContext } from "../UserContext";
 import CookieManager from '@react-native-cookies/cookies';
+import auth from "@react-native-firebase/auth";
 
 function CustomDrawerContent(props: any) {
-const { setUser, setSessionId } = useContext(UserContext);
+const { setUser } = useContext(UserContext);
 const router = useRouter();
 
-const logout = async () => {
-  try {
+const handleLogout = async () => {
+    try {
+      // 1. Sign out from Firebase (The Chat Door)
+      if (auth().currentUser) {
+        await auth().signOut();
+        console.log("Firebase signed out");
+      }
 
-    await CookieManager.clearAll(); 
-    
-    setUser(null);
-    router.replace("/");
-  } catch (e) {
-    console.error("Logout failed", e);
+      // 2. Clear Postgres session cookies
+      await CookieManager.clearAll(); 
+      
+      // 3. Reset local state
+      setUser(null);
+
+      // 4. Redirect to Login
+      router.replace("/");
+    } catch (e) {
+      console.error("Logout failed", e);
+    }
   }
-};
+
+
   return (
     <DrawerContentScrollView
       {...props}
@@ -58,7 +70,7 @@ const logout = async () => {
         label="Logout"
         labelStyle={{ color: "white", fontSize: 16, fontWeight: "bold" }}
         icon={() => <LogOut size={30} color="#ef4444" />}
-        onPress={() => router.replace("/")}
+        onPress={handleLogout}
       />
     </DrawerContentScrollView>
   );

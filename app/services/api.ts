@@ -1,4 +1,4 @@
-import { Estate, tempNotification } from "./interfaces";
+import { Estate, tempNotification, User } from "./interfaces";
 import Constants from "expo-constants";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
@@ -224,3 +224,15 @@ export default async function registerForPushNotificationsAsync() {
     throw new Error("Must use physical device for push notifications");
   }
 }
+
+export const fetchAllTenants = async () => {
+    const res = await fetch('/api/admin/tenants', {
+      credentials: "include",
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || "Could not fetch tenants");
+    }
+    const data = await res.json();
+    return data;
+  };

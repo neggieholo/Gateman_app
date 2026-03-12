@@ -41,6 +41,7 @@ export interface User {
   utility_bill_url?: string;
   showWelcome?: boolean;
   estate_name?: string;
+  chatToken?: string;
 }
 
 export interface tempNotification {
