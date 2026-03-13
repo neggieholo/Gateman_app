@@ -4,7 +4,7 @@ import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 
-const BASE_URL = "http://10.21.77.113:3003/api"
+const BASE_URL = "http://192.168.100.17:3003/api"
 
 export const postLogin = async (email: string, password: string) => {
   try {
@@ -47,6 +47,18 @@ export const postRegister = async (name: string, email: string, password: string
 export const getDashboardData = async () => {
   const res = await fetch(`${BASE_URL}/tenant/dashboard`, {
     method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+
+  const data = await res.json();
+  return data;
+};
+
+
+export const postLogout = async () => {
+  const res = await fetch(`${BASE_URL}/logout`, {
+    method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
   });

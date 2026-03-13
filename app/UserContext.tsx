@@ -1,4 +1,5 @@
 // app/context/UserContext.tsx
+import * as Notifications from "expo-notifications";
 import React, {
   createContext,
   ReactNode,
@@ -6,11 +7,10 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { Platform } from "react-native";
 import { io, Socket } from "socket.io-client";
 import { fetchRequests } from "./services/api";
 import { tempNotification, User } from "./services/interfaces";
-import * as Notifications from "expo-notifications"
-import { Platform } from "react-native";
 
 interface UserContextType {
   user: Partial<User> | null;
@@ -24,9 +24,10 @@ interface UserContextType {
   setBadgeCount: (count: number) => void;
   pushToken?: string | null;
   setPushToken: (token: string | null) => void;
+  socket: Socket | null;
+  onlineUsers: string[];
+  remoteTyping: { [key: string]: boolean };
 }
-
-// export const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export const UserContext = createContext<UserContextType>({
   user: null,
@@ -40,6 +41,9 @@ export const UserContext = createContext<UserContextType>({
   setBadgeCount: () => {},
   pushToken: null,
   setPushToken: () => {},
+  socket: null,
+  onlineUsers: [],
+  remoteTyping: {},
 });
 
 export const UserProvider = ({ children }: { children: ReactNode }) => {
@@ -51,12 +55,14 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [sessionId, setSessionId] = useState<string>("");
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [pushToken, setPushToken] = useState<string | null>(null);
+  const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
+  const [remoteTyping, setRemoteTyping] = useState<{ [key: string]: boolean }>(
+    {},
+  );
   const socketRef = useRef<Socket | null>(null);
 
   const triggerRefresh = () => setRefreshTrigger((prev) => !prev);
 
-
-  // --- SOCKET LOGIC ---
   useEffect(() => {
     if (!sessionId) {
       if (socketRef.current) {
@@ -67,13 +73,12 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    // Connect using your local IP and Port
-    const newSocket = io("http:localhost:3003", {
+    const newSocket = io("http://192.168.100.17:3003", {
       path: "/api/socket.io",
       transports: ["websocket"],
       autoConnect: true,
       extraHeaders: {
-        cookie: `connect.sid=${sessionId}`,
+        cookie: `gateman.sid=${sessionId}`,
       },
     });
 
@@ -82,28 +87,49 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       console.log("✅ Socket Connected via Session ID");
     });
 
-    // Listen for real-time status updates from GateMan Admin
-    newSocket.on("status_update", (data) => {
-      console.log("Real-time update received:", data);
-      // You can update tempnotification state directly here!
-      setTempnotification(data);
-      setBadgeCount(1);
+    newSocket.on("initial_online_list", (ids: string[]) => {
+      console.log("Setting initial online users:", ids);
+      setOnlineUsers(ids);
     });
 
-    newSocket.on("disconnect", () => {
-      setIsConnected(false);
-      console.log("❌ Socket Disconnected");
+    // 1. Online/Offline Status
+    newSocket.on(
+      "user_status_change",
+      (data: { userId: string; status: "online" | "offline" }) => {
+        setOnlineUsers((prev) => {
+          if (data.status === "online") {
+            return prev.includes(data.userId) ? prev : [...prev, data.userId];
+          } else {
+            return prev.filter((id) => id !== data.userId);
+          }
+        });
+      },
+    );
+
+    // 2. Typing Status
+    newSocket.on("is_typing", (data: { from: string; typing: boolean }) => {
+      setRemoteTyping((prev) => ({
+        ...prev,
+        [data.from]: data.typing,
+      }));
+    });
+
+    // 3. Existing status_update listener
+    newSocket.on("status_update", (data) => {
+      setTempnotification(data);
+      setBadgeCount(1);
     });
 
     socketRef.current = newSocket;
 
     return () => {
+      newSocket.off("user_status_change");
+      newSocket.off("is_typing");
+      newSocket.off("status_update");
       newSocket.close();
       socketRef.current = null;
     };
   }, [sessionId]);
-
-  // app/context/UserContext.tsx
 
   useEffect(() => {
     const getStatus = async () => {
@@ -155,9 +181,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           shouldShowList: true,
         }),
       });
-    }; 
+    };
 
-    setupNotifications(); // 
+    setupNotifications(); //
   }, []);
 
   return (
@@ -174,9 +200,20 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         setSessionId,
         pushToken,
         setPushToken,
+        onlineUsers,
+        socket: socketRef.current,
+        remoteTyping,
       }}
     >
       {children}
     </UserContext.Provider>
   );
+};
+
+export const useUser = () => {
+  const context = React.useContext(UserContext);
+  if (context === undefined) {
+    throw new Error("useUser must be used within a UserProvider");
+  }
+  return context;
 };

@@ -4,6 +4,7 @@ import { DrawerContentScrollView, DrawerItem } from "@react-navigation/drawer";
 import { DrawerActions } from "@react-navigation/native";
 import { router, usePathname, useRouter } from "expo-router";
 import { Drawer } from "expo-router/drawer";
+import { useUser } from "../UserContext";
 import {
   Bell,
   HelpCircle,
@@ -11,30 +12,39 @@ import {
   MessageSquare,
   X,
 } from "lucide-react-native";
-import { useContext } from "react";
 import { Image, Text, TouchableOpacity, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { UserContext } from "../UserContext";
+import { postLogout } from "../services/api";
 
 function CustomDrawerContent(props: any) {
-  const { setUser } = useContext(UserContext);
+  const { setUser, setSessionId, socket } = useUser();
   const router = useRouter();
 
   const handleLogout = async () => {
     try {
-      // 1. Sign out from Firebase (The Chat Door)
+      if (socket) {
+        console.log("🔌 Disconnecting socket...");
+        socket.disconnect(); 
+      }
+
       if (auth().currentUser) {
         await auth().signOut();
         console.log("Firebase signed out");
       }
 
-      // 2. Clear Postgres session cookies
+      try {
+        await postLogout(); // This hits your /api/logout route
+        console.log("🖥️ Backend session destroyed");
+      } catch (apiErr) {
+        console.warn("Backend logout failed, clearing cookies anyway", apiErr);
+      }
       await CookieManager.clearAll();
 
-      // 3. Reset local state
+      if (setSessionId) {
+        setSessionId("");
+      }
       setUser(null);
 
-      // 4. Redirect to Login
       router.replace("/");
     } catch (e) {
       console.error("Logout failed", e);
@@ -83,7 +93,7 @@ function CustomDrawerContent(props: any) {
 
 export default function AppLayout() {
   const pathname = usePathname();
-  const { badgeCount } = useContext(UserContext);
+  const { badgeCount } = useUser();
 
   const getHeaderTitle = () => {
     if (pathname.includes("community")) return "Community";
