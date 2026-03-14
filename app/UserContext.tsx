@@ -88,7 +88,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     });
 
     newSocket.on("initial_online_list", (ids: string[]) => {
-      console.log("Setting initial online users:", ids);
+      // console.log("Setting initial online users:", ids);
       setOnlineUsers(ids);
     });
 

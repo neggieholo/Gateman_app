@@ -2,6 +2,7 @@ import CookieManager from "@react-native-cookies/cookies";
 import { useRouter } from "expo-router";
 import React, { useContext, useState } from "react";
 import {
+  Alert,
   Image,
   ImageBackground,
   KeyboardAvoidingView,
@@ -13,7 +14,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "../components/Button";
 import { FormInput } from "../components/FormInput";
-import registerForPushNotificationsAsync, { postLogin, postRegister } from "../services/api";
+import registerForPushNotificationsAsync, {
+  postLogin,
+  postRegister,
+} from "../services/api";
 import { UserContext } from "../UserContext";
 
 export default function LoginScreen() {
@@ -31,7 +35,6 @@ export default function LoginScreen() {
     setError("");
     console.log("Login details:", email, password);
     try {
-
       try {
         const pushTokenResponse = await registerForPushNotificationsAsync();
         if (pushTokenResponse) {
@@ -41,7 +44,6 @@ export default function LoginScreen() {
       } catch (pushErr) {
         console.warn("Push token failed, continuing login:", pushErr);
       }
-
 
       await CookieManager.clearAll();
       console.log("🧹 Cookie Jar Wiped!");
@@ -71,11 +73,27 @@ export default function LoginScreen() {
     }
   };
 
+  const validateEmail = (text: string) => {
+    const cleanedEmail = text.trim();
+    const reg = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (reg.test(cleanedEmail)) {
+      return true;
+    }
+    return false;
+  };
+
   const handleRegister = async () => {
+    const trimmedEmail = email.trim(); 
+
+    if (!validateEmail(trimmedEmail)) {
+      Alert.alert("Invalid Email", "Please check your email format.");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
-      const response = await postRegister(name, email, password);
+      const response = await postRegister(name, trimmedEmail, password);
       if (response.success) {
         // Save user in context
         setUser(response.user);
@@ -103,7 +121,6 @@ export default function LoginScreen() {
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           className="flex-1 px-6"
         >
-
           <View className="w-full flex-row justify-center items-center mt-12 px-4 rounded-lg">
             <Image
               source={require("../../assets/images/gateman_w_nobg_cropped.png")}
@@ -176,6 +193,9 @@ export default function LoginScreen() {
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="email"
                 />
                 <FormInput
                   placeholder="Password"

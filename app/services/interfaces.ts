@@ -1,3 +1,5 @@
+import { FirebaseFirestoreTypes } from "@react-native-firebase/firestore";
+
 export interface Estate {
   id: string;
   name: string;
@@ -48,4 +50,20 @@ export interface tempNotification {
   from: string;  
   message: string; 
   reason: string; 
+}
+
+export interface GroupMember {
+  user_id: string;
+  clearedAt: FirebaseFirestoreTypes.Timestamp | null;
+}
+
+export interface ChatGroup {
+  _id: string; // Firestore doc ID
+  id?: string; 
+  name: string;
+  members: GroupMember[]; // Changed from string[] to GroupMember[]
+  isGroup: true;
+  avatar?: string | null;
+  createdBy?: string;
+  createdAt?: any;
 }

@@ -3,7 +3,15 @@ import firestore, {
   FirebaseFirestoreTypes,
 } from "@react-native-firebase/firestore";
 import { useHeaderHeight } from "@react-navigation/elements";
-import { ChevronLeft, MoreVertical, Phone, Search, ShieldAlert, Trash2, Users } from "lucide-react-native";
+import {
+  ChevronLeft,
+  MoreVertical,
+  Phone,
+  Search,
+  ShieldAlert,
+  Trash2,
+  Users,
+} from "lucide-react-native";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -22,21 +30,28 @@ import { Bubble, GiftedChat, IMessage } from "react-native-gifted-chat";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useUser } from "./UserContext";
 import UserProfileModal from "./components/ChatProfile";
+import CreateGroupModal, {
+  GroupNameModal,
+} from "./components/CreateChatGroupModal";
 import { fetchAllTenants } from "./services/api";
-import { User } from "./services/interfaces";
+import { ChatGroup, User } from "./services/interfaces";
 
 const ChatManager = () => {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
-  // const keyboardOffset =
-  //   Platform.OS === "ios" ? headerHeight + insets.bottom + 10 : 0;
+  const [isCreateGroupMode, setIsCreateGroupMode] = useState(false);
+  const [selectedGroupMembers, setSelectedGroupMembers] = useState<string[]>(
+    [],
+  );
+  const [groupName, setGroupName] = useState("");
+  const [isGroupNameModalVisible, setGroupNameModalVisible] = useState(false);
   const { user, onlineUsers, socket, remoteTyping } = useUser();
 
   const [loading, setLoading] = useState(true);
   const [tenants, setTenants] = useState<Partial<User>[]>([]);
-  const [selectedTenant, setSelectedTenant] = useState<Partial<User> | null>(
-    null,
-  );
+  const [selectedTenant, setSelectedTenant] = useState<
+    Partial<User> | ChatGroup | null
+  >(null);
   const [messages, setMessages] = useState<IMessage[]>([]);
   const [otherUserLastRead, setOtherUserLastRead] =
     useState<FirebaseFirestoreTypes.Timestamp | null>(null);
@@ -50,8 +65,14 @@ const ChatManager = () => {
   const [showMenu, setShowMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showGlobalMenu, setShowGlobalMenu] = useState(false);
+  const [currentTab, setCurrentTab] = useState<"residents" | "groups">(
+    "residents",
+  );
+  const [groups, setGroups] = useState<any[]>([]);
+  const isGroupChat = !!(selectedTenant && "isGroup" in selectedTenant);
 
   useEffect(() => {
+    if (!user?.estate_id) return;
     const initializeChatSystem = async () => {
       try {
         const [tenantRes] = await Promise.all([
@@ -70,7 +91,7 @@ const ChatManager = () => {
     };
 
     initializeChatSystem();
-  }, [user?.chatToken]);
+  }, [user?.chatToken, user?.estate_id]);
 
   useEffect(() => {
     if (!user?.id || !user.estate_id) return;
@@ -132,6 +153,28 @@ const ChatManager = () => {
     return () => unsubscribeReverseBlock();
   }, [selectedTenant?.id, user?.id, user?.estate_id]);
 
+  useEffect(() => {
+    // if (!user?.id || !user.estate_id || currentTab !== "groups") return;
+    if (!user?.id || !user.estate_id) return;
+    const unsubscribe = firestore()
+      .collection("estate_chats")
+      .doc(user.estate_id)
+      .collection("groups")
+      .where("members", "array-contains", user.id.toString())
+      .onSnapshot(
+        (snap) => {
+          const fetchedGroups = snap.docs.map((doc) => ({
+            ...doc.data(),
+            _id: doc.id,
+          }));
+          setGroups(fetchedGroups);
+        },
+        (err) => console.error("Error fetching groups:", err),
+      );
+
+    return () => unsubscribe();
+  }, [user?.id, user?.estate_id, currentTab]);
+
   const visibleTenants = useMemo(() => {
     return tenants.filter((t) => {
       const id = t.id?.toString() || "";
@@ -151,44 +194,61 @@ const ChatManager = () => {
   useEffect(() => {
     if (!selectedTenant || !user || !user.estate_id) return;
 
-    const roomId = [user.id, selectedTenant.id].sort().join("_");
+    const chatCollection = isGroupChat ? "groups" : "private_chats";
+    const roomId = isGroupChat
+      ? selectedTenant._id || selectedTenant.id
+      : [user.id, selectedTenant.id].sort().join("_");
+
     const roomRef = firestore()
       .collection("estate_chats")
       .doc(user.estate_id)
-      .collection("private_chats")
+      .collection(chatCollection)
       .doc(roomId);
 
+    // 1. Snapshot for Room/Group metadata
     const unsubscribeRoom = roomRef.onSnapshot((doc) => {
-      const isExisting =
-        typeof doc.exists === "function" ? doc.exists() : doc.exists;
-      if (doc && isExisting) {
-        const data = doc.data();
+      if (!doc.exists) return;
+      const data = doc.data();
+
+      if (!isGroupChat) {
         const lastRead = data?.[`lastRead_${selectedTenant.id}`];
         if (lastRead) setOtherUserLastRead(lastRead);
       }
     });
 
-    const unsubscribeMessages = roomRef
+    // 2. Fetch Messages with "clearedAt" filter
+    let messageQuery = roomRef
       .collection("messages")
-      .orderBy("createdAt", "desc")
-      .limit(50)
-      .onSnapshot((snap) => {
-        if (!snap) return;
-        const msgs = snap
-          .docChanges()
-          .filter((change) => change.type === "added")
-          .map((change) => {
-            const data = change.doc.data();
-            return {
-              _id: change.doc.id,
-              text: data.text,
-              createdAt: data.createdAt?.toDate() || new Date(),
-              user: data.user,
-            } as IMessage;
-          });
+      .orderBy("createdAt", "desc");
 
-        setMessages((prev) => GiftedChat.append(prev, msgs));
-      });
+    // If it's a group, find the user's specific clearedAt timestamp
+    if (isGroupChat && "members" in selectedTenant) {
+      const myData = selectedTenant.members.find(
+        (m: any) => (m.user_id || m) === user?.id?.toString(),
+      );
+      if (myData?.clearedAt) {
+        // Only show messages created AFTER the user's clear timestamp
+        messageQuery = messageQuery.where("createdAt", ">", myData.clearedAt);
+      }
+    }
+
+    const unsubscribeMessages = messageQuery.limit(50).onSnapshot((snap) => {
+      if (!snap) return;
+      const msgs = snap
+        .docChanges()
+        .filter((change) => change.type === "added")
+        .map((change) => {
+          const data = change.doc.data();
+          return {
+            _id: change.doc.id,
+            text: data.text,
+            createdAt: data.createdAt?.toDate() || new Date(),
+            user: data.user,
+          } as IMessage;
+        });
+
+      setMessages((prev) => GiftedChat.append(prev, msgs));
+    });
 
     return () => {
       unsubscribeMessages();
@@ -199,7 +259,10 @@ const ChatManager = () => {
 
   const onSend = (newMsgs: IMessage[] = []) => {
     if (!selectedTenant || !user?.estate_id) return;
-    const roomId = [user.id, selectedTenant.id].sort().join("_");
+    const chatCollection = isGroupChat ? "groups" : "private_chats";
+    const roomId = isGroupChat
+      ? selectedTenant._id || selectedTenant.id
+      : [user.id, selectedTenant.id].sort().join("_");
 
     const message = {
       text: newMsgs[0].text,
@@ -214,7 +277,7 @@ const ChatManager = () => {
     firestore()
       .collection("estate_chats")
       .doc(user.estate_id)
-      .collection("private_chats")
+      .collection(chatCollection)
       .doc(roomId)
       .collection("messages")
       .add(message);
@@ -222,6 +285,7 @@ const ChatManager = () => {
 
   const markAsRead = async () => {
     if (!selectedTenant || !user?.estate_id) return;
+    if (isGroupChat) return;
     const roomId = [user.id, selectedTenant.id].sort().join("_");
 
     await firestore()
@@ -392,6 +456,67 @@ const ChatManager = () => {
     return () => unsubscribe();
   }, [selectedTenant?.id, user?.id, user?.estate_id]);
 
+  const handleFinalizeGroup = async () => {
+    if (!groupName.trim() || selectedGroupMembers.length < 2) {
+      Alert.alert(
+        "Error",
+        "Please provide a name and select at least 2 residents.",
+      );
+      return;
+    }
+
+    const groupId = `group_${user?.id}_${Date.now()}`;
+    const memberObjects = [...selectedGroupMembers, user?.id?.toString()].map(
+      (id) => ({
+        user_id: id,
+        clearedAt: null, // Initial state: history is fully visible
+      }),
+    );
+    const groupData = {
+      id: groupId,
+      name: groupName,
+      createdAt: firestore.FieldValue.serverTimestamp(),
+      createdBy: user?.id,
+      members: memberObjects,
+      isGroup: true,
+      avatar: null, // You can add group avatar logic later
+    };
+
+    try {
+      await firestore()
+        .collection("estate_chats")
+        .doc(user?.estate_id)
+        .collection("groups")
+        .doc(groupId)
+        .set(groupData);
+
+      setGroupNameModalVisible(false);
+      setIsCreateGroupMode(false);
+      setSelectedGroupMembers([]);
+      setGroupName("");
+
+      Alert.alert("Success", `${groupName} has been created!`);
+    } catch (err) {
+      Alert.alert("Error", "Failed to create group.");
+    }
+  };
+
+  const toggleMember = (id: string) => {
+    setSelectedGroupMembers((prev) =>
+      prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id],
+    );
+  };
+
+  if (!user?.estate_id) {
+    return (
+      <View className="flex-1 justify-center items-center bg-white p-6">
+        <Text className="text-gray-400 text-center font-medium">
+          You must join an estate to send and receive messages.
+        </Text>
+      </View>
+    );
+  }
+
   if (loading) {
     return (
       <View className="flex-1 justify-center items-center bg-white">
@@ -456,9 +581,11 @@ const ChatManager = () => {
               <Text className="font-bold text-lg text-gray-900">
                 {selectedTenant.name}
               </Text>
-              <Text className="text-gray-400 text-[10px] font-bold uppercase">
-                Block {selectedTenant.block} • Unit {selectedTenant.unit}
-              </Text>
+              {!isGroupChat && "block" in selectedTenant && (
+                <Text className="text-gray-400 text-[10px] font-bold uppercase">
+                  Block {selectedTenant.block} • Unit {selectedTenant.unit}
+                </Text>
+              )}
               {onlineUsers.includes(selectedTenant.id?.toString() || "") && (
                 <View className="absolute right-5 top-5 w-3 h-3 bg-green-500 rounded-full" />
               )}
@@ -517,6 +644,20 @@ const ChatManager = () => {
             messages={messages}
             onSend={onSend}
             user={{ _id: user?.id?.toString() || "0", name: user?.name }}
+            isUsernameVisible={isGroupChat}
+            renderUsername={(user) => (
+              <Text
+                style={{
+                  color: "#6366f1",
+                  fontSize: 10,
+                  marginBottom: 2,
+                  marginLeft: 10,
+                  fontWeight: "700",
+                }}
+              >
+                {user.name}
+              </Text>
+            )}
             keyboardAvoidingViewProps={{ keyboardVerticalOffset: headerHeight }}
             textInputProps={{
               onChangeText: (text) => handleTyping(text),
@@ -529,6 +670,12 @@ const ChatManager = () => {
                   renderTicks={(currentMessage) => {
                     if (currentMessage.user._id !== String(user?.id))
                       return null;
+                    if (isGroupChat)
+                      return (
+                        <Text style={{ color: "#9ca3af", fontSize: 10 }}>
+                          ✓
+                        </Text>
+                      );
                     const lastReadDate = otherUserLastRead?.toDate
                       ? otherUserLastRead.toDate()
                       : null;
@@ -588,6 +735,29 @@ const ChatManager = () => {
   // --- TENANT LIST VIEW ---
   return (
     <View className="flex-1 bg-gray-50">
+      <View className="flex-row bg-white border-b border-gray-100 px-4 pb-2 mt-2">
+        <TouchableOpacity
+          onPress={() => setCurrentTab("residents")}
+          className={`pb-2 mr-6 ${currentTab === "residents" ? "border-b-2 border-indigo-500" : ""}`}
+        >
+          <Text
+            className={`font-bold ${currentTab === "residents" ? "text-indigo-600" : "text-gray-400"}`}
+          >
+            Residents
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => setCurrentTab("groups")}
+          className={`pb-2 ${currentTab === "groups" ? "border-b-2 border-indigo-500" : ""}`}
+        >
+          <Text
+            className={`font-bold ${currentTab === "groups" ? "text-indigo-600" : "text-gray-400"}`}
+          >
+            Groups
+          </Text>
+        </TouchableOpacity>
+      </View>
       <View className="p-4 bg-white border-b border-gray-100 flex-row items-center space-x-3">
         <View className="flex-1 flex-row items-center bg-gray-100 rounded-xl px-3 py-2">
           <Search size={20} color="#9ca3af" />
@@ -608,7 +778,27 @@ const ChatManager = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Global Dropdown Menu */}
+      <CreateGroupModal
+        isVisible={isCreateGroupMode}
+        onClose={() => {
+          setIsCreateGroupMode(false);
+          setSelectedGroupMembers([]);
+        }}
+        tenants={tenants}
+        selectedMembers={selectedGroupMembers}
+        onToggleMember={toggleMember}
+        onNext={() => setGroupNameModalVisible(true)}
+        insets={insets}
+      />
+
+      <GroupNameModal
+        isVisible={isGroupNameModalVisible}
+        onClose={() => setGroupNameModalVisible(false)}
+        groupName={groupName}
+        setGroupName={setGroupName}
+        onFinalize={handleFinalizeGroup}
+      />
+
       {showGlobalMenu && (
         <>
           <TouchableOpacity
@@ -623,7 +813,7 @@ const ChatManager = () => {
               className="flex-row items-center px-4 py-3 border-b border-gray-50"
               onPress={() => {
                 setShowGlobalMenu(false);
-                alert("Create Group logic here");
+                setIsCreateGroupMode(true);
               }}
             >
               <Users size={18} color="#4f46e5" />
@@ -648,28 +838,84 @@ const ChatManager = () => {
         </>
       )}
       <FlatList
-        data={visibleTenants}
-        keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            onPress={() => setSelectedTenant(item)}
-            className="flex-row items-center p-4 m-2 bg-white rounded-2xl shadow-sm border border-indigo-50"
-          >
-            <Image
-              source={{ uri: item.avatar || "https://via.placeholder.com/50" }}
-              className="w-12 h-12 rounded-full bg-gray-200"
-            />
-            <View className="ml-4">
-              <Text className="font-bold text-gray-800">{item.name}</Text>
-              <Text className="text-gray-400 text-xs">
-                Block {item.block} • Unit {item.unit}
-              </Text>
-            </View>
-            {onlineUsers.includes(item.id?.toString() || "") && (
-              <View className="absolute right-4 w-3 h-3 bg-green-500 rounded-full" />
-            )}
-          </TouchableOpacity>
-        )}
+        data={currentTab === "residents" ? filteredTenants : groups}
+        keyExtractor={(item) =>
+          item.id?.toString() ||
+          item._id?.toString() ||
+          Math.random().toString()
+        }
+        renderItem={({ item }) => {
+          if (currentTab === "residents") {
+            return (
+              <TouchableOpacity
+                onPress={() => {
+                  if (isCreateGroupMode) {
+                    const id = item.id!.toString();
+                    setSelectedGroupMembers((prev) =>
+                      prev.includes(id)
+                        ? prev.filter((m) => m !== id)
+                        : [...prev, id],
+                    );
+                  } else {
+                    setSelectedTenant(item);
+                  }
+                }}
+                className={`flex-row items-center p-4 m-2 rounded-2xl border ${
+                  selectedGroupMembers.includes(item.id?.toString() || "")
+                    ? "bg-indigo-50 border-indigo-500"
+                    : "bg-white border-indigo-50"
+                }`}
+              >
+                <Image
+                  source={{
+                    uri: item.avatar || "https://via.placeholder.com/50",
+                  }}
+                  className="w-12 h-12 rounded-full bg-gray-200"
+                />
+                <View className="ml-4">
+                  <Text className="font-bold text-gray-800">{item.name}</Text>
+                  <Text className="text-gray-400 text-xs">
+                    Block {item.block} • Unit {item.unit}
+                  </Text>
+                </View>
+                {onlineUsers.includes(item.id?.toString() || "") && (
+                  <View className="absolute right-4 w-3 h-3 bg-green-500 rounded-full" />
+                )}
+                {isCreateGroupMode && (
+                  <View
+                    className={`ml-auto w-6 h-6 rounded-full border-2 ${
+                      selectedGroupMembers.includes(item.id?.toString() || "")
+                        ? "bg-indigo-500 border-indigo-500"
+                        : "border-gray-300"
+                    }`}
+                  />
+                )}
+              </TouchableOpacity>
+            );
+          }
+
+          return (
+            <TouchableOpacity
+              onPress={() => setSelectedTenant(item)}
+              className="flex-row items-center p-4 m-2 rounded-2xl border bg-white border-indigo-50"
+            >
+              <View className="w-12 h-12 rounded-full bg-indigo-100 items-center justify-center">
+                <Users size={24} color="#4f46e5" />
+              </View>
+              <View className="ml-4 flex-1">
+                <Text className="font-bold text-gray-800">{item.name}</Text>
+                <Text className="text-gray-400 text-xs">
+                  {item.members?.length || 0} Members
+                </Text>
+              </View>
+              <ChevronLeft
+                size={20}
+                color="#cbd5e1"
+                style={{ transform: [{ rotate: "180deg" }] }}
+              />
+            </TouchableOpacity>
+          );
+        }}
       />
     </View>
   );
