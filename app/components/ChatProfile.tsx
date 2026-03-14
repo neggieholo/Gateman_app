@@ -1,4 +1,4 @@
-import { Ban, Calendar, Mail, Phone, ShieldCheck, X } from "lucide-react-native";
+import { Ban, Calendar, Mail, Phone, ShieldCheck, UserMinus, X } from "lucide-react-native";
 import React from "react";
 import {
   Alert,
@@ -183,6 +183,150 @@ export default function UserProfileModal({
             </View>
 
             <View className="h-10" />
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+interface ParticipantProfileProps {
+  isVisible: boolean;
+  onClose: () => void;
+  user: any;
+  isOnline?: boolean;
+  isAdminView: boolean; // Whether the viewer has rights to remove people
+  onRemoveUser: (id: string, name: string) => void;
+  onStartCall: (user: any) => void;
+}
+
+export function GroupUserProfileModal({
+  isVisible,
+  onClose,
+  user,
+  isOnline,
+  isAdminView,
+  onRemoveUser,
+  onStartCall,
+}: ParticipantProfileProps) {
+  if (!user) return null;
+
+  const handleAppCall = () => {
+    if (!isOnline) {
+      Alert.alert(
+        "Resident Offline",
+        "This resident isn't connected to the app right now."
+      );
+      return;
+    }
+    onStartCall(user);
+  };
+
+  return (
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={isVisible}
+      onRequestClose={onClose}
+    >
+      <View className="flex-1 justify-end bg-black/60">
+        <View className="bg-white rounded-t-[40px] h-[85%] overflow-hidden">
+          
+          {/* Header Action Bar */}
+          <View className="flex-row justify-between items-center px-6 pt-6 pb-4">
+            <TouchableOpacity
+              onPress={onClose}
+              className="bg-gray-100 p-2 rounded-full"
+            >
+              <X size={24} color="#000" />
+            </TouchableOpacity>
+            <Text className="text-lg font-bold text-gray-800">Resident Profile</Text>
+            <View className="w-10" /> {/* Spacer */}
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false} className="px-6">
+            {/* Avatar Section */}
+            <div className="items-center mt-4 mb-8">
+              <View className="relative">
+                <Image
+                  source={{ uri: user.avatar || "https://via.placeholder.com/150" }}
+                  className="w-32 h-32 rounded-full border-4 border-indigo-50"
+                />
+                {isOnline && (
+                  <View className="absolute bottom-1 right-1 bg-green-500 w-6 h-6 rounded-full border-4 border-white" />
+                )}
+              </View>
+              <Text className="text-2xl font-black text-gray-900 mt-4 text-center">
+                {user.name}
+              </Text>
+              <View className="bg-indigo-50 px-4 py-1.5 rounded-full mt-2">
+                <Text className="text-indigo-600 text-[10px] font-black uppercase tracking-widest">
+                  Verified Resident
+                </Text>
+              </View>
+            </div>
+
+            {/* Location Stats */}
+            <View className="flex-row justify-between mb-8">
+              <View className="bg-gray-50 flex-1 rounded-2xl p-4 items-center mr-2 border border-gray-100">
+                <Text className="text-indigo-600 font-black text-xl">
+                  {user.block || "—"}
+                </Text>
+                <Text className="text-gray-400 text-[10px] font-bold uppercase">Block</Text>
+              </View>
+              <View className="bg-gray-50 flex-1 rounded-2xl p-4 items-center ml-2 border border-gray-100">
+                <Text className="text-indigo-600 font-black text-xl">
+                  {user.unit || "—"}
+                </Text>
+                <Text className="text-gray-400 text-[10px] font-bold uppercase">Unit</Text>
+              </View>
+            </View>
+
+            {/* Info Cards */}
+            <View className="space-y-3">
+              <View className="flex-row items-center bg-gray-50 p-4 rounded-3xl border border-gray-100">
+                <View className="bg-white p-2 rounded-xl shadow-sm">
+                  <Mail size={20} color="#4f46e5" />
+                </View>
+                <View className="ml-4">
+                  <Text className="text-gray-400 text-[10px] font-bold uppercase">Email Address</Text>
+                  <Text className="text-gray-800 font-bold">{user.email || 'Private'}</Text>
+                </View>
+              </View>
+
+              <View className="flex-row items-center bg-gray-50 p-4 rounded-3xl border border-gray-100">
+                <View className="bg-white p-2 rounded-xl shadow-sm">
+                  <Calendar size={20} color="#4f46e5" />
+                </View>
+                <View className="ml-4">
+                  <Text className="text-gray-400 text-[10px] font-bold uppercase">Joined Estate</Text>
+                  <Text className="text-gray-800 font-bold">January 2026</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Action Buttons */}
+            <View className="mt-8 mb-10 space-y-3">
+              <TouchableOpacity
+                onPress={handleAppCall}
+                className={`${isOnline ? "bg-indigo-600" : "bg-gray-300"} py-4 rounded-2xl flex-row justify-center items-center shadow-sm`}
+              >
+                <Phone size={20} color="white" />
+                <Text className="text-white font-bold text-lg ml-2">Voice Call</Text>
+              </TouchableOpacity>
+
+              {isAdminView && (
+                <TouchableOpacity
+                  onPress={() => onRemoveUser(user.id?.toString(), user.name)}
+                  className="bg-red-50 py-4 rounded-2xl flex-row justify-center items-center border border-red-100"
+                >
+                  <UserMinus size={20} color="#ef4444" />
+                  <Text className="text-red-500 font-bold text-lg ml-2">
+                    Remove from Group
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </ScrollView>
         </View>
       </View>

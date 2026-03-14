@@ -61,7 +61,8 @@ export interface ChatGroup {
   _id: string; // Firestore doc ID
   id?: string; 
   name: string;
-  members: GroupMember[]; // Changed from string[] to GroupMember[]
+  members: GroupMember[];
+  admins: string[];
   isGroup: true;
   avatar?: string | null;
   createdBy?: string;

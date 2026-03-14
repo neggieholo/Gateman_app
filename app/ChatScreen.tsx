@@ -5,6 +5,7 @@ import firestore, {
 import { useHeaderHeight } from "@react-navigation/elements";
 import {
   ChevronLeft,
+  LogOut,
   MoreVertical,
   Phone,
   Search,
@@ -33,6 +34,7 @@ import UserProfileModal from "./components/ChatProfile";
 import CreateGroupModal, {
   GroupNameModal,
 } from "./components/CreateChatGroupModal";
+import GroupProfileModal from "./components/GroupChatProfile";
 import { fetchAllTenants } from "./services/api";
 import { ChatGroup, User } from "./services/interfaces";
 
@@ -70,7 +72,12 @@ const ChatManager = () => {
   );
   const [groups, setGroups] = useState<any[]>([]);
   const isGroupChat = !!(selectedTenant && "isGroup" in selectedTenant);
+  const myId = user?.id?.toString();
+  const isCreator = isGroupChat ? selectedTenant.createdBy === myId : false;
+  const isAdmin =
+    isGroupChat && myId ? selectedTenant.admins.includes(myId) : false;
 
+  //initializer
   useEffect(() => {
     if (!user?.estate_id) return;
     const initializeChatSystem = async () => {
@@ -93,6 +100,7 @@ const ChatManager = () => {
     initializeChatSystem();
   }, [user?.chatToken, user?.estate_id]);
 
+  //block function
   useEffect(() => {
     if (!user?.id || !user.estate_id) return;
 
@@ -119,6 +127,7 @@ const ChatManager = () => {
     return () => unsubscribe();
   }, [user?.id, user?.estate_id]);
 
+  //unblock function
   useEffect(() => {
     if (!selectedTenant?.id || !user?.id || !user.estate_id) return;
 
@@ -153,6 +162,7 @@ const ChatManager = () => {
     return () => unsubscribeReverseBlock();
   }, [selectedTenant?.id, user?.id, user?.estate_id]);
 
+  //group fetch
   useEffect(() => {
     // if (!user?.id || !user.estate_id || currentTab !== "groups") return;
     if (!user?.id || !user.estate_id) return;
@@ -160,7 +170,7 @@ const ChatManager = () => {
       .collection("estate_chats")
       .doc(user.estate_id)
       .collection("groups")
-      .where("members", "array-contains", user.id.toString())
+      .where("memberIds", "array-contains", user.id.toString())
       .onSnapshot(
         (snap) => {
           const fetchedGroups = snap.docs.map((doc) => ({
@@ -191,6 +201,7 @@ const ChatManager = () => {
     );
   }, [visibleTenants, searchQuery]);
 
+  //message fetch
   useEffect(() => {
     if (!selectedTenant || !user || !user.estate_id) return;
 
@@ -342,6 +353,7 @@ const ChatManager = () => {
     }
   };
 
+  //mark as read
   useEffect(() => {
     if (selectedTenant && user?.estate_id) {
       markAsRead();
@@ -367,52 +379,71 @@ const ChatManager = () => {
   };
 
   const handleClearChat = () => {
-    Alert.alert(
-      "Clear Chat",
-      "This will permanently delete all messages in this conversation.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete All",
-          style: "destructive",
-          onPress: async () => {
-            if (!selectedTenant?.id || !user?.estate_id) return;
+    const title = isGroupChat ? "Clear Group History" : "Clear Chat";
+    const message = isGroupChat
+      ? "This will hide all previous messages for YOU. Others will still see them."
+      : "This will permanently delete your copy of this conversation.";
 
-            const roomId = [user.id, selectedTenant.id].sort().join("_");
-            const messagesRef = firestore()
-              .collection("estate_chats")
-              .doc(user.estate_id)
-              .collection("private_chats")
-              .doc(roomId)
-              .collection("messages");
+    Alert.alert(title, message, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Clear",
+        style: "destructive",
+        onPress: async () => {
+          if (!selectedTenant || !user?.estate_id) return;
+          const roomId = isGroupChat
+            ? selectedTenant._id || selectedTenant.id
+            : [user.id, selectedTenant.id].sort().join("_");
 
-            try {
-              // Fetch all message docs
-              const snapshot = await messagesRef.get();
+          try {
+            if (isGroupChat) {
+              const groupRef = firestore()
+                .collection("estate_chats")
+                .doc(user.estate_id)
+                .collection("groups")
+                .doc(roomId);
 
-              if (snapshot.empty) {
-                setMessages([]);
-                return;
-              }
+              const doc = await groupRef.get();
+              const currentMembers = doc.data()?.members || [];
 
-              const batch = firestore().batch();
-              snapshot.docs.forEach((doc) => {
-                batch.delete(doc.ref);
+              const updatedMembers = currentMembers.map((m: any) => {
+                const mId = typeof m === "string" ? m : m.user_id;
+                if (mId === user?.id?.toString()) {
+                  return {
+                    user_id: mId,
+                    clearedAt: firestore.FieldValue.serverTimestamp(),
+                  };
+                }
+                return typeof m === "string"
+                  ? { user_id: m, clearedAt: null }
+                  : m;
               });
 
-              await batch.commit();
+              await groupRef.update({ members: updatedMembers });
+            } else {
+              // Private chat: Physical delete
+              const messagesRef = firestore()
+                .collection("estate_chats")
+                .doc(user.estate_id)
+                .collection("private_chats")
+                .doc(roomId)
+                .collection("messages");
 
-              // Success: Wipe local state
-              setMessages([]);
-              Alert.alert("Success", "Chat history cleared.");
-            } catch (err) {
-              console.error("Clear chat error:", err);
-              Alert.alert("Error", "Failed to clear messages.");
+              const snapshot = await messagesRef.get();
+              const batch = firestore().batch();
+              snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+              await batch.commit();
             }
-          },
+
+            setMessages([]);
+            setShowMenu(false);
+            Alert.alert("Success", "Chat cleared.");
+          } catch (err) {
+            Alert.alert("Error", "Failed to clear chat.");
+          }
         },
-      ],
-    );
+      },
+    ]);
   };
 
   useEffect(() => {
@@ -465,21 +496,23 @@ const ChatManager = () => {
       return;
     }
 
+    const myId = user?.id?.toString();
     const groupId = `group_${user?.id}_${Date.now()}`;
-    const memberObjects = [...selectedGroupMembers, user?.id?.toString()].map(
-      (id) => ({
-        user_id: id,
-        clearedAt: null, // Initial state: history is fully visible
-      }),
-    );
+    const memberObjects = [...selectedGroupMembers, myId].map((id) => ({
+      user_id: id,
+      clearedAt: null, // Initial state: history is fully visible
+    }));
+    const memberIds = [...selectedGroupMembers, myId];
     const groupData = {
       id: groupId,
       name: groupName,
       createdAt: firestore.FieldValue.serverTimestamp(),
       createdBy: user?.id,
       members: memberObjects,
+      memberIds: memberIds,
+      admins: [myId],
       isGroup: true,
-      avatar: null, // You can add group avatar logic later
+      avatar: null,
     };
 
     try {
@@ -499,6 +532,61 @@ const ChatManager = () => {
     } catch (err) {
       Alert.alert("Error", "Failed to create group.");
     }
+  };
+
+  const handleExitGroup = async () => {
+    if (!selectedTenant || !user?.id || !isGroupChat) return;
+
+    const groupId = selectedTenant._id || selectedTenant.id;
+    const myId = user.id.toString();
+    const group = selectedTenant as ChatGroup;
+
+    const isAdmin = group.admins?.includes(myId);
+    const otherAdmins = group.admins?.filter((id) => id !== myId) || [];
+    const currentMembers = group.members || [];
+
+    if (isAdmin && otherAdmins.length === 0 && currentMembers.length > 1) {
+      Alert.alert(
+        "Admin Required",
+        "You are the only admin. Please appoint another admin before leaving or delete the group.",
+        [{ text: "OK" }],
+      );
+      return;
+    }
+
+    Alert.alert("Exit Group", "Are you sure you want to leave this group?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Leave",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            const groupRef = firestore()
+              .collection("estate_chats")
+              .doc(user.estate_id)
+              .collection("groups")
+              .doc(groupId);
+
+            // 3. Filter members list (identifying user_id inside the object)
+            const updatedMembers = currentMembers.filter(
+              (m) => (typeof m === "string" ? m : m.user_id) !== myId,
+            );
+
+            await groupRef.update({
+              members: updatedMembers,
+              admins: firestore.FieldValue.arrayRemove(myId),
+            });
+
+            setSelectedTenant(null);
+            setMessages([]);
+            setShowMenu(false);
+          } catch (err) {
+            console.error("Exit error:", err);
+            Alert.alert("Error", "Failed to exit group.");
+          }
+        },
+      },
+    ]);
   };
 
   const toggleMember = (id: string) => {
@@ -557,22 +645,27 @@ const ChatManager = () => {
           className="flex-row items-center p-4 border-b border-gray-100 bg-white"
         >
           <TouchableOpacity
-            onPress={() => setSelectedTenant(null)}
+            onPress={() => {
+              setSelectedTenant(null);
+              setShowMenu(false);
+            }}
             className="pr-2 mr-12"
           >
             <ChevronLeft size={28} color="#000" />
           </TouchableOpacity>
 
           <View className="flex-1 flex-row justify-center items-center">
-            <TouchableOpacity onPress={() => setImageModalVisible(true)}>
-              <Image
-                source={{
-                  uri:
-                    selectedTenant.avatar || "https://via.placeholder.com/50",
-                }}
-                className="w-10 h-10 rounded-full bg-gray-200"
-              />
-            </TouchableOpacity>
+            {!isGroupChat && (
+              <TouchableOpacity onPress={() => setImageModalVisible(true)}>
+                <Image
+                  source={{
+                    uri:
+                      selectedTenant.avatar || "https://via.placeholder.com/50",
+                  }}
+                  className="w-10 h-10 rounded-full bg-gray-200"
+                />
+              </TouchableOpacity>
+            )}
 
             <TouchableOpacity
               className="ml-3 flex-1"
@@ -629,6 +722,21 @@ const ChatManager = () => {
                       Clear Chat
                     </Text>
                   </TouchableOpacity>
+
+                  {isGroupChat && (
+                    <TouchableOpacity
+                      className="flex-row items-center px-4 py-3 border-t border-gray-50"
+                      onPress={() => {
+                        setShowMenu(false);
+                        handleExitGroup();
+                      }}
+                    >
+                      <LogOut size={18} color="#ef4444" />
+                      <Text className="ml-3 font-medium text-red-500">
+                        Exit Group
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </>
             )}
@@ -715,19 +823,31 @@ const ChatManager = () => {
           />
         </KeyboardAvoidingView>
 
-        <UserProfileModal
-          isVisible={isProfileVisible}
-          onClose={() => setIsProfileVisible(false)}
-          user={selectedTenant}
-          openImageModal={() => setImageModalVisible(true)}
-          isOnline={onlineUsers.includes(selectedTenant.id?.toString() || "")}
-          onStartCall={(user) => {
-            alert(`Starting call with ${user.name}`);
-          }}
-          onBlockUser={(userId) => {
-            handleBlockUser(userId);
-          }}
-        />
+        {!isGroupChat && (
+          <UserProfileModal
+            isVisible={isProfileVisible}
+            onClose={() => setIsProfileVisible(false)}
+            user={selectedTenant}
+            openImageModal={() => setImageModalVisible(true)}
+            isOnline={onlineUsers.includes(selectedTenant.id?.toString() || "")}
+            onStartCall={(user: any) =>
+              alert(`Starting call with ${user.name}`)
+            }
+            onBlockUser={(userId: string) => handleBlockUser(userId)}
+          />
+        )}
+
+        {isGroupChat && (
+          <GroupProfileModal
+            isVisible={isProfileVisible}
+            onClose={() => setIsProfileVisible(false)}
+            group={selectedTenant}
+            currentUser={user}
+            tenants={tenants}
+            estateId={user.estate_id}
+            setSelectedTenant={setSelectedTenant}
+          />
+        )}
       </View>
     );
   }
