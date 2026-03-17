@@ -1,3 +1,5 @@
+import { Ionicons } from "@expo/vector-icons";
+import Clipboard from "@react-native-clipboard/clipboard";
 import auth from "@react-native-firebase/auth";
 import firestore, {
   FirebaseFirestoreTypes,
@@ -27,7 +29,12 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Bubble, GiftedChat, IMessage } from "react-native-gifted-chat";
+import {
+  Bubble,
+  GiftedChat,
+  IMessage,
+  Message,
+} from "react-native-gifted-chat";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useUser } from "./UserContext";
 import UserProfileModal from "./components/ChatProfile";
@@ -81,6 +88,12 @@ const ChatManager = () => {
   const [groups, setGroups] = useState<any[]>([]);
   const isGroupChat = !!(selectedTenant && "isGroup" in selectedTenant);
   const [privateChats, setPrivateChats] = useState<ChatRoom[]>([]);
+  const [replyMessage, setReplyMessage] = useState<IMessage | null>(null);
+  const [isForwardModalVisible, setForwardModalVisible] = useState(false);
+  const [messageToForward, setMessageToForward] = useState<IMessage | null>(
+    null,
+  );
+  const [forwardSearchQuery, setForwardSearchQuery] = useState("");
   const displayName =
     selectedTenant?.name && selectedTenant.name.length > 10
       ? `${selectedTenant.name.substring(0, 20)}...`
@@ -304,24 +317,46 @@ const ChatManager = () => {
       // 3. Start the Message Listener
       unsubscribeMessages = messageQuery.limit(50).onSnapshot((snap) => {
         if (!snap) return;
-        const msgs = snap
-          .docChanges()
-          .filter((change) => change.type === "added")
-          .map((change) => {
-            const mData = change.doc.data();
-            return {
-              _id: change.doc.id,
+
+        const newMsgs: IMessage[] = [];
+        const removedIds: string[] = [];
+
+        snap.docChanges().forEach((change) => {
+          const mData = change.doc.data();
+          const messageId = change.doc.id;
+
+          if (change.type === "added") {
+            newMsgs.push({
+              _id: messageId,
               text: mData.text,
               createdAt: mData.createdAt?.toDate() || new Date(),
               user: mData.user,
-            } as IMessage;
-          });
+              replyMessage: mData.replyMessage || null,
+            } as IMessage);
+          }
+
+          if (change.type === "removed") {
+            removedIds.push(messageId);
+          }
+        });
 
         setMessages((prev) => {
-          const uniqueNewMessages = msgs.filter(
-            (newMsg) => !prev.some((oldMsg) => oldMsg._id === newMsg._id),
+          // 1. Remove deleted messages from local state
+          let updatedMessages = prev;
+          if (removedIds.length > 0) {
+            updatedMessages = prev.filter(
+              (m) => !removedIds.includes(m._id.toString()),
+            );
+          }
+
+          // 2. Filter out duplicates for new messages
+          const uniqueNewMessages = newMsgs.filter(
+            (newMsg) =>
+              !updatedMessages.some((oldMsg) => oldMsg._id === newMsg._id),
           );
-          return GiftedChat.append(prev, uniqueNewMessages);
+
+          // 3. Append the new ones to the filtered list
+          return GiftedChat.append(updatedMessages, uniqueNewMessages);
         });
       });
     });
@@ -351,6 +386,16 @@ const ChatManager = () => {
       text: newMsgs[0].text,
       createdAt: firestore.FieldValue.serverTimestamp(),
       user: { _id: myId, name: user.name, avatar: user.avatar || null },
+      replyMessage: replyMessage
+        ? {
+            _id: replyMessage._id,
+            text: replyMessage.text
+              ? replyMessage.text.substring(0, 50) +
+                (replyMessage.text.length > 50 ? "..." : "")
+              : "Photo",
+            user: isGroupChat ? replyMessage.user.name : null,
+          }
+        : null,
     });
 
     // 2. Update Counts
@@ -380,6 +425,7 @@ const ChatManager = () => {
         { merge: true },
       );
     }
+    setReplyMessage(null);
   };
 
   const markAsRead = async () => {
@@ -423,6 +469,46 @@ const ChatManager = () => {
     }
   };
 
+  //mark as read
+  useEffect(() => {
+    if (selectedTenant && user?.estate_id) {
+      markAsRead();
+    }
+  }, [selectedTenant, messages.length]);
+
+  const renderMessage = (props: any) => {
+    return (
+      <View>
+        <Message {...props} />
+      </View>
+    );
+  };
+
+  // const renderCustomView = (props: any) => {
+  //   const { currentMessage } = props;
+
+  //   if (currentMessage?.replyMessage) {
+  //     const replyText = currentMessage.replyMessage.text || "";
+  //     const truncatedText =
+  //       replyText.length > 30 ? replyText.substring(0, 30) + "..." : replyText;
+
+  //     return (
+  //       <View className="bg-white/50 border-l-4 border-white px-2 py-2 m-1 rounded-sm min-w-[150px]">
+  //         {isGroupChat && currentMessage.replyMessage.user?.name && (
+  //           <Text className="font-extrabold text-[#6366f1] text-[11px] mb-0.5">
+  //             {currentMessage.replyMessage.user.name}
+  //           </Text>
+  //         )}
+
+  //         <Text className="text-gray-600 text-[12px] leading-4">
+  //           {truncatedText}
+  //         </Text>
+  //       </View>
+  //     );
+  //   }
+  //   return null;
+  // };
+
   const handleBlockUser = async (targetId: string) => {
     if (!user?.id || !user.estate_id) return;
 
@@ -463,13 +549,6 @@ const ChatManager = () => {
       Alert.alert("Error", "Failed to block resident.");
     }
   };
-
-  //mark as read
-  useEffect(() => {
-    if (selectedTenant && user?.estate_id) {
-      markAsRead();
-    }
-  }, [selectedTenant, messages.length]);
 
   const handleTyping = (text: string) => {
     if (!socket || !selectedTenant) return;
@@ -553,6 +632,47 @@ const ChatManager = () => {
         },
       },
     ]);
+  };
+
+  const confirmDelete = (message: IMessage) => {
+    Alert.alert(
+      "Delete Message",
+      "Are you sure you want to delete this message?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => handleDelete(message),
+        },
+      ],
+    );
+  };
+
+  const handleDelete = async (message: IMessage) => {
+    try {
+      const myId = user?.id?.toString();
+      // Only allow deleting your own messages, or allow admins to delete any
+      if (message.user._id !== myId) {
+        Alert.alert("Error", "You can only delete your own messages.");
+        return;
+      }
+
+      const roomId = isGroupChat
+        ? selectedTenant.id
+        : [user?.id, selectedTenant?.id].sort().join("_");
+
+      await firestore()
+        .collection("estate_chats")
+        .doc(user?.estate_id)
+        .collection(isGroupChat ? "groups" : "private_chats")
+        .doc(roomId)
+        .collection("messages")
+        .doc(message._id.toString())
+        .delete();
+    } catch (error) {
+      console.error("Delete Error:", error);
+    }
   };
 
   useEffect(() => {
@@ -875,22 +995,19 @@ const ChatManager = () => {
         >
           <GiftedChat
             messages={messages}
+            renderMessage={renderMessage}
             onSend={onSend}
             user={{ _id: user?.id?.toString() || "0", name: user?.name }}
             isUsernameVisible={isGroupChat}
-            renderUsername={(user) => (
-              <Text
-                style={{
-                  color: "#6366f1",
-                  fontSize: 10,
-                  marginBottom: 2,
-                  marginLeft: 10,
-                  fontWeight: "700",
-                }}
-              >
-                {user.name}
-              </Text>
-            )}
+            renderUsername={(user) => {
+              if (!user || !user.name) return null;
+
+              return (
+                <Text className="text-[#6366f1] text-[10px] mb-[2px] ml-[10px] font-bold">
+                  {user.name}
+                </Text>
+              );
+            }}
             keyboardAvoidingViewProps={{ keyboardVerticalOffset: headerHeight }}
             textInputProps={{
               onChangeText: (text) => handleTyping(text),
@@ -943,6 +1060,73 @@ const ChatManager = () => {
                     left: { backgroundColor: "#f3f4f6" },
                   }}
                 />
+              );
+            }}
+            reply={{
+              swipe: {
+                isEnabled: true,
+                direction: "right",
+                onSwipe: (msg) =>
+                  setReplyMessage({
+                    _id: msg._id,
+                    text: msg.text,
+                    user: msg.user,
+                    createdAt: msg.createdAt,
+                  }),
+              },
+              message: replyMessage,
+              onClear: () => setReplyMessage(null),
+
+              renderPreview: (props) => {
+                if (!replyMessage) return null;
+
+                return (
+                  <View className="bg-gray-100 border-l-4 border-[#6366f1] px-4 py-2 flex-row justify-between items-center">
+                    <View className="flex-1">
+                      {isGroupChat && replyMessage.user?.name && (
+                        <Text className="text-[#6366f1] font-bold text-[11px] mb-1">
+                          Replying to {replyMessage.user.name}
+                        </Text>
+                      )}
+
+                      <Text
+                        numberOfLines={1}
+                        className="text-gray-600 text-[13px]"
+                      >
+                        {replyMessage.text}
+                      </Text>
+                    </View>
+
+                    {/* Custom Close Button - Change color to Gray or Indigo here */}
+                    <TouchableOpacity
+                      onPress={() => setReplyMessage(null)}
+                      className="p-1"
+                    >
+                      <Ionicons name="close-circle" size={22} color="#4b5563" />
+                    </TouchableOpacity>
+                  </View>
+                );
+              },
+            }}
+            // renderCustomView={renderCustomView}
+            onLongPressMessage={(context: any, message: IMessage) => {
+              const options = ["Reply", "Copy", "Forward", "Delete", "Cancel"];
+              const cancelButtonIndex = 4;
+              context.actionSheet().showActionSheetWithOptions(
+                {
+                  options,
+                  cancelButtonIndex,
+                },
+                (buttonIndex?: number) => {
+                  if (buttonIndex === 0) setReplyMessage(message);
+                  if (buttonIndex === 1)
+                    Clipboard.setString(message.text || "");
+                  if (buttonIndex === 2) {
+                    setMessageToForward(message);
+                    setForwardModalVisible(true);
+                  }
+                  if (buttonIndex === 3) confirmDelete(message);
+                },
               );
             }}
           />
