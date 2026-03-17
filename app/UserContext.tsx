@@ -1,4 +1,5 @@
 // app/context/UserContext.tsx
+import firestore from "@react-native-firebase/firestore";
 import * as Notifications from "expo-notifications";
 import React, {
   createContext,
@@ -27,6 +28,11 @@ interface UserContextType {
   socket: Socket | null;
   onlineUsers: string[];
   remoteTyping: { [key: string]: boolean };
+  setPrivateUnread: (count: number) => void;
+  setGroupUnread: (count: number) => void;
+  privateUnread: number;
+  groupUnread: number;
+  totalUnread: number;
 }
 
 export const UserContext = createContext<UserContextType>({
@@ -44,6 +50,11 @@ export const UserContext = createContext<UserContextType>({
   socket: null,
   onlineUsers: [],
   remoteTyping: {},
+  setPrivateUnread: () => {},
+  setGroupUnread: () => {},
+  privateUnread: 0,
+  groupUnread: 0,
+  totalUnread: 0,
 });
 
 export const UserProvider = ({ children }: { children: ReactNode }) => {
@@ -62,6 +73,48 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const socketRef = useRef<Socket | null>(null);
 
   const triggerRefresh = () => setRefreshTrigger((prev) => !prev);
+  // Inside your UserProvider
+  const [privateUnread, setPrivateUnread] = useState(0);
+  const [groupUnread, setGroupUnread] = useState(0);
+  const totalUnread = privateUnread + groupUnread;
+
+  useEffect(() => {
+    if (!user?.id || !user?.estate_id) return;
+
+    const myId = user.id.toString();
+    const estateRef = firestore()
+      .collection("estate_chats")
+      .doc(user.estate_id);
+
+    // 1. Listen to Private Chats Total
+    const unsubPrivate = estateRef
+      .collection("private_chats")
+      .where(`unreadCount_${myId}`, ">", 0)
+      .onSnapshot((snap) => {
+        const count = snap.docs.reduce((sum, doc) => {
+          return sum + (doc.data()[`unreadCount_${myId}`] || 0);
+        }, 0);
+        setPrivateUnread(count);
+      });
+
+    // 2. Listen to Group Chats Total
+    const unsubGroups = estateRef
+      .collection("groups")
+      .where("memberIds", "array-contains", myId)
+      .onSnapshot((snap) => {
+        const count = snap.docs.reduce((sum, doc) => {
+          const members = doc.data().members || [];
+          const myData = members.find((m: any) => (m.user_id || m) === myId);
+          return sum + (myData?.unreadCount || 0);
+        }, 0);
+        setGroupUnread(count);
+      });
+
+    return () => {
+      unsubPrivate();
+      unsubGroups();
+    };
+  }, [user?.id, user?.estate_id]);
 
   useEffect(() => {
     if (!sessionId) {
@@ -73,7 +126,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    const newSocket = io("http://192.168.100.17:3003", {
+    const newSocket = io("http://10.21.77.113:3003", {
       path: "/api/socket.io",
       transports: ["websocket"],
       autoConnect: true,
@@ -203,6 +256,11 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         onlineUsers,
         socket: socketRef.current,
         remoteTyping,
+        privateUnread,
+        setPrivateUnread, 
+        groupUnread,
+        setGroupUnread, 
+        totalUnread,
       }}
     >
       {children}

@@ -68,3 +68,10 @@ export interface ChatGroup {
   createdBy?: string;
   createdAt?: any;
 }
+
+export interface ChatRoom {
+  id: string;
+  lastMessageAt?: any;
+  lastSenderId?: string;
+  [key: string]: any; // This allows the dynamic 'unreadCount_ID' keys
+}

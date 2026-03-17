@@ -93,7 +93,7 @@ function CustomDrawerContent(props: any) {
 
 export default function AppLayout() {
   const pathname = usePathname();
-  const { badgeCount } = useUser();
+  const { badgeCount, totalUnread } = useUser();
 
   const getHeaderTitle = () => {
     if (pathname.includes("community")) return "Community";
@@ -130,6 +130,16 @@ export default function AppLayout() {
                     className="mr-10"
                   >
                     <MessageSquare size={24} color="#ffffff" />
+                    {totalUnread > 0 && (
+                      <View
+                        className="absolute -top-1 -right-1 bg-red-500 rounded-full flex items-center justify-center border-2 border-[#2563eb]"
+                        style={{ minWidth: 18, height: 18 }}
+                      >
+                        <Text className="text-white text-[9px] font-bold">
+                          {totalUnread}
+                        </Text>
+                      </View>
+                    )}
                   </TouchableOpacity>
 
                   {/* Notification Bell */}

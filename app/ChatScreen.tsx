@@ -36,7 +36,7 @@ import CreateGroupModal, {
 } from "./components/CreateChatGroupModal";
 import GroupProfileModal from "./components/GroupChatProfile";
 import { fetchAllTenants } from "./services/api";
-import { ChatGroup, User } from "./services/interfaces";
+import { ChatGroup, ChatRoom, User } from "./services/interfaces";
 
 const ChatManager = () => {
   const insets = useSafeAreaInsets();
@@ -47,7 +47,15 @@ const ChatManager = () => {
   );
   const [groupName, setGroupName] = useState("");
   const [isGroupNameModalVisible, setGroupNameModalVisible] = useState(false);
-  const { user, onlineUsers, socket, remoteTyping } = useUser();
+  const {
+    user,
+    onlineUsers,
+    socket,
+    remoteTyping,
+    privateUnread,
+    groupUnread,
+    totalUnread,
+  } = useUser();
 
   const [loading, setLoading] = useState(true);
   const [tenants, setTenants] = useState<Partial<User>[]>([]);
@@ -72,10 +80,15 @@ const ChatManager = () => {
   );
   const [groups, setGroups] = useState<any[]>([]);
   const isGroupChat = !!(selectedTenant && "isGroup" in selectedTenant);
+  const [privateChats, setPrivateChats] = useState<ChatRoom[]>([]);
+  const displayName =
+    selectedTenant?.name && selectedTenant.name.length > 10
+      ? `${selectedTenant.name.substring(0, 20)}...`
+      : selectedTenant?.name || "Chat";
   const myId = user?.id?.toString();
-  const isCreator = isGroupChat ? selectedTenant.createdBy === myId : false;
-  const isAdmin =
-    isGroupChat && myId ? selectedTenant.admins.includes(myId) : false;
+  // const isCreator = isGroupChat ? selectedTenant.createdBy === myId : false;
+  // const isAdmin =
+  //   isGroupChat && myId ? selectedTenant.admins.includes(myId) : false;
 
   //initializer
   useEffect(() => {
@@ -185,6 +198,18 @@ const ChatManager = () => {
     return () => unsubscribe();
   }, [user?.id, user?.estate_id, currentTab]);
 
+  const activeGroupData = useMemo(() => {
+    if (!isGroupChat || !selectedTenant) return null;
+
+    // Find the group in your live 'groups' state that matches the one being viewed
+    const liveGroup = groups.find(
+      (g) => g._id === (selectedTenant._id || selectedTenant.id),
+    );
+
+    // Fallback to selectedTenant if not found yet to avoid null errors during transitions
+    return liveGroup || selectedTenant;
+  }, [groups, selectedTenant, isGroupChat]);
+
   const visibleTenants = useMemo(() => {
     return tenants.filter((t) => {
       const id = t.id?.toString() || "";
@@ -201,6 +226,35 @@ const ChatManager = () => {
     );
   }, [visibleTenants, searchQuery]);
 
+  //chatroom fetch
+  useEffect(() => {
+    if (!user?.id || !user?.estate_id) return;
+
+    const myId = user.id.toString();
+    const unsubscribe = firestore()
+      .collection("estate_chats")
+      .doc(user.estate_id)
+      .collection("private_chats")
+      .where("memberIds", "array-contains", myId)
+      .onSnapshot(
+        (snapshot) => {
+          if (snapshot) {
+            const chats = snapshot.docs.map((doc) => ({
+              id: doc.id,
+              ...doc.data(),
+            })) as ChatRoom[];
+
+            setPrivateChats(chats);
+          }
+        },
+        (error) => {
+          console.error("Error listening to private chats:", error);
+        },
+      );
+
+    return () => unsubscribe();
+  }, [user?.id, user?.estate_id]);
+
   //message fetch
   useEffect(() => {
     if (!selectedTenant || !user || !user.estate_id) return;
@@ -216,7 +270,7 @@ const ChatManager = () => {
       .collection(chatCollection)
       .doc(roomId);
 
-    // 1. Snapshot for Room/Group metadata
+    let unsubscribeMessages: () => void;
     const unsubscribeRoom = roomRef.onSnapshot((doc) => {
       if (!doc.exists) return;
       const data = doc.data();
@@ -225,91 +279,148 @@ const ChatManager = () => {
         const lastRead = data?.[`lastRead_${selectedTenant.id}`];
         if (lastRead) setOtherUserLastRead(lastRead);
       }
-    });
 
-    // 2. Fetch Messages with "clearedAt" filter
-    let messageQuery = roomRef
-      .collection("messages")
-      .orderBy("createdAt", "desc");
+      // 2. Build the Message Query INSIDE the listener
+      let messageQuery = roomRef
+        .collection("messages")
+        .orderBy("createdAt", "desc");
 
-    // If it's a group, find the user's specific clearedAt timestamp
-    if (isGroupChat && "members" in selectedTenant) {
-      const myData = selectedTenant.members.find(
-        (m: any) => (m.user_id || m) === user?.id?.toString(),
-      );
-      if (myData?.clearedAt) {
-        // Only show messages created AFTER the user's clear timestamp
-        messageQuery = messageQuery.where("createdAt", ">", myData.clearedAt);
+      if (isGroupChat) {
+        const myData = data?.members?.find(
+          (m: any) => (m.user_id || m) === user?.id?.toString(),
+        );
+        if (myData?.clearedAt) {
+          messageQuery = messageQuery.where("createdAt", ">", myData.clearedAt);
+        }
+      } else {
+        const myClearedAt = data?.[`clearedAt_${user.id}`];
+        if (myClearedAt) {
+          messageQuery = messageQuery.where("createdAt", ">", myClearedAt);
+        }
       }
-    }
 
-    const unsubscribeMessages = messageQuery.limit(50).onSnapshot((snap) => {
-      if (!snap) return;
-      const msgs = snap
-        .docChanges()
-        .filter((change) => change.type === "added")
-        .map((change) => {
-          const data = change.doc.data();
-          return {
-            _id: change.doc.id,
-            text: data.text,
-            createdAt: data.createdAt?.toDate() || new Date(),
-            user: data.user,
-          } as IMessage;
+      if (unsubscribeMessages) unsubscribeMessages();
+
+      // 3. Start the Message Listener
+      unsubscribeMessages = messageQuery.limit(50).onSnapshot((snap) => {
+        if (!snap) return;
+        const msgs = snap
+          .docChanges()
+          .filter((change) => change.type === "added")
+          .map((change) => {
+            const mData = change.doc.data();
+            return {
+              _id: change.doc.id,
+              text: mData.text,
+              createdAt: mData.createdAt?.toDate() || new Date(),
+              user: mData.user,
+            } as IMessage;
+          });
+
+        setMessages((prev) => {
+          const uniqueNewMessages = msgs.filter(
+            (newMsg) => !prev.some((oldMsg) => oldMsg._id === newMsg._id),
+          );
+          return GiftedChat.append(prev, uniqueNewMessages);
         });
-
-      setMessages((prev) => GiftedChat.append(prev, msgs));
+      });
     });
 
     return () => {
-      unsubscribeMessages();
-      unsubscribeRoom();
+      if (unsubscribeRoom) unsubscribeRoom();
+      if (unsubscribeMessages) unsubscribeMessages();
       setMessages([]);
     };
   }, [selectedTenant, user]);
 
-  const onSend = (newMsgs: IMessage[] = []) => {
+  const onSend = async (newMsgs: IMessage[] = []) => {
     if (!selectedTenant || !user?.estate_id) return;
-    const chatCollection = isGroupChat ? "groups" : "private_chats";
+    const myId = user?.id?.toString();
     const roomId = isGroupChat
-      ? selectedTenant._id || selectedTenant.id
+      ? selectedTenant.id
       : [user.id, selectedTenant.id].sort().join("_");
 
-    const message = {
-      text: newMsgs[0].text,
-      createdAt: firestore.FieldValue.serverTimestamp(),
-      user: {
-        _id: user?.id?.toString(),
-        name: user?.name,
-        avatar: user?.avatar || null,
-      },
-    };
-
-    firestore()
+    const roomRef = firestore()
       .collection("estate_chats")
       .doc(user.estate_id)
-      .collection(chatCollection)
-      .doc(roomId)
-      .collection("messages")
-      .add(message);
+      .collection(isGroupChat ? "groups" : "private_chats")
+      .doc(roomId);
+
+    // 1. Add Message
+    await roomRef.collection("messages").add({
+      text: newMsgs[0].text,
+      createdAt: firestore.FieldValue.serverTimestamp(),
+      user: { _id: myId, name: user.name, avatar: user.avatar || null },
+    });
+
+    // 2. Update Counts
+    if (isGroupChat) {
+      const doc = await roomRef.get();
+      const members = doc.data()?.members || [];
+      const updatedMembers = members.map((m: any) => {
+        // Increment for everyone EXCEPT me
+        if ((m.user_id || m) !== myId) {
+          return { ...m, unreadCount: (m.unreadCount || 0) + 1 };
+        }
+        return m;
+      });
+      await roomRef.update({
+        members: updatedMembers,
+        lastSenderId: myId,
+      });
+    } else {
+      // Private: Increment the specific field for the OTHER person
+      await roomRef.set(
+        {
+          lastSenderId: myId,
+          [`unreadCount_${selectedTenant.id}`]:
+            firestore.FieldValue.increment(1),
+          memberIds: [myId, selectedTenant?.id?.toString()],
+        },
+        { merge: true },
+      );
+    }
   };
 
   const markAsRead = async () => {
     if (!selectedTenant || !user?.estate_id) return;
-    if (isGroupChat) return;
-    const roomId = [user.id, selectedTenant.id].sort().join("_");
+    const myId = user?.id?.toString();
+    const roomId = isGroupChat
+      ? selectedTenant.id
+      : [user.id, selectedTenant.id].sort().join("_");
 
-    await firestore()
+    const roomRef = firestore()
       .collection("estate_chats")
       .doc(user.estate_id)
-      .collection("private_chats")
-      .doc(roomId)
-      .set(
+      .collection(isGroupChat ? "groups" : "private_chats")
+      .doc(roomId);
+
+    if (isGroupChat) {
+      const doc = await roomRef.get();
+      const isExisting =
+        typeof doc.exists === "function" ? doc.exists() : doc.exists;
+      if (isExisting) {
+        const members = doc.data()?.members || [];
+        const updatedMembers = members.map((m: any) =>
+          (m.user_id || m) === myId
+            ? {
+                ...m,
+                unreadCount: 0,
+              }
+            : m,
+        );
+        await roomRef.update({ members: updatedMembers });
+      }
+    } else {
+      // Private: Set MY unread count field to 0
+      await roomRef.set(
         {
-          [`lastRead_${user.id}`]: firestore.FieldValue.serverTimestamp(),
+          [`lastRead_${myId}`]: firestore.FieldValue.serverTimestamp(),
+          [`unreadCount_${myId}`]: 0,
         },
         { merge: true },
       );
+    }
   };
 
   const handleBlockUser = async (targetId: string) => {
@@ -411,7 +522,7 @@ const ChatManager = () => {
                 if (mId === user?.id?.toString()) {
                   return {
                     user_id: mId,
-                    clearedAt: firestore.FieldValue.serverTimestamp(),
+                    clearedAt: Date.now(),
                   };
                 }
                 return typeof m === "string"
@@ -426,13 +537,11 @@ const ChatManager = () => {
                 .collection("estate_chats")
                 .doc(user.estate_id)
                 .collection("private_chats")
-                .doc(roomId)
-                .collection("messages");
+                .doc(roomId);
 
-              const snapshot = await messagesRef.get();
-              const batch = firestore().batch();
-              snapshot.docs.forEach((doc) => batch.delete(doc.ref));
-              await batch.commit();
+              await messagesRef.update({
+                [`clearedAt_${myId}`]: Date.now(),
+              });
             }
 
             setMessages([]);
@@ -496,11 +605,11 @@ const ChatManager = () => {
       return;
     }
 
-    const myId = user?.id?.toString();
     const groupId = `group_${user?.id}_${Date.now()}`;
     const memberObjects = [...selectedGroupMembers, myId].map((id) => ({
       user_id: id,
-      clearedAt: null, // Initial state: history is fully visible
+      clearedAt: null,
+      unreadCount: 0,
     }));
     const memberIds = [...selectedGroupMembers, myId];
     const groupData = {
@@ -667,12 +776,28 @@ const ChatManager = () => {
               </TouchableOpacity>
             )}
 
+            {isGroupChat && (
+              <TouchableOpacity onPress={() => setImageModalVisible(true)}>
+                {selectedTenant.avatar ? (
+                  <Image
+                    source={{ uri: selectedTenant.avatar }}
+                    className="w-10 h-10 rounded-full bg-gray-200"
+                  />
+                ) : (
+                  <View className="w-10 h-10 rounded-full bg-gray-200 items-center justify-center">
+                    {/* Scale the icon down to fit the 10x10 (w-10 h-10) circle */}
+                    <Users size={24} color="#4f46e5" />
+                  </View>
+                )}
+              </TouchableOpacity>
+            )}
+
             <TouchableOpacity
               className="ml-3 flex-1"
               onPress={() => setIsProfileVisible(true)}
             >
               <Text className="font-bold text-lg text-gray-900">
-                {selectedTenant.name}
+                {displayName}
               </Text>
               {!isGroupChat && "block" in selectedTenant && (
                 <Text className="text-gray-400 text-[10px] font-bold uppercase">
@@ -841,9 +966,9 @@ const ChatManager = () => {
           <GroupProfileModal
             isVisible={isProfileVisible}
             onClose={() => setIsProfileVisible(false)}
-            group={selectedTenant}
+            group={activeGroupData}
             currentUser={user}
-            tenants={tenants}
+            tenants={visibleTenants}
             estateId={user.estate_id}
             setSelectedTenant={setSelectedTenant}
           />
@@ -858,24 +983,48 @@ const ChatManager = () => {
       <View className="flex-row bg-white border-b border-gray-100 px-4 pb-2 mt-2">
         <TouchableOpacity
           onPress={() => setCurrentTab("residents")}
-          className={`pb-2 mr-6 ${currentTab === "residents" ? "border-b-2 border-indigo-500" : ""}`}
+          // ADDED pr-5 to create space on the right for the badge
+          className={`pb-2 mr-6 pr-5 ${currentTab === "residents" ? "border-b-2 border-indigo-500" : ""}`}
         >
           <Text
             className={`font-bold ${currentTab === "residents" ? "text-indigo-600" : "text-gray-400"}`}
           >
             Residents
           </Text>
+          {privateUnread > 0 && (
+            <View
+              // CHANGED -right-1 to 0 or 1 to sit inside the new padding
+              className="absolute -top-1 right-0 bg-red-500 rounded-full flex items-center justify-center"
+              style={{ minWidth: 18, height: 18 }}
+            >
+              <Text className="text-white text-[9px] font-bold">
+                {privateUnread}
+              </Text>
+            </View>
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity
           onPress={() => setCurrentTab("groups")}
-          className={`pb-2 ${currentTab === "groups" ? "border-b-2 border-indigo-500" : ""}`}
+          // ADDED pr-5 here as well
+          className={`pb-2 pr-5 ${currentTab === "groups" ? "border-b-2 border-indigo-500" : ""}`}
         >
           <Text
             className={`font-bold ${currentTab === "groups" ? "text-indigo-600" : "text-gray-400"}`}
           >
             Groups
           </Text>
+          {groupUnread > 0 && (
+            <View
+              // CHANGED -right-0 to 0
+              className="absolute -top-1 right-0 bg-red-500 rounded-full flex items-center justify-center"
+              style={{ minWidth: 18, height: 18 }}
+            >
+              <Text className="text-white text-[9px] font-bold">
+                {groupUnread}
+              </Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
       <View className="p-4 bg-white border-b border-gray-100 flex-row items-center space-x-3">
@@ -965,6 +1114,24 @@ const ChatManager = () => {
           Math.random().toString()
         }
         renderItem={({ item }) => {
+          const itemName =
+            item.name && item.name.length > 10
+              ? `${item.name.substring(0, 15)}...`
+              : item?.name || "Chat";
+          let unreadCount = 0;
+
+          if (currentTab === "residents") {
+            const roomId = [user.id, item.id].sort().join("_");
+            const chatData = privateChats.find((chat) => chat.id === roomId);
+
+            unreadCount = chatData?.[`unreadCount_${myId}`] || 0;
+          } else {
+            // For groups, 'item' IS the chat data object
+            const myMemberData = item.members?.find(
+              (m: any) => (m.user_id || m) === myId,
+            );
+            unreadCount = myMemberData?.unreadCount || 0;
+          }
           if (currentTab === "residents") {
             return (
               <TouchableOpacity
@@ -993,7 +1160,7 @@ const ChatManager = () => {
                   className="w-12 h-12 rounded-full bg-gray-200"
                 />
                 <View className="ml-4">
-                  <Text className="font-bold text-gray-800">{item.name}</Text>
+                  <Text className="font-bold text-gray-800">{itemName}</Text>
                   <Text className="text-gray-400 text-xs">
                     Block {item.block} • Unit {item.unit}
                   </Text>
@@ -1010,6 +1177,13 @@ const ChatManager = () => {
                     }`}
                   />
                 )}
+                {unreadCount > 0 && (
+                  <View className="absolute -top-1 -right-1 bg-red-500 w-7 h-7 rounded-full items-center justify-center border-2 border-white">
+                    <Text className="text-white text-[9px] font-black">
+                      {unreadCount}
+                    </Text>
+                  </View>
+                )}
               </TouchableOpacity>
             );
           }
@@ -1023,7 +1197,7 @@ const ChatManager = () => {
                 <Users size={24} color="#4f46e5" />
               </View>
               <View className="ml-4 flex-1">
-                <Text className="font-bold text-gray-800">{item.name}</Text>
+                <Text className="font-bold text-gray-800">{itemName}</Text>
                 <Text className="text-gray-400 text-xs">
                   {item.members?.length || 0} Members
                 </Text>
@@ -1033,6 +1207,13 @@ const ChatManager = () => {
                 color="#cbd5e1"
                 style={{ transform: [{ rotate: "180deg" }] }}
               />
+              {unreadCount > 0 && (
+                <View className="absolute -top-1 -right-1 bg-red-500 w-7 h-7 rounded-full items-center justify-center border-2 border-white">
+                  <Text className="text-white text-[9px] font-black">
+                    {unreadCount}
+                  </Text>
+                </View>
+              )}
             </TouchableOpacity>
           );
         }}

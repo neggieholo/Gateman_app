@@ -1,21 +1,24 @@
 import firestore from "@react-native-firebase/firestore";
+import * as ImagePicker from "expo-image-picker";
 import {
-    Crown,
-    ShieldCheck,
-    Trash2,
-    UserPlus,
-    Users,
-    X,
+  Pencil,
+  ShieldCheck,
+  Trash2,
+  UserPlus,
+  Users,
+  X,
 } from "lucide-react-native";
 import React, { useState } from "react";
 import {
-    Alert,
-    Image,
-    Modal,
-    ScrollView,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  Modal,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { GroupUserProfileModal } from "./ChatProfile";
 import { AddMembersModal } from "./CreateChatGroupModal";
@@ -41,6 +44,12 @@ const GroupProfileModal = ({
 }: GroupProfileProps) => {
   const [isAddingMembers, setIsAddingMembers] = useState(false);
   const [selectedParticipant, setSelectedParticipant] = useState<any>(null);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [newName, setNewName] = useState(group?.name || "");
+  const [isUploading, setIsUploading] = useState(false);
+  const displayName =
+    group.name?.length > 10 ? `${group.name.substring(0, 14)}...` : group.name;
+  const [isShowingFullName, setIsShowingFullName] = useState<boolean>(false);
 
   if (!group) return null;
 
@@ -55,33 +64,42 @@ const GroupProfileModal = ({
       .collection("groups")
       .doc(group._id);
 
-    // 1. Create the new member objects
+    // FIX: Use a resolved date instead of the serverTimestamp sentinel
+    const now = new Date();
+
     const newMemberObjects = newlySelectedIds.map((id) => ({
       user_id: id,
-      clearedAt: firestore.FieldValue.serverTimestamp(), // New members start from now
+      clearedAt: now, // This is now a concrete value Firestore can handle in an array
     }));
 
     try {
       await groupRef.update({
-        // Add the objects to 'members'
         members: firestore.FieldValue.arrayUnion(...newMemberObjects),
-        // Add the strings to 'memberIds' for searchability
         memberIds: firestore.FieldValue.arrayUnion(...newlySelectedIds),
       });
+
       Alert.alert("Success", "Members added.");
+      setIsAddingMembers(false);
     } catch (err) {
+      console.error(err);
       Alert.alert("Error", "Could not add members.");
     }
   };
 
   const handleRemoveMember = async (targetId: string, targetName: string) => {
-    // 1. Prevent removing the creator
     if (targetId === group.createdBy) {
       Alert.alert("Action Denied", "The group creator cannot be removed.");
       return;
     }
 
-    // 2. Prevent an Admin from removing another Admin (Only Creator can do this)
+    if (group.memberIds.length <= 3) {
+      Alert.alert(
+        "Action Denied",
+        "Groups must have at least 3 members. To reduce the group further, you must delete the group entirely or exit.",
+      );
+      return;
+    }
+
     const targetIsAdmin = group.admins?.includes(targetId);
     if (isAdmin && !isCreator && targetIsAdmin) {
       Alert.alert("Action Denied", "Admins cannot remove other admins.");
@@ -159,6 +177,7 @@ const GroupProfileModal = ({
 
   const handleToggleAdmin = async (
     targetId: string,
+    targetName: string, // Added targetName for a better alert message
     isCurrentlyAdmin: boolean,
   ) => {
     if (!isCreator) {
@@ -166,27 +185,38 @@ const GroupProfileModal = ({
       return;
     }
 
-    const groupRef = firestore()
-      .collection("estate_chats")
-      .doc(estateId)
-      .collection("groups")
-      .doc(group._id);
+    const title = isCurrentlyAdmin ? "Remove Admin" : "Promote to Admin";
+    const message = isCurrentlyAdmin
+      ? `Are you sure you want to remove admin privileges from ${targetName}?`
+      : `Are you sure you want to make ${targetName} a group admin?`;
 
-    try {
-      if (isCurrentlyAdmin) {
-        // Demote to regular member
-        await groupRef.update({
-          admins: firestore.FieldValue.arrayRemove(targetId),
-        });
-      } else {
-        // Promote to Admin
-        await groupRef.update({
-          admins: firestore.FieldValue.arrayUnion(targetId),
-        });
-      }
-    } catch (err) {
-      Alert.alert("Error", "Failed to update admin status.");
-    }
+    Alert.alert(title, message, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: isCurrentlyAdmin ? "Remove" : "Promote",
+        onPress: async () => {
+          const groupRef = firestore()
+            .collection("estate_chats")
+            .doc(estateId)
+            .collection("groups")
+            .doc(group._id);
+
+          try {
+            if (isCurrentlyAdmin) {
+              await groupRef.update({
+                admins: firestore.FieldValue.arrayRemove(targetId),
+              });
+            } else {
+              await groupRef.update({
+                admins: firestore.FieldValue.arrayUnion(targetId),
+              });
+            }
+          } catch (err) {
+            Alert.alert("Error", "Failed to update admin status.");
+          }
+        },
+      },
+    ]);
   };
 
   const handleUpdateGroup = async (field: string, value: string) => {
@@ -210,6 +240,69 @@ const GroupProfileModal = ({
     }
   };
 
+  const handleUpdateGroupName = () => {
+    if (!newName.trim()) {
+      Alert.alert("Error", "Group name cannot be empty.");
+      return;
+    }
+    handleUpdateGroup("name", newName);
+    setIsEditingName(false);
+  };
+
+  const handleUpdateAvatar = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert(
+        "Permission Denied",
+        "We need access to your photos to change the group avatar.",
+      );
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: "images",
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7, // Compress a bit for mobile
+    });
+
+    if (result.canceled) return;
+
+    setIsUploading(true);
+    const localUri = result.assets[0].uri;
+
+    try {
+      const formData = new FormData();
+      formData.append("file", {
+        uri: localUri,
+        type: "image/jpeg",
+        name: `group_${group._id}.jpg`,
+      } as any);
+
+      const cloudName = "diubaoqcr";
+      formData.append("upload_preset", "gateman uploads");
+
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+        {
+          method: "POST",
+          body: formData,
+        },
+      );
+
+      const data = await response.json();
+      const imageUrl = data.secure_url;
+
+      await handleUpdateGroup("avatar", imageUrl);
+
+      Alert.alert("Success", "Group avatar updated!");
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Error", "Failed to upload image.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   return (
     <>
       <Modal
@@ -220,7 +313,6 @@ const GroupProfileModal = ({
       >
         <View className="flex-1 bg-black/60 justify-end">
           <View className="bg-white rounded-t-[40px] h-[90%] overflow-hidden">
-            {/* --- FIXED HEADER (Doesn't Scroll) --- */}
             <View className="flex-row justify-between items-center px-6 pt-6 pb-4 border-b border-gray-50">
               <TouchableOpacity
                 onPress={onClose}
@@ -243,61 +335,71 @@ const GroupProfileModal = ({
               )}
             </View>
 
-            {/* --- SCROLLABLE CONTENT AREA --- */}
-            <ScrollView showsVerticalScrollIndicator={false} className="px-6">
-              {/* Group Profile Section */}
+            <View className="px-4">
               <View className="items-center mt-6 mb-8">
-                <View className="relative">
-                  <View className="w-32 h-32 rounded-full bg-indigo-100 items-center justify-center border-4 border-indigo-50">
-                    <Users size={60} color="#4f46e5" />
+                <TouchableOpacity
+                  onPress={handleUpdateAvatar}
+                  disabled={isUploading}
+                  className="relative"
+                >
+                  <View className="w-32 h-32 rounded-full bg-indigo-100 items-center justify-center border-4 border-indigo-50 overflow-hidden">
+                    {isUploading ? (
+                      <ActivityIndicator color="#4f46e5" />
+                    ) : group.avatar ? (
+                      <Image
+                        source={{ uri: group.avatar }}
+                        className="w-full h-full"
+                      />
+                    ) : (
+                      <Users size={60} color="#4f46e5" />
+                    )}
                   </View>
-                  <View className="absolute bottom-1 right-1 bg-indigo-600 p-2 rounded-full border-4 border-white">
-                    <Crown size={16} color="white" />
-                  </View>
-                </View>
+
+                  {/* Camera Icon Overlay */}
+                  {(isCreator || isAdmin) && (
+                    <View className="absolute bottom-1 right-1 bg-indigo-600 p-2 rounded-full border-4 border-white">
+                      <Pencil size={14} color="white" />
+                    </View>
+                  )}
+                </TouchableOpacity>
 
                 <View className="flex-row items-center mt-4">
-                  <Text className="text-2xl font-black text-gray-900 text-center">
-                    {group.name}
-                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setIsShowingFullName(true)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      numberOfLines={1}
+                      className="text-2xl font-black text-gray-900"
+                    >
+                      {displayName}
+                    </Text>
+                  </TouchableOpacity>
                   {(isCreator || isAdmin) && (
                     <TouchableOpacity
                       onPress={() => {
-                        Alert.prompt(
-                          "Edit Group Name",
-                          "Enter a new name for this group",
-                          [
-                            { text: "Cancel", style: "cancel" },
-                            {
-                              text: "Save",
-                              onPress: (newName: string | undefined) =>
-                                handleUpdateGroup("name", newName!),
-                            },
-                          ],
-                          "plain-text",
-                          group.name,
-                        );
+                        setNewName(group.name);
+                        setIsEditingName(true);
                       }}
                       className="ml-2 bg-gray-100 p-1.5 rounded-full"
                     >
-                      {/* You can use a 'Pencil' icon here from lucide-react-native */}
-                      <X
-                        size={14}
-                        color="#6b7280"
-                        style={{ transform: [{ rotate: "45deg" }] }}
-                      />
+                      <Pencil size={14} color="#6b7280" />
                     </TouchableOpacity>
                   )}
                 </View>
 
                 <View className="flex-row items-center mt-2 bg-gray-100 px-4 py-1.5 rounded-full">
                   <Text className="text-gray-500 text-[10px] font-bold uppercase tracking-widest">
-                    Created by {isCreator ? "You" : "Estate Admin"}
+                    Created by{" "}
+                    {isCreator
+                      ? "You"
+                      : tenants.find(
+                          (t) => t.id?.toString() === group.createdBy,
+                        )?.name || "Estate Admin"}
                   </Text>
                 </View>
               </View>
 
-              {/* Stats & Add Button Row */}
               <View className="flex-row justify-between mb-8">
                 <View className="bg-gray-50 flex-1 rounded-2xl p-4 items-center mr-2 border border-gray-100">
                   <Text className="text-indigo-600 font-black text-xl">
@@ -322,12 +424,15 @@ const GroupProfileModal = ({
               </View>
 
               {/* Member List Header */}
-              <View className="mb-4 flex-row justify-between items-center">
+              <View className="mb-2 flex-row justify-between items-center">
                 <Text className="text-gray-900 font-black text-lg">
                   Participants
                 </Text>
               </View>
+            </View>
 
+            {/* --- SCROLLABLE CONTENT AREA --- */}
+            <ScrollView showsVerticalScrollIndicator={false} className="px-6">
               {/* --- THE ACTUAL LIST --- */}
               <View className="space-y-3 pb-24">
                 {group.members?.map((member: any) => {
@@ -391,7 +496,11 @@ const GroupProfileModal = ({
                           <>
                             <TouchableOpacity
                               onPress={() =>
-                                handleToggleAdmin(memberId, isTargetAdmin)
+                                handleToggleAdmin(
+                                  memberId,
+                                  resident?.name || "Resident",
+                                  isTargetAdmin,
+                                )
                               }
                               className={`p-2 rounded-full ${isTargetAdmin ? "bg-indigo-100" : "bg-gray-100"}`}
                             >
@@ -462,6 +571,70 @@ const GroupProfileModal = ({
         onStartCall={(u) => console.log("Calling", u.name)}
         isOnline={true} // Map this from your presence state
       />
+      <Modal
+        visible={isEditingName}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsEditingName(false)}
+      >
+        <View className="flex-1 bg-black/40 justify-center items-center px-6">
+          <View className="bg-white w-full rounded-3xl p-6 shadow-xl">
+            <Text className="text-xl font-black text-gray-900 mb-4">
+              Edit Group Name
+            </Text>
+
+            <TextInput
+              value={newName}
+              onChangeText={setNewName}
+              placeholder="Enter group name"
+              className="bg-gray-100 p-4 rounded-2xl text-gray-800 font-bold mb-6"
+              autoFocus
+            />
+
+            <View className="flex-row space-x-3 px-2">
+              <TouchableOpacity
+                onPress={() => setIsEditingName(false)}
+                className="flex-1 bg-gray-200 p-4 rounded-2xl items-center mx-2"
+              >
+                <Text className="text-gray-600 font-bold">Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleUpdateGroupName}
+                className="flex-1 bg-indigo-600 p-4 rounded-2xl items-center mx-2"
+              >
+                <Text className="text-white font-bold">Save Changes</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      <Modal
+        visible={isShowingFullName}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsShowingFullName(false)}
+      >
+        <View className="flex-1 bg-black/50 justify-center items-center px-10">
+          <View className="bg-white w-full rounded-[35px] p-8 shadow-2xl items-center border border-gray-100">
+            <Text className="text-gray-400 text-[10px] font-black uppercase tracking-[2px] mb-3">
+              Full Group Name
+            </Text>
+
+            {/* This displays the ACTUAL full name without any limits */}
+            <Text className="text-xl font-black text-gray-900 text-center mb-8 leading-7">
+              {group.name}
+            </Text>
+
+            <TouchableOpacity
+              onPress={() => setIsShowingFullName(false)}
+              className="w-full bg-indigo-600 py-4 rounded-2xl items-center shadow-md shadow-indigo-200"
+            >
+              <Text className="text-white font-bold text-lg">Got it</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 };
