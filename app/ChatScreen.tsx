@@ -26,6 +26,7 @@ import {
   Platform,
   Text,
   TextInput,
+  ToastAndroid,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -34,6 +35,7 @@ import {
   GiftedChat,
   IMessage,
   Message,
+  MessageText,
 } from "react-native-gifted-chat";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useUser } from "./UserContext";
@@ -61,7 +63,6 @@ const ChatManager = () => {
     remoteTyping,
     privateUnread,
     groupUnread,
-    totalUnread,
   } = useUser();
 
   const [loading, setLoading] = useState(true);
@@ -93,7 +94,8 @@ const ChatManager = () => {
   const [messageToForward, setMessageToForward] = useState<IMessage | null>(
     null,
   );
-  const [forwardSearchQuery, setForwardSearchQuery] = useState("");
+  const [selectedForForward, setSelectedForForward] = useState<string[]>([]);
+
   const displayName =
     selectedTenant?.name && selectedTenant.name.length > 10
       ? `${selectedTenant.name.substring(0, 20)}...`
@@ -230,14 +232,33 @@ const ChatManager = () => {
     });
   }, [tenants, blockedUserIds, blockedMeIds]);
 
+  // 1. Filter for Residents (Name, Block, Unit)
   const filteredTenants = useMemo(() => {
-    return visibleTenants.filter(
-      (t) =>
-        t.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        t.block?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        t.unit?.toLowerCase().includes(searchQuery.toLowerCase()),
-    );
+    const query = searchQuery.toLowerCase().trim();
+    if (!query) return visibleTenants;
+
+    return visibleTenants.filter((t) => {
+      const name = t.name?.toLowerCase() || "";
+      const block = t.block?.toString().toLowerCase() || "";
+      const unit = t.unit?.toString().toLowerCase() || "";
+
+      return (
+        name.includes(query) || block.includes(query) || unit.includes(query)
+      );
+    });
   }, [visibleTenants, searchQuery]);
+
+
+  const filteredGroups = useMemo(() => {
+    const query = searchQuery.toLowerCase().trim();
+    // Assuming 'myGroups' is your state/prop containing the user's groups
+    if (!query) return groups;
+
+    return groups.filter((g) => {
+      const groupName = g.name?.toLowerCase() || "";
+      return groupName.includes(query);
+    });
+  }, [groups, searchQuery]);
 
   //chatroom fetch
   useEffect(() => {
@@ -332,6 +353,7 @@ const ChatManager = () => {
               createdAt: mData.createdAt?.toDate() || new Date(),
               user: mData.user,
               replyMessage: mData.replyMessage || null,
+              isForwarded: mData.isForwarded ? mData.isForwarded : null,
             } as IMessage);
           }
 
@@ -824,6 +846,76 @@ const ChatManager = () => {
     );
   };
 
+  const toggleForwardMember = (id: string) => {
+    setSelectedForForward((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
+    );
+  };
+
+  const handleForwardMessage = async (selectedIds: string[]) => {
+    if (!messageToForward || selectedIds.length === 0) return;
+
+    try {
+      for (const targetId of selectedIds) {
+        const roomId = [user?.id?.toString(), targetId].sort().join("_");
+
+        const roomRef = firestore()
+          .collection("estate_chats")
+          .doc(user?.estate_id)
+          .collection("private_chats")
+          .doc(roomId);
+
+        const roomDoc = await roomRef.get();
+
+        if (!roomDoc.exists) {
+          await roomRef.set({
+            members: [user?.id?.toString(), targetId],
+            lastMessage: messageToForward.text,
+            updatedAt: firestore.FieldValue.serverTimestamp(),
+            createdAt: firestore.FieldValue.serverTimestamp(),
+            type: "private",
+            [`clearedAt_${user?.id}`]: null,
+            [`clearedAt_${targetId}`]: null,
+          });
+        }
+
+        await roomRef.collection("messages").add({
+          text: messageToForward.text,
+          user: {
+            _id: user?.id?.toString(),
+            name: user?.name,
+            avatar: user?.avatar,
+          },
+          createdAt: firestore.FieldValue.serverTimestamp(),
+          isForwarded: true,
+        });
+
+        await roomRef.update({
+          lastMessage: messageToForward.text,
+          updatedAt: firestore.FieldValue.serverTimestamp(),
+        });
+      }
+
+      setForwardModalVisible(false);
+      setSelectedForForward([]);
+      setMessageToForward(null);
+
+      if (Platform.OS === "android") {
+        ToastAndroid.show(
+          `Forwarded to ${selectedIds.length} neighbors`,
+          ToastAndroid.SHORT,
+        );
+      }
+
+      if (Platform.OS === "ios") {
+        Alert.alert("Success", `Forwarded to ${selectedIds.length} neighbors`);
+      }
+    } catch (error) {
+      console.error("Forwarding Error:", error);
+      Alert.alert("GateMan", "Failed to forward to some residents.");
+    }
+  };
+
   if (!user?.estate_id) {
     return (
       <View className="flex-1 justify-center items-center bg-white p-6">
@@ -868,6 +960,18 @@ const ChatManager = () => {
             />
           </TouchableOpacity>
         </Modal>
+        <CreateGroupModal
+          isVisible={isForwardModalVisible}
+          onClose={() => setForwardModalVisible(false)}
+          tenants={visibleTenants}
+          selectedMembers={selectedForForward} // A separate state for forwarding selection
+          onToggleMember={toggleForwardMember}
+          onNext={() => handleForwardMessage(selectedForForward)}
+          insets={insets}
+          buttonText="Send"
+          header="Forward Message"
+          count={0}
+        />
 
         <View
           style={{ paddingTop: insets.top }}
@@ -1013,6 +1117,33 @@ const ChatManager = () => {
               onChangeText: (text) => handleTyping(text),
             }}
             isTyping={remoteTyping[selectedTenant.id?.toString() || ""]}
+            renderMessageText={(props) => {
+              const currentMessage = props.currentMessage as any;
+              const { position } = props;
+
+              return (
+                <View className="px-2 py-1">
+                  {currentMessage.isForwarded && (
+                    <View className="flex-row items-center mb-1 opacity-60 ml-1">
+                      <Ionicons
+                        name="arrow-redo"
+                        size={12}
+                        color={position === "right" ? "white" : "#4b5563"}
+                      />
+                      <Text
+                        className={`text-[10px] italic ml-1 font-medium ${
+                          position === "right" ? "text-white" : "text-gray-500"
+                        }`}
+                      >
+                        Forwarded
+                      </Text>
+                    </View>
+                  )}
+                  {/* This renders the actual message text normally */}
+                  <MessageText {...props} />
+                </View>
+              );
+            }}
             renderBubble={(props) => {
               return (
                 <Bubble
@@ -1108,7 +1239,6 @@ const ChatManager = () => {
                 );
               },
             }}
-            // renderCustomView={renderCustomView}
             onLongPressMessage={(context: any, message: IMessage) => {
               const options = ["Reply", "Copy", "Forward", "Delete", "Cancel"];
               const cancelButtonIndex = 4;
@@ -1237,11 +1367,14 @@ const ChatManager = () => {
           setIsCreateGroupMode(false);
           setSelectedGroupMembers([]);
         }}
-        tenants={tenants}
+        tenants={visibleTenants}
         selectedMembers={selectedGroupMembers}
         onToggleMember={toggleMember}
         onNext={() => setGroupNameModalVisible(true)}
         insets={insets}
+        buttonText="Next"
+        header="New Group"
+        count={1}
       />
 
       <GroupNameModal
@@ -1291,7 +1424,7 @@ const ChatManager = () => {
         </>
       )}
       <FlatList
-        data={currentTab === "residents" ? filteredTenants : groups}
+        data={currentTab === "residents" ? filteredTenants : filteredGroups}
         keyExtractor={(item) =>
           item.id?.toString() ||
           item._id?.toString() ||
@@ -1347,6 +1480,9 @@ const ChatManager = () => {
                   <Text className="font-bold text-gray-800">{itemName}</Text>
                   <Text className="text-gray-400 text-xs">
                     Block {item.block} • Unit {item.unit}
+                  </Text>
+                  <Text className="text-green-500 italic text-xs mt-2">
+                    {remoteTyping[item.id?.toString()] ? "typing" : ""}
                   </Text>
                 </View>
                 {onlineUsers.includes(item.id?.toString() || "") && (

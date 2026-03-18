@@ -2,13 +2,14 @@ import firestore from "@react-native-firebase/firestore";
 import * as ImagePicker from "expo-image-picker";
 import {
   Pencil,
+  Search,
   ShieldCheck,
   Trash2,
   UserPlus,
   Users,
   X,
 } from "lucide-react-native";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -50,6 +51,27 @@ const GroupProfileModal = ({
   const displayName =
     group.name?.length > 10 ? `${group.name.substring(0, 14)}...` : group.name;
   const [isShowingFullName, setIsShowingFullName] = useState<boolean>(false);
+  const [memberSearchQuery, setMemberSearchQuery] = useState("");
+  const filteredParticipants = useMemo(() => {
+    const query = memberSearchQuery.toLowerCase().trim();
+    const allMembers = group.members || [];
+
+    // If no search query, show everyone
+    if (!query) return allMembers;
+
+    return allMembers.filter((member: any) => {
+      // 1. Get the ID (handling both object and string formats)
+      const memberId = member.user_id || member;
+
+      // 2. Find the actual resident data from the tenants prop
+      const resident = tenants.find((t) => t.id?.toString() === memberId);
+
+      // 3. Only search the name
+      const name = resident?.name?.toLowerCase() || "";
+
+      return name.includes(query);
+    });
+  }, [group.members, tenants, memberSearchQuery]);
 
   if (!group) return null;
 
@@ -430,122 +452,146 @@ const GroupProfileModal = ({
                 </Text>
               </View>
             </View>
+            <View className="px-6 mb-4">
+              <View className="flex-row items-center bg-gray-50 border border-gray-100 rounded-2xl px-3 py-1">
+                <Search size={18} color="#9ca3af" />
+                <TextInput
+                  placeholder="Find a member..."
+                  className="flex-1 h-10 ml-2 text-gray-800 font-medium"
+                  value={memberSearchQuery}
+                  onChangeText={setMemberSearchQuery}
+                  autoCorrect={false}
+                />
+                {memberSearchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setMemberSearchQuery("")}>
+                    <X size={14} color="#9ca3af" className="mr-2" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
 
-            {/* --- SCROLLABLE CONTENT AREA --- */}
             <ScrollView showsVerticalScrollIndicator={false} className="px-6">
-              {/* --- THE ACTUAL LIST --- */}
               <View className="space-y-3 pb-24">
-                {group.members?.map((member: any) => {
-                  const memberId = member.user_id || member;
-                  const resident = tenants.find(
-                    (t) => t.id?.toString() === memberId,
-                  );
-                  const isMe = memberId === myId;
-                  const isTargetAdmin = group.admins?.includes(memberId);
-                  const isTargetCreator = memberId === group.createdBy;
+                {filteredParticipants.length > 0 ? (
+                  filteredParticipants.map((member: any) => {
+                    const memberId = member.user_id || member;
+                    const resident = tenants.find(
+                      (t) => t.id?.toString() === memberId,
+                    );
+                    const isMe = memberId === myId;
+                    const isTargetAdmin = group.admins?.includes(memberId);
+                    const isTargetCreator = memberId === group.createdBy;
 
-                  return (
-                    <View
-                      key={memberId}
-                      className="flex-row items-center bg-white p-4 rounded-3xl border border-gray-100 shadow-sm shadow-gray-50 mb-3"
-                    >
-                      {/* WRAP THE INFO SECTION ONLY - To trigger the Profile Modal */}
-                      <TouchableOpacity
-                        onPress={() =>
-                          !isMe && setSelectedParticipant(resident)
-                        }
-                        className="flex-row items-center flex-1"
-                        activeOpacity={0.7}
+                    return (
+                      <View
+                        key={memberId}
+                        className="flex-row items-center bg-white p-4 rounded-3xl border border-gray-100 shadow-sm shadow-gray-50 mb-3"
                       >
-                        <Image
-                          source={{
-                            uri:
-                              resident?.avatar ||
-                              "https://via.placeholder.com/50",
-                          }}
-                          className="w-12 h-12 rounded-full bg-gray-200"
-                        />
+                        <TouchableOpacity
+                          onPress={() =>
+                            !isMe && setSelectedParticipant(resident)
+                          }
+                          className="flex-row items-center flex-1"
+                          activeOpacity={0.7}
+                        >
+                          <Image
+                            source={{
+                              uri:
+                                resident?.avatar ||
+                                "https://via.placeholder.com/50",
+                            }}
+                            className="w-12 h-12 rounded-full bg-gray-200"
+                          />
 
-                        <View className="ml-4 flex-1">
-                          <Text className="font-bold text-gray-800">
-                            {isMe
-                              ? "You"
-                              : resident?.name || "Unknown Resident"}
-                          </Text>
-                          <Text
-                            className={`text-[10px] font-bold uppercase ${
-                              isTargetCreator
-                                ? "text-amber-600"
+                          <View className="ml-4 flex-1">
+                            <Text className="font-bold text-gray-800">
+                              {isMe
+                                ? "You"
+                                : resident?.name || "Unknown Resident"}
+                            </Text>
+                            <Text
+                              className={`text-[10px] font-bold uppercase ${
+                                isTargetCreator
+                                  ? "text-amber-600"
+                                  : isTargetAdmin
+                                    ? "text-indigo-600"
+                                    : "text-gray-400"
+                              }`}
+                            >
+                              {isTargetCreator
+                                ? "Creator"
                                 : isTargetAdmin
-                                  ? "text-indigo-600"
-                                  : "text-gray-400"
-                            }`}
-                          >
-                            {isTargetCreator
-                              ? "Creator"
-                              : isTargetAdmin
-                                ? "Admin"
-                                : "Member"}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
+                                  ? "Admin"
+                                  : "Member"}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
 
-                      {/* ACTIONS SECTION - Stays outside the TouchableOpacity above so they don't overlap */}
-                      <View className="flex-row items-center space-x-2">
-                        {isCreator && !isMe && !isTargetCreator && (
-                          <>
-                            <TouchableOpacity
-                              onPress={() =>
-                                handleToggleAdmin(
-                                  memberId,
-                                  resident?.name || "Resident",
-                                  isTargetAdmin,
-                                )
-                              }
-                              className={`p-2 rounded-full ${isTargetAdmin ? "bg-indigo-100" : "bg-gray-100"}`}
-                            >
-                              <ShieldCheck
-                                size={20}
-                                color={isTargetAdmin ? "#4f46e5" : "#9ca3af"}
-                              />
-                            </TouchableOpacity>
+                        <View className="flex-row items-center space-x-2">
+                          {isCreator && !isMe && !isTargetCreator && (
+                            <>
+                              <TouchableOpacity
+                                onPress={() =>
+                                  handleToggleAdmin(
+                                    memberId,
+                                    resident?.name || "Resident",
+                                    !!isTargetAdmin,
+                                  )
+                                }
+                                className={`p-2 rounded-full ${
+                                  isTargetAdmin
+                                    ? "bg-indigo-100"
+                                    : "bg-gray-100"
+                                }`}
+                              >
+                                <ShieldCheck
+                                  size={20}
+                                  color={isTargetAdmin ? "#4f46e5" : "#9ca3af"}
+                                />
+                              </TouchableOpacity>
 
-                            <TouchableOpacity
-                              onPress={() =>
-                                handleRemoveMember(
-                                  memberId,
-                                  resident?.name || "Resident",
-                                )
-                              }
-                              className="p-2 bg-red-50 rounded-full"
-                            >
-                              <Trash2 size={18} color="#ef4444" />
-                            </TouchableOpacity>
-                          </>
-                        )}
-
-                        {/* Logic for Admins who aren't creators */}
-                        {isAdmin &&
-                          !isCreator &&
-                          !isMe &&
-                          !isTargetAdmin &&
-                          !isTargetCreator && (
-                            <TouchableOpacity
-                              onPress={() =>
-                                handleRemoveMember(
-                                  memberId,
-                                  resident?.name || "Resident",
-                                )
-                              }
-                              className="p-2 bg-red-50 rounded-full"
-                            >
-                              <Trash2 size={18} color="#ef4444" />
-                            </TouchableOpacity>
+                              <TouchableOpacity
+                                onPress={() =>
+                                  handleRemoveMember(
+                                    memberId,
+                                    resident?.name || "Resident",
+                                  )
+                                }
+                                className="p-2 bg-red-50 rounded-full"
+                              >
+                                <Trash2 size={18} color="#ef4444" />
+                              </TouchableOpacity>
+                            </>
                           )}
+
+                          {isAdmin &&
+                            !isCreator &&
+                            !isMe &&
+                            !isTargetAdmin &&
+                            !isTargetCreator && (
+                              <TouchableOpacity
+                                onPress={() =>
+                                  handleRemoveMember(
+                                    memberId,
+                                    resident?.name || "Resident",
+                                  )
+                                }
+                                className="p-2 bg-red-50 rounded-full"
+                              >
+                                <Trash2 size={18} color="#ef4444" />
+                              </TouchableOpacity>
+                            )}
+                        </View>
                       </View>
-                    </View>
-                  );
-                })}
+                    );
+                  })
+                ) : (
+                  <View className="items-center py-10">
+                    <Text className="text-gray-400 font-bold">
+                      No members found
+                    </Text>
+                  </View>
+                )}
               </View>
             </ScrollView>
           </View>

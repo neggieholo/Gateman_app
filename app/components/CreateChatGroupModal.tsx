@@ -1,16 +1,15 @@
+import { Search, X } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
 import {
-  Modal,
-  View,
-  Text,
-  TouchableOpacity,
   FlatList,
   Image,
-  TextInput
+  Modal,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { User } from "../services/interfaces";
-import { X } from "lucide-react-native";
-
 
 interface CreateGroupModalProps {
   isVisible: boolean;
@@ -20,6 +19,9 @@ interface CreateGroupModalProps {
   onToggleMember: (id: string) => void;
   onNext: () => void;
   insets: any;
+  buttonText: string;
+  header: string;
+  count: number;
 }
 
 interface GroupNameModalProps {
@@ -47,13 +49,34 @@ const CreateGroupModal = ({
   onToggleMember,
   onNext,
   insets,
+  buttonText,
+  header,
+  count,
 }: CreateGroupModalProps) => {
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredTenants = useMemo(() => {
+    const query = searchQuery.toLowerCase().trim();
+
+    if (!query) return tenants;
+
+    return tenants.filter((t) => {
+      const name = t.name?.toLowerCase() || "";
+      const block = t.block?.toString().toLowerCase() || "";
+      const unit = t.unit?.toString().toLowerCase() || "";
+
+      return (
+        name.includes(query) ||
+        block.includes(query) ||
+        unit.includes(query) ||
+        `block ${block}`.includes(query) ||
+        `unit ${unit}`.includes(query)
+      );
+    });
+  }, [tenants, searchQuery]);
+
   return (
-    <Modal
-      visible={isVisible}
-      animationType="slide"
-      onRequestClose={onClose}
-    >
+    <Modal visible={isVisible} animationType="slide" onRequestClose={onClose}>
       <View className="flex-1 bg-white" style={{ paddingTop: insets.top }}>
         {/* Modal Header */}
         <View className="p-4 flex-row justify-between items-center border-b border-gray-100">
@@ -61,25 +84,47 @@ const CreateGroupModal = ({
             <Text className="text-red-500 font-bold">Cancel</Text>
           </TouchableOpacity>
 
-          <Text className="text-lg font-black text-gray-900">New Group</Text>
+          <Text className="text-lg font-black text-gray-900">{header}</Text>
 
           <TouchableOpacity
             onPress={onNext}
-            disabled={selectedMembers.length < 2}
+            disabled={selectedMembers.length < count}
           >
             <Text
               className={`font-bold ${
-                selectedMembers.length < 2 ? "text-gray-300" : "text-indigo-600"
+                selectedMembers.length <= count
+                  ? "text-gray-300"
+                  : "text-indigo-600"
               }`}
             >
-              Next
+              {buttonText}
             </Text>
           </TouchableOpacity>
         </View>
 
+        <View className="px-4 py-2 bg-gray-50 border-b border-gray-100">
+          <View className="flex-row items-center bg-white border border-gray-200 rounded-xl px-3 py-1">
+            <Search size={18} color="#9ca3af" />
+            <TextInput
+              placeholder="Search by name or block..."
+              className="flex-1 h-10 ml-2 text-gray-800"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoCorrect={false}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery("")}>
+                <Text className="text-gray-400 px-2 text-xs">Clear</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
         <FlatList
-          data={tenants}
-          keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+          data={filteredTenants}
+          keyExtractor={(item) =>
+            item.id?.toString() || Math.random().toString()
+          }
           renderItem={({ item }) => {
             const id = item.id!.toString();
             const isSelected = selectedMembers.includes(id);
@@ -92,7 +137,9 @@ const CreateGroupModal = ({
                 }`}
               >
                 <Image
-                  source={{ uri: item.avatar || "https://via.placeholder.com/50" }}
+                  source={{
+                    uri: item.avatar || "https://via.placeholder.com/50",
+                  }}
                   className="w-12 h-12 rounded-full bg-gray-200"
                 />
                 <View className="ml-4 flex-1">
@@ -110,7 +157,7 @@ const CreateGroupModal = ({
                 >
                   {isSelected && (
                     <View className="flex-1 items-center justify-center">
-                       <Text className="text-white text-[10px]">✓</Text>
+                      <Text className="text-white text-[10px]">✓</Text>
                     </View>
                   )}
                 </View>
@@ -128,7 +175,6 @@ const CreateGroupModal = ({
   );
 };
 
-
 export const GroupNameModal = ({
   isVisible,
   onClose,
@@ -145,7 +191,9 @@ export const GroupNameModal = ({
     >
       <View className="flex-1 bg-black/50 justify-center items-center px-6">
         <View className="bg-white w-full rounded-3xl p-6 shadow-xl">
-          <Text className="text-xl font-black text-gray-900 mb-2">Group Name</Text>
+          <Text className="text-xl font-black text-gray-900 mb-2">
+            Group Name
+          </Text>
           <Text className="text-gray-500 mb-4">
             Give your community group a clear name (e.g., Block A Security).
           </Text>
@@ -182,7 +230,6 @@ export const GroupNameModal = ({
   );
 };
 
-
 export const AddMembersModal = ({
   isVisible,
   onClose,
@@ -196,14 +243,12 @@ export const AddMembersModal = ({
 
   // Filter: Only show tenants who are NOT already in the group
   const availableTenants = useMemo(() => {
-    return tenants.filter(
-      (t) => !existingMemberIds.includes(t.id?.toString())
-    );
+    return tenants.filter((t) => !existingMemberIds.includes(t.id?.toString()));
   }, [tenants, existingMemberIds]);
 
   const toggleMember = (id: string) => {
     setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
     );
   };
 
@@ -219,15 +264,16 @@ export const AddMembersModal = ({
   return (
     <Modal visible={isVisible} animationType="slide" onRequestClose={onClose}>
       <View className="flex-1 bg-white" style={{ paddingTop: insets.top }}>
-        
         {/* Header */}
         <View className="px-6 py-4 flex-row justify-between items-center border-b border-gray-100">
           <TouchableOpacity onPress={onClose} className="p-2 -ml-2">
             <X size={24} color="#374151" />
           </TouchableOpacity>
-          
+
           <View className="items-center">
-            <Text className="text-lg font-black text-gray-900">Add Members</Text>
+            <Text className="text-lg font-black text-gray-900">
+              Add Members
+            </Text>
             <Text className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">
               {selectedIds.length} Selected
             </Text>
@@ -237,9 +283,11 @@ export const AddMembersModal = ({
             onPress={handleConfirm}
             disabled={selectedIds.length === 0 || loading}
           >
-            <Text className={`font-bold ${
-              selectedIds.length === 0 ? "text-gray-300" : "text-indigo-600"
-            }`}>
+            <Text
+              className={`font-bold ${
+                selectedIds.length === 0 ? "text-gray-300" : "text-indigo-600"
+              }`}
+            >
               {loading ? "Adding..." : "Done"}
             </Text>
           </TouchableOpacity>
@@ -248,7 +296,9 @@ export const AddMembersModal = ({
         {/* List */}
         <FlatList
           data={availableTenants}
-          keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+          keyExtractor={(item) =>
+            item.id?.toString() || Math.random().toString()
+          }
           contentContainerStyle={{ paddingBottom: 40 }}
           renderItem={({ item }) => {
             const id = item.id?.toString();
@@ -259,16 +309,18 @@ export const AddMembersModal = ({
                 onPress={() => toggleMember(id)}
                 activeOpacity={0.7}
                 className={`flex-row items-center p-4 mx-4 mt-2 rounded-2xl border ${
-                  isSelected 
-                    ? "bg-indigo-50 border-indigo-200" 
+                  isSelected
+                    ? "bg-indigo-50 border-indigo-200"
                     : "bg-white border-gray-50"
                 }`}
               >
                 <Image
-                  source={{ uri: item.avatar || "https://via.placeholder.com/50" }}
+                  source={{
+                    uri: item.avatar || "https://via.placeholder.com/50",
+                  }}
                   className="w-12 h-12 rounded-full bg-gray-100"
                 />
-                
+
                 <View className="ml-4 flex-1">
                   <Text className="font-bold text-gray-800">{item.name}</Text>
                   <Text className="text-gray-400 text-xs">
@@ -278,10 +330,14 @@ export const AddMembersModal = ({
 
                 <View
                   className={`w-6 h-6 rounded-full border-2 items-center justify-center ${
-                    isSelected ? "bg-indigo-600 border-indigo-600" : "border-gray-200"
+                    isSelected
+                      ? "bg-indigo-600 border-indigo-600"
+                      : "border-gray-200"
                   }`}
                 >
-                  {isSelected && <Text className="text-white text-[10px]">✓</Text>}
+                  {isSelected && (
+                    <Text className="text-white text-[10px]">✓</Text>
+                  )}
                 </View>
               </TouchableOpacity>
             );
