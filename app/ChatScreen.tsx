@@ -1,3 +1,4 @@
+import { useActionSheet } from "@expo/react-native-action-sheet";
 import { Ionicons } from "@expo/vector-icons";
 import Clipboard from "@react-native-clipboard/clipboard";
 import auth from "@react-native-firebase/auth";
@@ -5,6 +6,9 @@ import firestore, {
   FirebaseFirestoreTypes,
 } from "@react-native-firebase/firestore";
 import { useHeaderHeight } from "@react-navigation/elements";
+import { Audio } from "expo-av";
+import * as DocumentPicker from "expo-document-picker";
+import * as ImagePicker from "expo-image-picker";
 import {
   ChevronLeft,
   LogOut,
@@ -31,10 +35,10 @@ import {
   View,
 } from "react-native";
 import {
+  Avatar,
   Bubble,
   GiftedChat,
   IMessage,
-  Message,
   MessageText,
 } from "react-native-gifted-chat";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -44,8 +48,15 @@ import CreateGroupModal, {
   GroupNameModal,
 } from "./components/CreateChatGroupModal";
 import GroupProfileModal from "./components/GroupChatProfile";
-import { fetchAllTenants } from "./services/api";
-import { ChatGroup, ChatRoom, User } from "./services/interfaces";
+import {
+  renderActions,
+  renderCustomView,
+  renderMessage,
+  RenderMessageAudio,
+  renderMessageVideo,
+} from "./services/ChatRenders";
+import { fetchAllTenants, getCloudinaryUrl } from "./services/api";
+import { ChatGroup, ChatRoom, IFileMessage, User } from "./services/interfaces";
 
 const ChatManager = () => {
   const insets = useSafeAreaInsets();
@@ -89,12 +100,15 @@ const ChatManager = () => {
   const [groups, setGroups] = useState<any[]>([]);
   const isGroupChat = !!(selectedTenant && "isGroup" in selectedTenant);
   const [privateChats, setPrivateChats] = useState<ChatRoom[]>([]);
-  const [replyMessage, setReplyMessage] = useState<IMessage | null>(null);
+  const [replyMessage, setReplyMessage] = useState<IFileMessage | null>(null);
   const [isForwardModalVisible, setForwardModalVisible] = useState(false);
-  const [messageToForward, setMessageToForward] = useState<IMessage | null>(
+  const [messageToForward, setMessageToForward] = useState<IFileMessage | null>(
     null,
   );
   const [selectedForForward, setSelectedForForward] = useState<string[]>([]);
+  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const { showActionSheetWithOptions } = useActionSheet();
+  const flatListRef = useRef<any>(null);
 
   const displayName =
     selectedTenant?.name && selectedTenant.name.length > 10
@@ -248,7 +262,6 @@ const ChatManager = () => {
     });
   }, [visibleTenants, searchQuery]);
 
-
   const filteredGroups = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
     // Assuming 'myGroups' is your state/prop containing the user's groups
@@ -339,7 +352,7 @@ const ChatManager = () => {
       unsubscribeMessages = messageQuery.limit(50).onSnapshot((snap) => {
         if (!snap) return;
 
-        const newMsgs: IMessage[] = [];
+        const newMsgs: IFileMessage[] = [];
         const removedIds: string[] = [];
 
         snap.docChanges().forEach((change) => {
@@ -354,7 +367,16 @@ const ChatManager = () => {
               user: mData.user,
               replyMessage: mData.replyMessage || null,
               isForwarded: mData.isForwarded ? mData.isForwarded : null,
-            } as IMessage);
+              image: mData.image || null,
+              audio: mData.audio || null,
+              file: mData.file
+                ? {
+                    url: mData.file.url,
+                    name: mData.file.name,
+                    type: mData.file.type,
+                  }
+                : null,
+            } as IFileMessage);
           }
 
           if (change.type === "removed") {
@@ -390,9 +412,10 @@ const ChatManager = () => {
     };
   }, [selectedTenant, user]);
 
-  const onSend = async (newMsgs: IMessage[] = []) => {
+  const onSend = async (newMsgs: IFileMessage[] = []) => {
     if (!selectedTenant || !user?.estate_id) return;
     const myId = user?.id?.toString();
+    const messageToSend = newMsgs[0];
     const roomId = isGroupChat
       ? selectedTenant.id
       : [user.id, selectedTenant.id].sort().join("_");
@@ -405,17 +428,35 @@ const ChatManager = () => {
 
     // 1. Add Message
     await roomRef.collection("messages").add({
-      text: newMsgs[0].text,
+      text: messageToSend.text,
       createdAt: firestore.FieldValue.serverTimestamp(),
       user: { _id: myId, name: user.name, avatar: user.avatar || null },
+      image: messageToSend.image || null,
+      audio: messageToSend.audio || null,
+      file: messageToSend.file
+        ? {
+            url: messageToSend.file.url,
+            name: messageToSend.file.name,
+            type: messageToSend.file.type,
+          }
+        : null,
       replyMessage: replyMessage
         ? {
             _id: replyMessage._id,
             text: replyMessage.text
               ? replyMessage.text.substring(0, 50) +
                 (replyMessage.text.length > 50 ? "..." : "")
-              : "Photo",
-            user: isGroupChat ? replyMessage.user.name : null,
+              : replyMessage.audio
+                ? "🎤 Voice Note"
+                : replyMessage.image
+                  ? "📷 Photo"
+                  : replyMessage.video
+                    ? "🎥 Video"
+                    : replyMessage.file
+                      ? `📄 ${replyMessage.file.name}`
+                      : "Media Message",
+            // Important: Ensure user exists to prevent the "Stuck/Crash" on load
+            user: isGroupChat ? replyMessage.user?.name || "Unknown" : null,
           }
         : null,
     });
@@ -497,14 +538,6 @@ const ChatManager = () => {
       markAsRead();
     }
   }, [selectedTenant, messages.length]);
-
-  const renderMessage = (props: any) => {
-    return (
-      <View>
-        <Message {...props} />
-      </View>
-    );
-  };
 
   // const renderCustomView = (props: any) => {
   //   const { currentMessage } = props;
@@ -856,6 +889,18 @@ const ChatManager = () => {
     if (!messageToForward || selectedIds.length === 0) return;
 
     try {
+      // 1. Determine the summary text for the "lastMessage" preview
+      const getSummaryText = () => {
+        if (messageToForward.text) return messageToForward.text;
+        if (messageToForward.audio) return "🎤 Voice Note";
+        if (messageToForward.image) return "📷 Photo";
+        if (messageToForward.video) return "🎥 Video";
+        if (messageToForward.file) return `📄 ${messageToForward.file.name}`;
+        return "Forwarded Message";
+      };
+
+      const summary = getSummaryText();
+
       for (const targetId of selectedIds) {
         const roomId = [user?.id?.toString(), targetId].sort().join("_");
 
@@ -870,7 +915,7 @@ const ChatManager = () => {
         if (!roomDoc.exists) {
           await roomRef.set({
             members: [user?.id?.toString(), targetId],
-            lastMessage: messageToForward.text,
+            lastMessage: summary,
             updatedAt: firestore.FieldValue.serverTimestamp(),
             createdAt: firestore.FieldValue.serverTimestamp(),
             type: "private",
@@ -879,8 +924,13 @@ const ChatManager = () => {
           });
         }
 
+        // 2. Add the message with ALL media fields
         await roomRef.collection("messages").add({
-          text: messageToForward.text,
+          text: messageToForward.text || null,
+          image: messageToForward.image || null,
+          audio: messageToForward.audio || null,
+          video: messageToForward.video || null,
+          file: messageToForward.file || null, // Ensure this matches your IFileMessage structure
           user: {
             _id: user?.id?.toString(),
             name: user?.name,
@@ -890,12 +940,14 @@ const ChatManager = () => {
           isForwarded: true,
         });
 
+        // 3. Update the room's last message
         await roomRef.update({
-          lastMessage: messageToForward.text,
+          lastMessage: summary,
           updatedAt: firestore.FieldValue.serverTimestamp(),
         });
       }
 
+      // Reset UI
       setForwardModalVisible(false);
       setSelectedForForward([]);
       setMessageToForward(null);
@@ -913,6 +965,183 @@ const ChatManager = () => {
     } catch (error) {
       console.error("Forwarding Error:", error);
       Alert.alert("GateMan", "Failed to forward to some residents.");
+    }
+  };
+
+  // 1. Camera
+  const takePhoto = async () => {
+    // const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
+    // if (!result.canceled) onSend([{ image: result.assets[0].uri }]);
+  };
+
+  // 2. Gallery
+  const pickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
+
+    if (!result.canceled) {
+      // Just a "middle-man" step to swap local for web
+      const webUrl = await getCloudinaryUrl(result.assets[0].uri, "image");
+
+      if (webUrl) {
+        onSend([
+          {
+            _id: Math.random().toString(),
+            createdAt: new Date(),
+            user: { _id: myId || "anon", name: user?.name },
+            image: webUrl,
+            text: "",
+          },
+        ]);
+      }
+    }
+  };
+
+  // 3. Documents (PDFs, etc.)
+  const pickDocument = async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: ["application/pdf", "application/msword", "text/plain"],
+      copyToCacheDirectory: true,
+    });
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      const asset = result.assets[0];
+
+      const webUrl = await getCloudinaryUrl(asset.uri, "document");
+
+      if (webUrl) {
+        onSend([
+          {
+            _id: Math.random().toString(),
+            createdAt: new Date(),
+            user: {
+              _id: myId || "anonymous",
+              name: user?.name || "User",
+            },
+            text: `📄 ${asset.name}`,
+            file: {
+              url: webUrl, // <--- NOW THIS IS THE CLOUDINARY LINK
+              name: asset.name,
+              type: asset.mimeType || "application/octet-stream",
+            },
+          },
+        ]);
+      }
+    }
+  };
+
+  const pickVideo = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: "videos",
+      allowsEditing: true,
+      quality: 0.7,
+    });
+
+    if (!result.canceled) {
+      const webUrl = await getCloudinaryUrl(result.assets[0].uri, "video");
+      if (webUrl) {
+        onSend([
+          {
+            _id: Math.random().toString(),
+            createdAt: new Date(),
+            user: { _id: myId || "anon", name: user?.name },
+            video: webUrl, // GiftedChat uses the 'video' prop
+            text: "",
+          },
+        ]);
+      }
+    }
+  };
+
+  const recordVideo = async () => {
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: "videos",
+      quality: 0.7,
+    });
+
+    if (!result.canceled) {
+      const webUrl = await getCloudinaryUrl(result.assets[0].uri, "video");
+      if (webUrl) {
+        onSend([
+          {
+            _id: Math.random().toString(),
+            createdAt: new Date(),
+            user: { _id: myId || "anon", name: user?.name },
+            video: webUrl, // GiftedChat uses the 'video' prop
+            text: "",
+          },
+        ]);
+      }
+    }
+  };
+
+  //   const handleShareMessageFile = async (message: any) => {
+  //   if (!message.file) return;
+
+  //   try {
+  //     const isAvailable = await Sharing.isAvailableAsync();
+  //     if (!isAvailable) {
+  //       Alert.alert("Error", "Sharing is not supported on this device.");
+  //       return;
+  //     }
+
+  //     // We share the remote URL directly so the user doesn't
+  //     // have to wait for a local download to finish first.
+  //     await Sharing.shareAsync(message.file.url, {
+  //       dialogTitle: `Share ${message.file.name}`,
+  //       mimeType: message.file.mimeType || 'application/pdf',
+  //     });
+  //   } catch (e) {
+  //     console.error("Sharing Error:", e);
+  //   }
+  // };
+
+  // --- START RECORDING ---
+  const startAudioRecording = async () => {
+    try {
+      const permission = await Audio.requestPermissionsAsync();
+      if (permission.status !== "granted") return;
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY,
+      );
+      setRecording(recording);
+    } catch (err) {
+      console.error("Failed to start recording", err);
+    }
+  };
+
+  // --- STOP RECORDING ---
+  const stopAudioRecording = async () => {
+    if (!recording) return;
+
+    try {
+      setRecording(null);
+      await recording.stopAndUnloadAsync();
+      const uri = recording.getURI();
+
+      if (uri) {
+        // Cloudinary helper (Remember: audio uses the 'video' resource type)
+        const remoteUrl = await getCloudinaryUrl(uri, "video");
+
+        if (remoteUrl) {
+          onSend([
+            {
+              _id: Math.random().toString(),
+              createdAt: new Date(),
+              user: { _id: myId || "anon", name: user?.name || "User" },
+              audio: remoteUrl,
+              text: "",
+            },
+          ]);
+        }
+      }
+    } catch (error) {
+      console.error("Error stopping recording:", error);
     }
   };
 
@@ -1101,7 +1330,38 @@ const ChatManager = () => {
             messages={messages}
             renderMessage={renderMessage}
             onSend={onSend}
+            messagesContainerRef={flatListRef}
             user={{ _id: user?.id?.toString() || "0", name: user?.name }}
+            renderAvatar={(props) => {
+              const { user: messageUser } = props.currentMessage;
+              if (isGroupChat && messageUser) {
+                return (
+                  <Avatar
+                    {...props}
+                    imageStyle={{
+                      left: { width: 40, height: 40, borderRadius: 20 },
+                    }}
+                  />
+                );
+              }
+              return null;
+            }}
+            renderActions={(props) =>
+              renderActions({
+                props,
+                showActionSheet: showActionSheetWithOptions,
+                onTakePhoto: takePhoto,
+                onPickImage: pickImage,
+                onPickDocument: pickDocument,
+                onPickVideo: pickVideo,
+                onStartRecording: startAudioRecording,
+                onStopRecording: stopAudioRecording,
+                isRecording: !!recording,
+              })
+            }
+            renderMessageAudio={RenderMessageAudio}
+            renderMessageVideo={renderMessageVideo}
+            renderCustomView={renderCustomView}
             isUsernameVisible={isGroupChat}
             renderUsername={(user) => {
               if (!user || !user.name) return null;
@@ -1120,6 +1380,10 @@ const ChatManager = () => {
             renderMessageText={(props) => {
               const currentMessage = props.currentMessage as any;
               const { position } = props;
+
+              if (currentMessage.file) {
+                return null;
+              }
 
               return (
                 <View className="px-2 py-1">
@@ -1197,19 +1461,43 @@ const ChatManager = () => {
               swipe: {
                 isEnabled: true,
                 direction: "right",
-                onSwipe: (msg) =>
+                onSwipe: (msg) => {
+                  const fileMsg = msg as IFileMessage;
                   setReplyMessage({
-                    _id: msg._id,
-                    text: msg.text,
-                    user: msg.user,
-                    createdAt: msg.createdAt,
-                  }),
+                    _id: fileMsg._id,
+                    text: fileMsg.text || "",
+                    user: fileMsg.user,
+                    createdAt: fileMsg.createdAt,
+                    image: fileMsg.image || undefined,
+                    audio: fileMsg.audio || undefined,
+                    video: fileMsg.video || undefined,
+                    file: fileMsg.file || undefined,
+                  });
+                },
               },
               message: replyMessage,
               onClear: () => setReplyMessage(null),
+              // onPress: (originalMsg) => {
+              //   const index = messages.findIndex(
+              //     (m) => m._id === originalMsg._id,
+              //   );
+              //   if (index > -1) {
+              //     flatListRef.current?.scrollToIndex({ index, animated: true });
+              //   }
+              // },
 
               renderPreview: (props) => {
                 if (!replyMessage) return null;
+
+                // Determine what to show if text is empty
+                const getDisplayContent = () => {
+                  if (replyMessage.text) return replyMessage.text;
+                  if (replyMessage.file) return `📄 ${replyMessage.file.name}`;
+                  if (replyMessage.audio) return "🎤 Voice Note";
+                  if (replyMessage.image) return "📷 Image";
+                  if (replyMessage.video) return "🎥 Video";
+                  return "Media Message";
+                };
 
                 return (
                   <View className="bg-gray-100 border-l-4 border-[#6366f1] px-4 py-2 flex-row justify-between items-center">
@@ -1219,16 +1507,13 @@ const ChatManager = () => {
                           Replying to {replyMessage.user.name}
                         </Text>
                       )}
-
                       <Text
                         numberOfLines={1}
                         className="text-gray-600 text-[13px]"
                       >
-                        {replyMessage.text}
+                        {getDisplayContent()}
                       </Text>
                     </View>
-
-                    {/* Custom Close Button - Change color to Gray or Indigo here */}
                     <TouchableOpacity
                       onPress={() => setReplyMessage(null)}
                       className="p-1"
@@ -1238,8 +1523,67 @@ const ChatManager = () => {
                   </View>
                 );
               },
+              renderMessageReply: (props: any) => {
+                const { replyMessage } = props;
+                if (!replyMessage) return null;
+                const handleScrollToOriginal = () => {
+                  const index = messages.findIndex(
+                    (m) => m._id === replyMessage._id,
+                  );
+                  if (index > -1) {
+                    flatListRef.current?.scrollToIndex({
+                      index,
+                      animated: true,
+                    });
+                  }
+                };
+                return (
+                  <TouchableOpacity onPress={handleScrollToOriginal}>
+                    <View className="p-2 border-l-4 border-indigo-200 bg-white/10">
+                      {isGroupChat && replyMessage.user && (
+                        <Text className="text-indigo-400 text-[10px] font-bold mb-1">
+                          {replyMessage.user}
+                        </Text>
+                      )}
+                      {replyMessage.audio ? (
+                        <View className="flex-row items-center">
+                          <Ionicons
+                            name="mic-outline"
+                            size={14}
+                            color="#6366f1"
+                          />
+                          <Text className="text-white ml-2 text-[11px] font-bold">
+                            Voice Note
+                          </Text>
+                        </View>
+                      ) : replyMessage?.file ? (
+                        <View className="flex-row items-center">
+                          <Ionicons
+                            name="document-outline"
+                            size={14}
+                            color="#6366f1"
+                          />
+                          <Text
+                            className="text-black ml-2 text-[11px] font-bold"
+                            numberOfLines={1}
+                          >
+                            doc{replyMessage.file.name}
+                          </Text>
+                        </View>
+                      ) : (
+                        <Text
+                          className="text-black text-[11px]"
+                          numberOfLines={2}
+                        >
+                          {replyMessage.text}
+                        </Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              },
             }}
-            onLongPressMessage={(context: any, message: IMessage) => {
+            onLongPressMessage={(context: any, message: IFileMessage) => {
               const options = ["Reply", "Copy", "Forward", "Delete", "Cancel"];
               const cancelButtonIndex = 4;
               context.actionSheet().showActionSheetWithOptions(
@@ -1259,6 +1603,7 @@ const ChatManager = () => {
                 },
               );
             }}
+            onPressMessage={() => {}}
           />
         </KeyboardAvoidingView>
 
@@ -1443,7 +1788,6 @@ const ChatManager = () => {
 
             unreadCount = chatData?.[`unreadCount_${myId}`] || 0;
           } else {
-            // For groups, 'item' IS the chat data object
             const myMemberData = item.members?.find(
               (m: any) => (m.user_id || m) === myId,
             );
@@ -1481,7 +1825,7 @@ const ChatManager = () => {
                   <Text className="text-gray-400 text-xs">
                     Block {item.block} • Unit {item.unit}
                   </Text>
-                  <Text className="text-green-500 italic text-xs mt-2">
+                  <Text className="text-green-500 italic text-xs">
                     {remoteTyping[item.id?.toString()] ? "typing" : ""}
                   </Text>
                 </View>

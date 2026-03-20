@@ -12,6 +12,7 @@ import { Platform } from "react-native";
 import { io, Socket } from "socket.io-client";
 import { fetchRequests } from "./services/api";
 import { tempNotification, User } from "./services/interfaces";
+import { router } from "expo-router";
 
 interface UserContextType {
   user: Partial<User> | null;
@@ -71,12 +72,17 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     {},
   );
   const socketRef = useRef<Socket | null>(null);
-
   const triggerRefresh = () => setRefreshTrigger((prev) => !prev);
   // Inside your UserProvider
   const [privateUnread, setPrivateUnread] = useState(0);
   const [groupUnread, setGroupUnread] = useState(0);
   const totalUnread = privateUnread + groupUnread;
+
+  // useEffect(()=>{
+  //   if(!user) {
+  //     router.replace("/")
+  //   }
+  // },[user])
 
   useEffect(() => {
     if (!user?.id || !user?.estate_id) return;
@@ -126,7 +132,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    const newSocket = io("http://10.21.77.113:3003", {
+    const newSocket = io("http://10.141.198.113:3003", {
       path: "/api/socket.io",
       transports: ["websocket"],
       autoConnect: true,

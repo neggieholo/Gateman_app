@@ -2,11 +2,13 @@ import { Stack } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { UserProvider } from "./UserContext";
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { ActionSheetProvider } from '@expo/react-native-action-sheet';
 
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <GestureHandlerRootView style={{ flex: 1 }}>
+        <ActionSheetProvider>
         <UserProvider>
           <Stack
             screenOptions={{
@@ -63,6 +65,7 @@ export default function RootLayout() {
             />
           </Stack>
         </UserProvider>
+        </ActionSheetProvider>
       </GestureHandlerRootView>
     </SafeAreaProvider>
   );

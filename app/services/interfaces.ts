@@ -1,4 +1,5 @@
 import { FirebaseFirestoreTypes } from "@react-native-firebase/firestore";
+import { IMessage } from 'react-native-gifted-chat';
 
 export interface Estate {
   id: string;
@@ -74,4 +75,12 @@ export interface ChatRoom {
   lastMessageAt?: any;
   lastSenderId?: string;
   [key: string]: any; // This allows the dynamic 'unreadCount_ID' keys
+}
+
+export interface IFileMessage extends IMessage {
+  file?: {
+    url: string;
+    name: string;
+    type: string;
+  };
 }

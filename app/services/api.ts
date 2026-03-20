@@ -1,10 +1,12 @@
-import { Estate, tempNotification, User } from "./interfaces";
 import Constants from "expo-constants";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
+import { Estate, tempNotification } from "./interfaces";
 
-const BASE_URL = "http://10.21.77.113:3003/api"
+import { File } from "expo-file-system";
+
+const BASE_URL = "http://10.141.198.113:3003/api";
 
 export const postLogin = async (email: string, password: string) => {
   try {
@@ -14,19 +16,23 @@ export const postLogin = async (email: string, password: string) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ email, password }),
-      credentials: "include" // IMPORTANT for session cookies
+      credentials: "include", // IMPORTANT for session cookies
     });
 
     const data = await res.json();
-    
+
     return data;
   } catch (err) {
-    console.log('Error:', err)
+    console.log("Error:", err);
     return { success: false, message: "Network error" };
   }
 };
 
-export const postRegister = async (name: string, email: string, password: string) => {
+export const postRegister = async (
+  name: string,
+  email: string,
+  password: string,
+) => {
   try {
     const res = await fetch(`${BASE_URL}/auth/register/tenant`, {
       method: "POST",
@@ -43,7 +49,6 @@ export const postRegister = async (name: string, email: string, password: string
   }
 };
 
-
 export const getDashboardData = async () => {
   const res = await fetch(`${BASE_URL}/tenant/dashboard`, {
     method: "GET",
@@ -54,7 +59,6 @@ export const getDashboardData = async () => {
   const data = await res.json();
   return data;
 };
-
 
 export const postLogout = async () => {
   const res = await fetch(`${BASE_URL}/logout`, {
@@ -68,11 +72,10 @@ export const postLogout = async () => {
 };
 
 export const createJoinRequest = async (formData: FormData): Promise<any> => {
-  
   const res = await fetch(`${BASE_URL}/admin/join-request`, {
     method: "POST",
     credentials: "include",
-    body: formData, 
+    body: formData,
   });
 
   const data = await res.json();
@@ -99,15 +102,15 @@ export const fetchAllEstates = async (): Promise<Estate[]> => {
   return data.estates;
 };
 
-export const fetchRequests = async () => { 
+export const fetchRequests = async () => {
   console.log("Fetching temp notifications...");
   try {
     const response = await fetch(`${BASE_URL}/admin/my-request`, {
-      method: 'GET', // Explicitly set method
+      method: "GET", // Explicitly set method
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
-      credentials: 'include',
+      credentials: "include",
     });
 
     const contentType = response.headers.get("content-type");
@@ -127,22 +130,22 @@ export const fetchRequests = async () => {
         standardized = {
           from: "Gateman",
           message: `Your join request to ${data.activeRequest.estate_name} is still pending`,
-          reason: "" 
+          reason: "",
         };
-      } 
-      else if (data.feedback) {
+      } else if (data.feedback) {
         standardized = {
           from: data.feedback.estate,
-          message: data.feedback.type === "decline" 
-            ? "Your request was declined" 
-            : "You have been blocked",
-          reason: data.feedback.message || "No reason was given"
+          message:
+            data.feedback.type === "decline"
+              ? "Your request was declined"
+              : "You have been blocked",
+          reason: data.feedback.message || "No reason was given",
         };
       }
 
-      return { 
-        notification: standardized, 
-        isRead: data.isRead
+      return {
+        notification: standardized,
+        isRead: data.isRead,
       };
     }
   } catch (error) {
@@ -153,11 +156,11 @@ export const fetchRequests = async () => {
 export const dismissNotification = async () => {
   try {
     const response = await fetch(`${BASE_URL}/admin/notification/dismiss`, {
-      method: 'DELETE',
+      method: "DELETE",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
-      credentials: 'include',
+      credentials: "include",
     });
 
     return await response.json();
@@ -167,15 +170,14 @@ export const dismissNotification = async () => {
   }
 };
 
-
 export const markNotificationAsRead = async () => {
   try {
     const response = await fetch(`${BASE_URL}/admin/notification/read`, {
-      method: 'PUT',
+      method: "PUT",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
-      credentials: 'include',
+      credentials: "include",
     });
 
     if (!response.ok) {
@@ -238,13 +240,81 @@ export default async function registerForPushNotificationsAsync() {
 }
 
 export const fetchAllTenants = async () => {
-    const res = await fetch(`${BASE_URL}/admin/tenants`, {
-      credentials: "include",
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || "Could not fetch tenants");
+  const res = await fetch(`${BASE_URL}/admin/tenants`, {
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || "Could not fetch tenants");
+  }
+  const data = await res.json();
+  return data;
+};
+
+export const getCloudinaryUrl = async (
+  localUri: string,
+  selectionType: "image" | "audio" | "video" | "document",
+) => {
+  try {
+    // 1. SIZE CHECK: 50MB Limit
+    const fileInfo = new File(localUri);
+    if (!fileInfo.exists) {
+      console.error("File does not exist at path:", localUri);
+      return null;
     }
+
+    const fileSize = fileInfo.size;
+    const MAX_SIZE = 50 * 1024 * 1024;
+
+    if (fileSize > MAX_SIZE) {
+      alert("File too large. Max limit is 50MB.");
+      return null;
+    }
+
+    const formData = new FormData();
+
+    // 2. Resource Type Logic
+    let cloudinaryType = "image";
+    let mimeType = "image/jpeg";
+
+    if (selectionType === "audio") {
+      cloudinaryType = "video"; // Cloudinary treats audio as video resource
+      mimeType = "audio/mpeg";
+    } else if (selectionType === "video") {
+      cloudinaryType = "video";
+      mimeType = "video/mp4"; // CRITICAL: Explicitly tell Cloudinary it's a video
+    } else if (selectionType === "document") {
+      cloudinaryType = "raw";
+      mimeType = "application/pdf";
+    }
+
+    // @ts-ignore
+    formData.append("file", {
+      uri: localUri,
+      type: mimeType,
+      name: `gateman_${selectionType}_${Date.now()}`,
+    } as any);
+
+    formData.append("upload_preset", "gateman uploads");
+
+    const res = await fetch(
+      `https://api.cloudinary.com/v1_1/diubaoqcr/${cloudinaryType}/upload`,
+      {
+        method: "POST",
+        body: formData,
+      },
+    );
+
     const data = await res.json();
-    return data;
-  };
+
+    if (data.error) {
+      console.error("Cloudinary Error:", data.error.message);
+      return null;
+    }
+
+    return data.secure_url;
+  } catch (err) {
+    console.error("Upload Logic Error:", err);
+    return null;
+  }
+};
