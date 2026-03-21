@@ -77,6 +77,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [privateUnread, setPrivateUnread] = useState(0);
   const [groupUnread, setGroupUnread] = useState(0);
   const totalUnread = privateUnread + groupUnread;
+  const BASE_URL = `${process.env.EXPO_PUBLIC_BASE_URL}`
+
 
   // useEffect(()=>{
   //   if(!user) {
@@ -132,7 +134,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    const newSocket = io("http://10.141.198.113:3003", {
+    const newSocket = io(BASE_URL, {
       path: "/api/socket.io",
       transports: ["websocket"],
       autoConnect: true,

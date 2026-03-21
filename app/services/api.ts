@@ -6,7 +6,7 @@ import { Estate, tempNotification } from "./interfaces";
 
 import { File } from "expo-file-system";
 
-const BASE_URL = "http://10.141.198.113:3003/api";
+const BASE_URL = `${process.env.EXPO_PUBLIC_BASE_URL}/api`;
 
 export const postLogin = async (email: string, password: string) => {
   try {

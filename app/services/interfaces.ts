@@ -74,7 +74,7 @@ export interface ChatRoom {
   id: string;
   lastMessageAt?: any;
   lastSenderId?: string;
-  [key: string]: any; // This allows the dynamic 'unreadCount_ID' keys
+  [key: string]: any; 
 }
 
 export interface IFileMessage extends IMessage {
@@ -83,4 +83,5 @@ export interface IFileMessage extends IMessage {
     name: string;
     type: string;
   };
+  pending?: boolean;
 }

@@ -6,7 +6,7 @@ import firestore, {
   FirebaseFirestoreTypes,
 } from "@react-native-firebase/firestore";
 import { useHeaderHeight } from "@react-navigation/elements";
-import { Audio } from "expo-av";
+import { Audio, ResizeMode, Video } from "expo-av";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import {
@@ -53,7 +53,8 @@ import {
   renderCustomView,
   renderMessage,
   RenderMessageAudio,
-  renderMessageVideo,
+  RenderMessageImage,
+  RenderMessageVideoComponent,
 } from "./services/ChatRenders";
 import { fetchAllTenants, getCloudinaryUrl } from "./services/api";
 import { ChatGroup, ChatRoom, IFileMessage, User } from "./services/interfaces";
@@ -76,6 +77,7 @@ const ChatManager = () => {
     groupUnread,
   } = useUser();
 
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [tenants, setTenants] = useState<Partial<User>[]>([]);
   const [selectedTenant, setSelectedTenant] = useState<
@@ -108,6 +110,10 @@ const ChatManager = () => {
   const [selectedForForward, setSelectedForForward] = useState<string[]>([]);
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const { showActionSheetWithOptions } = useActionSheet();
+  const [selectedMedia, setSelectedMedia] = useState<{
+    url: string;
+    type: "image" | "video";
+  } | null>(null);
   const flatListRef = useRef<any>(null);
 
   const displayName =
@@ -305,6 +311,7 @@ const ChatManager = () => {
   //message fetch
   useEffect(() => {
     if (!selectedTenant || !user || !user.estate_id) return;
+    setIsInitialLoading(true);
 
     const chatCollection = isGroupChat ? "groups" : "private_chats";
     const roomId = isGroupChat
@@ -319,7 +326,10 @@ const ChatManager = () => {
 
     let unsubscribeMessages: () => void;
     const unsubscribeRoom = roomRef.onSnapshot((doc) => {
-      if (!doc.exists) return;
+      if (!doc.exists) {
+        setIsInitialLoading(false);
+        return;
+      }
       const data = doc.data();
 
       if (!isGroupChat) {
@@ -350,7 +360,10 @@ const ChatManager = () => {
 
       // 3. Start the Message Listener
       unsubscribeMessages = messageQuery.limit(50).onSnapshot((snap) => {
-        if (!snap) return;
+        if (!snap) {
+          setIsInitialLoading(false);
+          return;
+        }
 
         const newMsgs: IFileMessage[] = [];
         const removedIds: string[] = [];
@@ -369,6 +382,7 @@ const ChatManager = () => {
               isForwarded: mData.isForwarded ? mData.isForwarded : null,
               image: mData.image || null,
               audio: mData.audio || null,
+              video: mData.video || null,
               file: mData.file
                 ? {
                     url: mData.file.url,
@@ -402,6 +416,7 @@ const ChatManager = () => {
           // 3. Append the new ones to the filtered list
           return GiftedChat.append(updatedMessages, uniqueNewMessages);
         });
+        setIsInitialLoading(false);
       });
     });
 
@@ -426,6 +441,8 @@ const ChatManager = () => {
       .collection(isGroupChat ? "groups" : "private_chats")
       .doc(roomId);
 
+    console.log("FULL MESSAGE TO SEND:", messageToSend);
+    console.log("Video URL:", messageToSend.video);
     // 1. Add Message
     await roomRef.collection("messages").add({
       text: messageToSend.text,
@@ -433,6 +450,7 @@ const ChatManager = () => {
       user: { _id: myId, name: user.name, avatar: user.avatar || null },
       image: messageToSend.image || null,
       audio: messageToSend.audio || null,
+      video: messageToSend.video || null,
       file: messageToSend.file
         ? {
             url: messageToSend.file.url,
@@ -975,14 +993,54 @@ const ChatManager = () => {
   };
 
   // 2. Gallery
+  // const pickImage = async () => {
+  //   const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
+
+  //   if (!result.canceled) {
+  //     // Just a "middle-man" step to swap local for web
+  //     const webUrl = await getCloudinaryUrl(result.assets[0].uri, "image");
+
+  //     if (webUrl) {
+  //       onSend([
+  //         {
+  //           _id: Math.random().toString(),
+  //           createdAt: new Date(),
+  //           user: { _id: myId || "anon", name: user?.name },
+  //           image: webUrl,
+  //           text: "",
+  //         },
+  //       ]);
+  //     }
+  //   }
+  // };
+
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
+    if (result.canceled) return;
 
-    if (!result.canceled) {
-      // Just a "middle-man" step to swap local for web
-      const webUrl = await getCloudinaryUrl(result.assets[0].uri, "image");
+    const localUri = result.assets[0].uri;
+    const tempId = `local-${Date.now()}`;
+    const ghostMessage = {
+      _id: tempId,
+      createdAt: new Date(),
+      user: {
+        _id: myId || "0",
+        name: user?.name || "Resident",
+      },
+      image: localUri,
+      text: "",
+      pending: true,
+    };
+
+    setMessages((previousMessages) =>
+      GiftedChat.append(previousMessages, [ghostMessage]),
+    );
+
+    try {
+      const webUrl = await getCloudinaryUrl(localUri, "image");
 
       if (webUrl) {
+        setMessages((prev) => prev.filter((m) => m._id !== tempId));
         onSend([
           {
             _id: Math.random().toString(),
@@ -993,6 +1051,12 @@ const ChatManager = () => {
           },
         ]);
       }
+    } catch (err: any) {
+      setMessages((prev) => prev.filter((m) => m._id !== tempId));
+      Alert.alert(
+        "GateMan Error",
+        "Could not send media. Please check your network.",
+      );
     }
   };
 
@@ -1003,29 +1067,43 @@ const ChatManager = () => {
       copyToCacheDirectory: true,
     });
 
-    if (!result.canceled && result.assets && result.assets.length > 0) {
-      const asset = result.assets[0];
+    if (result.canceled || !result.assets?.length) return;
 
+    const asset = result.assets[0];
+    const tempId = `d-local-${Date.now()}`;
+
+    // 1. Create Local Ghost
+    const ghostDoc = {
+      _id: tempId,
+      createdAt: new Date(),
+      user: { _id: myId || "0", name: user?.name || "User" },
+      text: `📄 ${asset.name}`,
+      file: {
+        url: asset.uri, // Local URI for the ghost
+        name: asset.name,
+        type: asset.mimeType || "application/octet-stream",
+      },
+      pending: true,
+    };
+
+    setMessages((prev) => GiftedChat.append(prev, [ghostDoc]));
+
+    try {
       const webUrl = await getCloudinaryUrl(asset.uri, "document");
-
       if (webUrl) {
+        setMessages((prev) => prev.filter((m) => m._id !== tempId));
         onSend([
           {
+            ...ghostDoc,
             _id: Math.random().toString(),
-            createdAt: new Date(),
-            user: {
-              _id: myId || "anonymous",
-              name: user?.name || "User",
-            },
-            text: `📄 ${asset.name}`,
-            file: {
-              url: webUrl, // <--- NOW THIS IS THE CLOUDINARY LINK
-              name: asset.name,
-              type: asset.mimeType || "application/octet-stream",
-            },
+            file: { ...ghostDoc.file, url: webUrl },
+            pending: false,
           },
         ]);
       }
+    } catch (err) {
+      setMessages((prev) => prev.filter((m) => m._id !== tempId));
+      Alert.alert("Error", "Document upload failed.");
     }
   };
 
@@ -1036,19 +1114,39 @@ const ChatManager = () => {
       quality: 0.7,
     });
 
-    if (!result.canceled) {
-      const webUrl = await getCloudinaryUrl(result.assets[0].uri, "video");
+    if (result.canceled) return;
+
+    const localUri = result.assets[0].uri;
+    const tempId = `v-local-${Date.now()}`;
+
+    // 1. Create Local Ghost
+    const ghostVideo = {
+      _id: tempId,
+      createdAt: new Date(),
+      user: { _id: myId || "anon", name: user?.name },
+      video: localUri,
+      text: "",
+      pending: true,
+    };
+
+    setMessages((prev) => GiftedChat.append(prev, [ghostVideo]));
+
+    try {
+      const webUrl = await getCloudinaryUrl(localUri, "video");
       if (webUrl) {
+        setMessages((prev) => prev.filter((m) => m._id !== tempId));
         onSend([
           {
+            ...ghostVideo,
             _id: Math.random().toString(),
-            createdAt: new Date(),
-            user: { _id: myId || "anon", name: user?.name },
-            video: webUrl, // GiftedChat uses the 'video' prop
-            text: "",
+            video: webUrl,
+            pending: false,
           },
         ]);
       }
+    } catch (err) {
+      setMessages((prev) => prev.filter((m) => m._id !== tempId));
+      Alert.alert("Error", "Video upload failed.");
     }
   };
 
@@ -1120,15 +1218,34 @@ const ChatManager = () => {
     if (!recording) return;
 
     try {
-      setRecording(null);
+      // 1. Stop the hardware
       await recording.stopAndUnloadAsync();
       const uri = recording.getURI();
+      setRecording(null); 
 
       if (uri) {
-        // Cloudinary helper (Remember: audio uses the 'video' resource type)
-        const remoteUrl = await getCloudinaryUrl(uri, "video");
+        const tempId = `audio-local-${Date.now()}`;
+
+        // 2. Create the Local Ghost Message
+        const ghostAudio = {
+          _id: tempId,
+          createdAt: new Date(),
+          user: { _id: myId || "anon", name: user?.name || "User" },
+          audio: uri, // Local file path
+          text: "",
+          pending: true, // Shows the "Uploading" state in the bubble
+        };
+
+        // 3. Update UI immediately
+        setMessages((prev) => GiftedChat.append(prev, [ghostAudio]));
+
+        // 4. Upload to Cloudinary
+        const remoteUrl = await getCloudinaryUrl(uri, "video"); 
 
         if (remoteUrl) {
+          // 5. SUCCESS: Remove Ghost and Send Real Message to Firestore
+          setMessages((prev) => prev.filter((m) => m._id !== tempId));
+
           onSend([
             {
               _id: Math.random().toString(),
@@ -1136,14 +1253,39 @@ const ChatManager = () => {
               user: { _id: myId || "anon", name: user?.name || "User" },
               audio: remoteUrl,
               text: "",
+              pending: false,
             },
           ]);
         }
       }
     } catch (error) {
       console.error("Error stopping recording:", error);
+      setRecording(null);
+      Alert.alert("GateMan", "Failed to process voice note.");
     }
   };
+
+  const renderChatFooter = () => {
+    if (recording) {
+      return (
+        <View className="h-10 bg-white flex-row items-center justify-end px-4 border-t border-gray-100">
+          {/* Pulsing Red Dot */}
+          <View className="w-2 h-2 rounded-full bg-red-500 mr-2" />
+
+          <Text className="text-red-500 font-bold text-[12px]">
+            RECORDING VOICE...
+          </Text>
+        </View>
+      );
+    }
+    return null;
+  };
+
+  const renderLoading = () => (
+    <View className="h-full justify-center items-center bg-transparent">
+      <ActivityIndicator size="large" color="#6366f1" />
+    </View>
+  );
 
   if (!user?.estate_id) {
     return (
@@ -1359,8 +1501,23 @@ const ChatManager = () => {
                 isRecording: !!recording,
               })
             }
+            renderChatFooter={renderChatFooter}
+            renderLoading={renderLoading}
             renderMessageAudio={RenderMessageAudio}
-            renderMessageVideo={renderMessageVideo}
+            renderMessageVideo={(props) => (
+              <RenderMessageVideoComponent
+                {...props}
+                onOpen={(url: any) => {
+                  setSelectedMedia({ url, type: "video" });
+                }}
+              />
+            )}
+            renderMessageImage={(props) => (
+              <RenderMessageImage
+                {...props}
+                onOpen={(url: any) => setSelectedMedia({ url, type: "image" })}
+              />
+            )}
             renderCustomView={renderCustomView}
             isUsernameVisible={isGroupChat}
             renderUsername={(user) => {
@@ -1605,6 +1762,54 @@ const ChatManager = () => {
             }}
             onPressMessage={() => {}}
           />
+          <Modal
+            visible={!!selectedMedia}
+            animationType="fade"
+            transparent={false}
+          >
+            <View
+              style={{
+                flex: 1,
+                backgroundColor: "black",
+                justifyContent: "center",
+              }}
+            >
+              {/* The "X" to Return to Chat */}
+              <TouchableOpacity
+                onPress={() => setSelectedMedia(null)}
+                style={{
+                  position: "absolute",
+                  top: 50,
+                  right: 20,
+                  zIndex: 99,
+                  padding: 10,
+                }}
+              >
+                <Ionicons name="close-circle" size={42} color="white" />
+              </TouchableOpacity>
+
+              {selectedMedia?.type === "image" && (
+                <Image
+                  source={{ uri: selectedMedia.url }}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    resizeMode: "contain",
+                  }}
+                />
+              )}
+
+              {selectedMedia?.type === "video" && (
+                <Video
+                  source={{ uri: selectedMedia.url }}
+                  style={{ width: "100%", height: "80%" }}
+                  useNativeControls
+                  resizeMode={ResizeMode.CONTAIN}
+                  shouldPlay={true}
+                />
+              )}
+            </View>
+          </Modal>
         </KeyboardAvoidingView>
 
         {!isGroupChat && (

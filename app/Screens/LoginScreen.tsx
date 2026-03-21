@@ -29,6 +29,7 @@ export default function LoginScreen() {
   const [isLogin, setIsLogin] = useState<boolean>(true);
   const [error, setError] = useState<string>("");
   const { setUser, setSessionId, setPushToken } = useContext(UserContext);
+  const BASE_URL = `${process.env.EXPO_PUBLIC_BASE_URL}`
 
   const handleLogin = async () => {
     setLoading(true);
@@ -49,7 +50,7 @@ export default function LoginScreen() {
       console.log("🧹 Cookie Jar Wiped!");
       const response = await postLogin(email, password);
       if (response.success) {
-        const cookies = await CookieManager.get("http://10.141.198.113:3003");
+        const cookies = await CookieManager.get(BASE_URL);
         console.log("🍪 Captured Cookies:", cookies);
 
         if (cookies["gateman.sid"]) {
