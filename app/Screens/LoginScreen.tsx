@@ -17,6 +17,7 @@ import { FormInput } from "../components/FormInput";
 import registerForPushNotificationsAsync, {
   postLogin,
   postRegister,
+  updatePushTokenApi,
 } from "../services/api";
 import { UserContext } from "../UserContext";
 
@@ -41,6 +42,7 @@ export default function LoginScreen() {
         if (pushTokenResponse) {
           console.log("📱 Push token obtained:", pushTokenResponse);
           setPushToken(pushTokenResponse);
+          await updatePushTokenApi(pushTokenResponse);
         }
       } catch (pushErr) {
         console.warn("Push token failed, continuing login:", pushErr);

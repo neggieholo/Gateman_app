@@ -45,6 +45,7 @@ export interface User {
   showWelcome?: boolean;
   estate_name?: string;
   chatToken?: string;
+  push_token?: string;
 }
 
 export interface tempNotification {
@@ -64,6 +65,7 @@ export interface ChatGroup {
   name: string;
   members: GroupMember[];
   admins: string[];
+  mutedBy: string[];
   isGroup: true;
   avatar?: string | null;
   createdBy?: string;
@@ -84,4 +86,5 @@ export interface IFileMessage extends IMessage {
     type: string;
   };
   pending?: boolean;
+  isDeleted?: boolean
 }

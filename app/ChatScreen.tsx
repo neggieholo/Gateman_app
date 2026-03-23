@@ -9,7 +9,10 @@ import { useHeaderHeight } from "@react-navigation/elements";
 import { Audio, ResizeMode, Video } from "expo-av";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
+import { router, useLocalSearchParams } from "expo-router";
 import {
+  Bell,
+  BellOff,
   ChevronLeft,
   LogOut,
   MoreVertical,
@@ -56,7 +59,12 @@ import {
   RenderMessageImage,
   RenderMessageVideoComponent,
 } from "./services/ChatRenders";
-import { fetchAllTenants, getCloudinaryUrl } from "./services/api";
+import {
+  fetchAllTenants,
+  getCloudinaryUrl,
+  notifyGroupPush,
+  sendPushNotification,
+} from "./services/api";
 import { ChatGroup, ChatRoom, IFileMessage, User } from "./services/interfaces";
 
 const ChatManager = () => {
@@ -91,6 +99,8 @@ const ChatManager = () => {
   const [isProfileVisible, setIsProfileVisible] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
+  const [selectedForUnblock, setSelectedForUnblock] = useState<string[]>([]);
+  const [isUnblocking, setIsUnblocking] = useState(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [blockedMeIds, setBlockedMeIds] = useState<string[]>([]);
   const [showMenu, setShowMenu] = useState(false);
@@ -99,11 +109,15 @@ const ChatManager = () => {
   const [currentTab, setCurrentTab] = useState<"residents" | "groups">(
     "residents",
   );
+  const [blockedIds, setBlockedIds] = useState<string[]>([]);
+  const [isBlockedModalVisible, setBlockedModalVisible] = useState(false);
   const [groups, setGroups] = useState<any[]>([]);
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const isGroupChat = !!(selectedTenant && "isGroup" in selectedTenant);
   const [privateChats, setPrivateChats] = useState<ChatRoom[]>([]);
   const [replyMessage, setReplyMessage] = useState<IFileMessage | null>(null);
   const [isForwardModalVisible, setForwardModalVisible] = useState(false);
+  const [isForwarding, setIsForwarding] = useState(false);
   const [messageToForward, setMessageToForward] = useState<IFileMessage | null>(
     null,
   );
@@ -115,6 +129,8 @@ const ChatManager = () => {
     type: "image" | "video";
   } | null>(null);
   const flatListRef = useRef<any>(null);
+  const [isMuted, setIsMuted] = useState(false);
+  const { autoId, autoRoomId } = useLocalSearchParams();
 
   const displayName =
     selectedTenant?.name && selectedTenant.name.length > 10
@@ -174,6 +190,31 @@ const ChatManager = () => {
 
     return () => unsubscribe();
   }, [user?.id, user?.estate_id]);
+
+  useEffect(() => {
+    if (!user?.id || !user.estate_id) return;
+
+    const unsubscribe = firestore()
+      .collection("estate_chats")
+      .doc(user.estate_id)
+      .collection("user_relations")
+      .doc(user.id.toString())
+      .onSnapshot((doc) => {
+        const isExisting =
+          typeof doc.exists === "function" ? doc.exists() : doc.exists;
+        if (doc && isExisting) {
+          const data = doc.data();
+          setBlockedIds(data?.blocked_users || []);
+        }
+      });
+
+    return () => unsubscribe();
+  }, [user?.id, user?.estate_id]);
+
+  // Filter the full tenants list to only show blocked residents
+  const blockedTenants = useMemo(() => {
+    return tenants.filter((t) => blockedIds.includes(t.id?.toString() || ""));
+  }, [tenants, blockedIds]);
 
   //unblock function
   useEffect(() => {
@@ -268,6 +309,18 @@ const ChatManager = () => {
     });
   }, [visibleTenants, searchQuery]);
 
+  useEffect(() => {
+    if (autoId && visibleTenants.length > 0) {
+      const target = visibleTenants.find(
+        (t) => t.id === autoId || t.id === autoId,
+      );
+      if (target) {
+        setSelectedTenant(target);
+        router.setParams({ autoId: undefined, autoRoomId: undefined });
+      }
+    }
+  }, [autoId, visibleTenants]);
+
   const filteredGroups = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
     // Assuming 'myGroups' is your state/prop containing the user's groups
@@ -278,6 +331,20 @@ const ChatManager = () => {
       return groupName.includes(query);
     });
   }, [groups, searchQuery]);
+
+  const combinedForwardList = useMemo(() => {
+    // 1. Format Groups to match the list item structure
+    const formattedGroups = groups.map((g) => ({
+      id: g.id,
+      name: g.name,
+      avatar: g.avatar,
+      isGroup: true,
+      memberCount: g.memberIds?.length || 0,
+    }));
+
+    const forwardList = [...visibleTenants, ...formattedGroups];
+    return forwardList;
+  }, [visibleTenants, groups]);
 
   //chatroom fetch
   useEffect(() => {
@@ -352,7 +419,11 @@ const ChatManager = () => {
       } else {
         const myClearedAt = data?.[`clearedAt_${user.id}`];
         if (myClearedAt) {
-          messageQuery = messageQuery.where("createdAt", ">", myClearedAt);
+          const clearedTimestamp = firestore.Timestamp.fromMillis(
+            Number(myClearedAt),
+          );
+
+          messageQuery = messageQuery.where("createdAt", ">", clearedTimestamp);
         }
       }
 
@@ -365,14 +436,16 @@ const ChatManager = () => {
           return;
         }
 
+        const isCache = snap.metadata.fromCache;
         const newMsgs: IFileMessage[] = [];
         const removedIds: string[] = [];
 
         snap.docChanges().forEach((change) => {
           const mData = change.doc.data();
           const messageId = change.doc.id;
+          const hasPendingWrites = change.doc.metadata.hasPendingWrites;
 
-          if (change.type === "added") {
+          if (change.type === "added" || change.type === "modified") {
             newMsgs.push({
               _id: messageId,
               text: mData.text,
@@ -431,6 +504,7 @@ const ChatManager = () => {
     if (!selectedTenant || !user?.estate_id) return;
     const myId = user?.id?.toString();
     const messageToSend = newMsgs[0];
+    const finalId = messageToSend._id.toString();
     const roomId = isGroupChat
       ? selectedTenant.id
       : [user.id, selectedTenant.id].sort().join("_");
@@ -444,40 +518,43 @@ const ChatManager = () => {
     console.log("FULL MESSAGE TO SEND:", messageToSend);
     console.log("Video URL:", messageToSend.video);
     // 1. Add Message
-    await roomRef.collection("messages").add({
-      text: messageToSend.text,
-      createdAt: firestore.FieldValue.serverTimestamp(),
-      user: { _id: myId, name: user.name, avatar: user.avatar || null },
-      image: messageToSend.image || null,
-      audio: messageToSend.audio || null,
-      video: messageToSend.video || null,
-      file: messageToSend.file
-        ? {
-            url: messageToSend.file.url,
-            name: messageToSend.file.name,
-            type: messageToSend.file.type,
-          }
-        : null,
-      replyMessage: replyMessage
-        ? {
-            _id: replyMessage._id,
-            text: replyMessage.text
-              ? replyMessage.text.substring(0, 50) +
-                (replyMessage.text.length > 50 ? "..." : "")
-              : replyMessage.audio
-                ? "🎤 Voice Note"
-                : replyMessage.image
-                  ? "📷 Photo"
-                  : replyMessage.video
-                    ? "🎥 Video"
-                    : replyMessage.file
-                      ? `📄 ${replyMessage.file.name}`
-                      : "Media Message",
-            // Important: Ensure user exists to prevent the "Stuck/Crash" on load
-            user: isGroupChat ? replyMessage.user?.name || "Unknown" : null,
-          }
-        : null,
-    });
+    await roomRef
+      .collection("messages")
+      .doc(finalId)
+      .set({
+        text: messageToSend.text,
+        createdAt: firestore.FieldValue.serverTimestamp(),
+        user: { _id: myId, name: user.name, avatar: user.avatar || null },
+        image: messageToSend.image || null,
+        audio: messageToSend.audio || null,
+        video: messageToSend.video || null,
+        file: messageToSend.file
+          ? {
+              url: messageToSend.file.url,
+              name: messageToSend.file.name,
+              type: messageToSend.file.type,
+            }
+          : null,
+        replyMessage: replyMessage
+          ? {
+              _id: replyMessage._id,
+              text: replyMessage.text
+                ? replyMessage.text.substring(0, 50) +
+                  (replyMessage.text.length > 50 ? "..." : "")
+                : replyMessage.audio
+                  ? "🎤 Voice Note"
+                  : replyMessage.image
+                    ? "📷 Photo"
+                    : replyMessage.video
+                      ? "🎥 Video"
+                      : replyMessage.file
+                        ? `📄 ${replyMessage.file.name}`
+                        : "Media Message",
+              // Important: Ensure user exists to prevent the "Stuck/Crash" on load
+              user: isGroupChat ? replyMessage.user?.name || "Unknown" : null,
+            }
+          : null,
+      });
 
     // 2. Update Counts
     if (isGroupChat) {
@@ -505,6 +582,54 @@ const ChatManager = () => {
         },
         { merge: true },
       );
+    }
+
+    if (!isGroupChat) {
+      const pushData = {
+        type: "chat",
+        roomId: roomId,
+        isGroup: isGroupChat,
+        senderId: myId,
+        senderName: user.name,
+      };
+
+      const notificationBody = messageToSend.text
+        ? messageToSend.text
+        : messageToSend.audio
+          ? "🎤 Sent a voice note"
+          : messageToSend.image
+            ? "📷 Sent a photo"
+            : "Sent a file";
+      if (selectedTenant.push_token) {
+        sendPushNotification(
+          selectedTenant.push_token,
+          user.name,
+          notificationBody,
+          pushData,
+        );
+      }
+    } else {
+      const notificationBody = messageToSend.text
+        ? messageToSend.text
+        : messageToSend.audio
+          ? "🎤 Sent a voice note"
+          : messageToSend.image
+            ? "📷 Sent a photo"
+            : "Sent a file";
+
+      const allMemberIds = (selectedTenant as any).memberIds || [];
+      const mutedIds = (selectedTenant as any).mutedBy || [];
+
+      const notificationRecipients = allMemberIds.filter(
+        (id: string) => id !== myId && !mutedIds.includes(id),
+      );
+      await notifyGroupPush({
+        memberIds: notificationRecipients,
+        text: notificationBody,
+        roomId: roomId,
+        senderName: user.name,
+        groupName: (selectedTenant as any).name,
+      });
     }
     setReplyMessage(null);
   };
@@ -586,15 +711,13 @@ const ChatManager = () => {
     if (!user?.id || !user.estate_id) return;
 
     const roomId = [user.id, targetId].sort().join("_");
-    const messagesRef = firestore()
+    const roomRef = firestore()
       .collection("estate_chats")
       .doc(user.estate_id)
       .collection("private_chats")
-      .doc(roomId)
-      .collection("messages");
+      .doc(roomId);
 
     try {
-      // 1. Add to Block List
       await firestore()
         .collection("estate_chats")
         .doc(user.estate_id)
@@ -606,20 +729,52 @@ const ChatManager = () => {
           },
           { merge: true },
         );
+      await roomRef.delete();
 
-      // 2. Wipe the Messages (Delete the last 50 for immediate cleanup)
-      const snapshot = await messagesRef.limit(50).get();
-      const batch = firestore().batch();
-      snapshot.docs.forEach((doc) => {
-        batch.delete(doc.ref);
-      });
-      await batch.commit();
+      Alert.alert("Success", "Resident blocked and conversation removed.");
 
-      Alert.alert("Success", "Resident blocked and chat history cleared.");
+      // 3. Clear UI State
       setSelectedTenant(null);
       setIsProfileVisible(false);
     } catch (err) {
+      console.error("Block Error:", err);
       Alert.alert("Error", "Failed to block resident.");
+    }
+  };
+
+  const toggleUnblockMember = (id: string) => {
+    setSelectedForUnblock((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
+    );
+  };
+
+  const handleBulkUnblock = async () => {
+    if (!user?.id || !user.estate_id || selectedForUnblock.length === 0) {
+      setBlockedModalVisible(false);
+      return;
+    }
+
+    try {
+      const userRelationsRef = firestore()
+        .collection("estate_chats")
+        .doc(user.estate_id)
+        .collection("user_relations")
+        .doc(user.id.toString());
+
+      // Use FieldValue.arrayRemove with the entire array of IDs
+      await userRelationsRef.update({
+        blocked_users: firestore.FieldValue.arrayRemove(...selectedForUnblock),
+      });
+
+      Alert.alert(
+        "Success",
+        `${selectedForUnblock.length} residents unblocked.`,
+      );
+      setSelectedForUnblock([]); // Clear the selection
+      setBlockedModalVisible(false); // Close modal
+    } catch (err) {
+      console.error("Unblock Error:", err);
+      Alert.alert("Error", "Failed to unblock residents.");
     }
   };
 
@@ -725,7 +880,6 @@ const ChatManager = () => {
   const handleDelete = async (message: IMessage) => {
     try {
       const myId = user?.id?.toString();
-      // Only allow deleting your own messages, or allow admins to delete any
       if (message.user._id !== myId) {
         Alert.alert("Error", "You can only delete your own messages.");
         return;
@@ -735,14 +889,44 @@ const ChatManager = () => {
         ? selectedTenant.id
         : [user?.id, selectedTenant?.id].sort().join("_");
 
-      await firestore()
+      const roomRef = firestore()
         .collection("estate_chats")
         .doc(user?.estate_id)
         .collection(isGroupChat ? "groups" : "private_chats")
-        .doc(roomId)
-        .collection("messages")
-        .doc(message._id.toString())
-        .delete();
+        .doc(roomId);
+
+      // 1. Delete the actual message
+      await roomRef.collection("messages").doc(message._id.toString()).delete();
+
+      // 2. Decrement Unread Counts
+      if (isGroupChat) {
+        const doc = await roomRef.get();
+        const members = doc.data()?.members || [];
+
+        const updatedMembers = members.map((m: any) => {
+          const userId = m.user_id || m;
+          // Decrement for everyone EXCEPT the person who deleted it
+          if (userId !== myId) {
+            // Ensure count never goes below 0
+            const currentCount = m.unreadCount || 0;
+            return { ...m, unreadCount: Math.max(0, currentCount - 1) };
+          }
+          return m;
+        });
+
+        await roomRef.update({ members: updatedMembers });
+      } else {
+        // Private Chat: Decrement the OTHER person's unread field
+        await roomRef.set(
+          {
+            [`unreadCount_${selectedTenant?.id}`]:
+              firestore.FieldValue.increment(-1),
+          },
+          { merge: true },
+        );
+      }
+
+      console.log("GateMan: Message deleted and counts adjusted.");
     } catch (error) {
       console.error("Delete Error:", error);
     }
@@ -813,6 +997,7 @@ const ChatManager = () => {
       members: memberObjects,
       memberIds: memberIds,
       admins: [myId],
+      mutedBy: [],
       isGroup: true,
       avatar: null,
     };
@@ -833,6 +1018,47 @@ const ChatManager = () => {
       Alert.alert("Success", `${groupName} has been created!`);
     } catch (err) {
       Alert.alert("Error", "Failed to create group.");
+    }
+  };
+
+  useEffect(() => {
+  if (isGroupChat && selectedTenant && 'mutedBy' in selectedTenant && user?.id) {
+    const muteStatus = selectedTenant.mutedBy.includes(user.id);
+    console.log("Mute status updated:", muteStatus);
+    setIsMuted(muteStatus);
+  } else {
+    setIsMuted(false);
+  }
+}, [selectedTenant, user?.id, isGroupChat]);
+
+  const toggleGroupMute = async () => {
+    if (!user?.id || !isGroupChat || !selectedTenant?._id) return;
+
+    try {
+      const groupRef = firestore()
+        .collection("estate_chats")
+        .doc(user.estate_id)
+        .collection("groups")
+        .doc(selectedTenant._id);
+
+      const isCurrentlyMuted = selectedTenant.mutedBy?.includes(user.id);
+
+      await groupRef.update({
+        mutedBy: isCurrentlyMuted
+          ? firestore.FieldValue.arrayRemove(user.id)
+          : firestore.FieldValue.arrayUnion(user.id),
+      });
+
+      Alert.alert(
+        "Notifications",
+        isCurrentlyMuted
+          ? "Notifications unmuted for this group."
+          : "Notifications muted for this group.",
+      );
+      setIsMuted(!isCurrentlyMuted ? true : false)
+      console.log(!isCurrentlyMuted ? "Group Muted" : "Group Unmuted");
+    } catch (err) {
+      console.error("Failed to toggle mute:", err);
     }
   };
 
@@ -905,9 +1131,8 @@ const ChatManager = () => {
 
   const handleForwardMessage = async (selectedIds: string[]) => {
     if (!messageToForward || selectedIds.length === 0) return;
-
+    setIsForwarding(true);
     try {
-      // 1. Determine the summary text for the "lastMessage" preview
       const getSummaryText = () => {
         if (messageToForward.text) return messageToForward.text;
         if (messageToForward.audio) return "🎤 Voice Note";
@@ -920,35 +1145,46 @@ const ChatManager = () => {
       const summary = getSummaryText();
 
       for (const targetId of selectedIds) {
-        const roomId = [user?.id?.toString(), targetId].sort().join("_");
+        // 1. Determine if this ID belongs to a Group
+        // We check if the ID exists in our 'groups' state or has the 'group_' prefix
+        const isGroup = groups.some((g) => (g.id || g._id) === targetId);
+
+        const chatCollection = isGroup ? "groups" : "private_chats";
+
+        // 2. Resolve the Room ID
+        const roomId = isGroup
+          ? targetId
+          : [user?.id?.toString(), targetId].sort().join("_");
 
         const roomRef = firestore()
           .collection("estate_chats")
           .doc(user?.estate_id)
-          .collection("private_chats")
+          .collection(chatCollection)
           .doc(roomId);
 
-        const roomDoc = await roomRef.get();
-
-        if (!roomDoc.exists) {
-          await roomRef.set({
-            members: [user?.id?.toString(), targetId],
-            lastMessage: summary,
-            updatedAt: firestore.FieldValue.serverTimestamp(),
-            createdAt: firestore.FieldValue.serverTimestamp(),
-            type: "private",
-            [`clearedAt_${user?.id}`]: null,
-            [`clearedAt_${targetId}`]: null,
-          });
+        // 3. Handle Private Room Creation (Groups usually already exist)
+        if (!isGroup) {
+          const roomDoc = await roomRef.get();
+          if (!roomDoc.exists) {
+            await roomRef.set({
+              members: [user?.id?.toString(), targetId],
+              lastMessage: summary,
+              updatedAt: firestore.FieldValue.serverTimestamp(),
+              createdAt: firestore.FieldValue.serverTimestamp(),
+              type: "private",
+              [`clearedAt_${user?.id}`]: null,
+              [`clearedAt_${targetId}`]: null,
+            });
+          }
         }
 
-        // 2. Add the message with ALL media fields
+        // 4. Add the Forwarded Message
         await roomRef.collection("messages").add({
           text: messageToForward.text || null,
           image: messageToForward.image || null,
           audio: messageToForward.audio || null,
           video: messageToForward.video || null,
-          file: messageToForward.file || null, // Ensure this matches your IFileMessage structure
+          file: messageToForward.file || null,
           user: {
             _id: user?.id?.toString(),
             name: user?.name,
@@ -958,14 +1194,13 @@ const ChatManager = () => {
           isForwarded: true,
         });
 
-        // 3. Update the room's last message
+        // 5. Update Metadata for the Chat List
         await roomRef.update({
           lastMessage: summary,
           updatedAt: firestore.FieldValue.serverTimestamp(),
         });
       }
 
-      // Reset UI
       setForwardModalVisible(false);
       setSelectedForForward([]);
       setMessageToForward(null);
@@ -982,14 +1217,88 @@ const ChatManager = () => {
       }
     } catch (error) {
       console.error("Forwarding Error:", error);
-      Alert.alert("GateMan", "Failed to forward to some residents.");
+      Alert.alert("GateMan", "Failed to forward some messages.");
+    } finally {
+      setIsForwarding(false);
+    }
+  };
+  // 1. Camera
+  // 1. THIS IS THE NEW WORKER FUNCTION
+  const launchCamera = async (mediaType: any) => {
+    try {
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: mediaType,
+        allowsEditing: true,
+        quality: 0.7,
+        videoMaxDuration: 30,
+      });
+
+      if (result.canceled) return;
+
+      const asset = result.assets[0];
+      const isVideo = asset.type === "video" || asset.uri.endsWith(".mp4"); // Extra safety check
+      const localUri = asset.uri;
+      const tempId = `cam-local-${Date.now()}`;
+      const ghostMessage: any = {
+        _id: tempId,
+        createdAt: new Date(),
+        user: { _id: myId || "0", name: user?.name || "User" },
+        text: "",
+        pending: true,
+      };
+
+      // Set correctly for UI
+      if (isVideo) ghostMessage.video = localUri;
+      else ghostMessage.image = localUri;
+
+      setMessages((prev) => GiftedChat.append(prev, [ghostMessage]));
+
+      // 3. Upload to Cloudinary
+      const resourceType = isVideo ? "video" : "image";
+      const webUrl = await getCloudinaryUrl(localUri, resourceType);
+
+      if (webUrl) {
+        // 4. SUCCESS: Remove Ghost and send real message
+        setMessages((prev) => prev.filter((m) => m._id !== tempId));
+
+        onSend([
+          {
+            _id: Math.random().toString(),
+            createdAt: new Date(),
+            user: { _id: myId || "0", name: user?.name || "User" },
+            text: "",
+            [isVideo ? "video" : "image"]: webUrl,
+          },
+        ]);
+      }
+    } catch (err) {
+      console.error("Camera Launch Error:", err);
+      Alert.alert("Error", "Could not access the camera.");
     }
   };
 
-  // 1. Camera
+  // 5. THIS IS THE MAIN BUTTON HANDLER
   const takePhoto = async () => {
-    // const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
-    // if (!result.canceled) onSend([{ image: result.assets[0].uri }]);
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("GateMan", "Camera access is required.");
+      return;
+    }
+
+    if (Platform.OS === "android") {
+      Alert.alert(
+        "Camera Mode",
+        "Would you like to take a photo or record a video?",
+        [
+          { text: "Cancel", style: "cancel" },
+          // Use the specific strings Expo expects for Android Intents
+          { text: "📸 Photo", onPress: () => launchCamera(["images"]) },
+          { text: "🎥 Video", onPress: () => launchCamera(["videos"]) },
+        ],
+      );
+    } else {
+      launchCamera(["images", "videos"]);
+    }
   };
 
   // 2. Gallery
@@ -1070,6 +1379,18 @@ const ChatManager = () => {
     if (result.canceled || !result.assets?.length) return;
 
     const asset = result.assets[0];
+    const isDoc =
+      asset.mimeType?.includes("pdf") ||
+      asset.mimeType?.includes("word") ||
+      asset.mimeType?.includes("text");
+
+    if (!isDoc) {
+      Alert.alert(
+        "GateMan",
+        "Please select a valid document (PDF, Word, or TXT).",
+      );
+      return;
+    }
     const tempId = `d-local-${Date.now()}`;
 
     // 1. Create Local Ghost
@@ -1150,28 +1471,6 @@ const ChatManager = () => {
     }
   };
 
-  const recordVideo = async () => {
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: "videos",
-      quality: 0.7,
-    });
-
-    if (!result.canceled) {
-      const webUrl = await getCloudinaryUrl(result.assets[0].uri, "video");
-      if (webUrl) {
-        onSend([
-          {
-            _id: Math.random().toString(),
-            createdAt: new Date(),
-            user: { _id: myId || "anon", name: user?.name },
-            video: webUrl, // GiftedChat uses the 'video' prop
-            text: "",
-          },
-        ]);
-      }
-    }
-  };
-
   //   const handleShareMessageFile = async (message: any) => {
   //   if (!message.file) return;
 
@@ -1197,7 +1496,21 @@ const ChatManager = () => {
   const startAudioRecording = async () => {
     try {
       const permission = await Audio.requestPermissionsAsync();
-      if (permission.status !== "granted") return;
+      if (permission.status !== "granted") {
+        const request = await Audio.requestPermissionsAsync();
+        if (request.status !== "granted") {
+          Alert.alert(
+            "Permission Denied",
+            "GateMan needs microphone access to send voice notes.",
+          );
+          return;
+        }
+        ToastAndroid.show(
+          "Permission granted! Tap again to record.",
+          ToastAndroid.SHORT,
+        );
+        return;
+      }
 
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
@@ -1221,7 +1534,7 @@ const ChatManager = () => {
       // 1. Stop the hardware
       await recording.stopAndUnloadAsync();
       const uri = recording.getURI();
-      setRecording(null); 
+      setRecording(null);
 
       if (uri) {
         const tempId = `audio-local-${Date.now()}`;
@@ -1240,7 +1553,7 @@ const ChatManager = () => {
         setMessages((prev) => GiftedChat.append(prev, [ghostAudio]));
 
         // 4. Upload to Cloudinary
-        const remoteUrl = await getCloudinaryUrl(uri, "video"); 
+        const remoteUrl = await getCloudinaryUrl(uri, "video");
 
         if (remoteUrl) {
           // 5. SUCCESS: Remove Ghost and Send Real Message to Firestore
@@ -1263,6 +1576,113 @@ const ChatManager = () => {
       setRecording(null);
       Alert.alert("GateMan", "Failed to process voice note.");
     }
+  };
+
+  const renderItem = ({ item }: { item: any }) => {
+    const itemName =
+      item.name && item.name.length > 10
+        ? `${item.name.substring(0, 15)}...`
+        : item?.name || "Chat";
+    let unreadCount = 0;
+
+    if (currentTab === "residents") {
+      const roomId = [user?.id, item.id].sort().join("_");
+      const chatData = privateChats.find((chat) => chat.id === roomId);
+
+      unreadCount = chatData?.[`unreadCount_${myId}`] || 0;
+    } else {
+      const myMemberData = item.members?.find(
+        (m: any) => (m.user_id || m) === myId,
+      );
+      unreadCount = myMemberData?.unreadCount || 0;
+    }
+    if (currentTab === "residents") {
+      return (
+        <TouchableOpacity
+          onPress={() => {
+            if (isCreateGroupMode) {
+              const id = item.id!.toString();
+              setSelectedGroupMembers((prev) =>
+                prev.includes(id)
+                  ? prev.filter((m) => m !== id)
+                  : [...prev, id],
+              );
+            } else {
+              setSelectedTenant(item);
+            }
+          }}
+          className={`flex-row items-center p-4 m-2 rounded-2xl border ${
+            selectedGroupMembers.includes(item.id?.toString() || "")
+              ? "bg-indigo-50 border-indigo-500"
+              : "bg-white border-indigo-50"
+          }`}
+        >
+          <Image
+            source={{
+              uri: item.avatar || "https://via.placeholder.com/50",
+            }}
+            className="w-12 h-12 rounded-full bg-gray-200"
+          />
+          <View className="ml-4">
+            <Text className="font-bold text-gray-800">{itemName}</Text>
+            <Text className="text-gray-400 text-xs">
+              Block {item.block} • Unit {item.unit}
+            </Text>
+            <Text className="text-green-500 italic text-xs">
+              {remoteTyping[item.id?.toString()] ? "typing" : ""}
+            </Text>
+          </View>
+          {onlineUsers.includes(item.id?.toString() || "") && (
+            <View className="absolute right-4 w-3 h-3 bg-green-500 rounded-full" />
+          )}
+          {isCreateGroupMode && (
+            <View
+              className={`ml-auto w-6 h-6 rounded-full border-2 ${
+                selectedGroupMembers.includes(item.id?.toString() || "")
+                  ? "bg-indigo-500 border-indigo-500"
+                  : "border-gray-300"
+              }`}
+            />
+          )}
+          {unreadCount > 0 && (
+            <View className="absolute -top-1 -right-1 bg-red-500 w-7 h-7 rounded-full items-center justify-center border-2 border-white">
+              <Text className="text-white text-[9px] font-black">
+                {unreadCount}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      );
+    }
+
+    return (
+      <TouchableOpacity
+        onPress={() => setSelectedTenant(item)}
+        className="flex-row items-center p-4 m-2 rounded-2xl border bg-white border-indigo-50"
+      >
+        <View className="w-12 h-12 rounded-full bg-indigo-100 items-center justify-center">
+          <Users size={24} color="#4f46e5" />
+        </View>
+        <View className="ml-4 flex-1">
+          <Text className="font-bold text-gray-800">{itemName}</Text>
+          <Text className="text-gray-400 text-xs">
+            {item.members?.length || 0} Members
+          </Text>
+        </View>
+        <ChevronLeft
+          size={20}
+          color="#cbd5e1"
+          style={{ transform: [{ rotate: "180deg" }] }}
+        />
+        {unreadCount > 0 && (
+          <View className="absolute -top-1 -right-1 bg-red-500 w-7 h-7 rounded-full items-center justify-center border-2 border-white">
+            <Text className="text-white text-[9px] font-black">
+              {unreadCount}
+            </Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
   };
 
   const renderChatFooter = () => {
@@ -1334,7 +1754,7 @@ const ChatManager = () => {
         <CreateGroupModal
           isVisible={isForwardModalVisible}
           onClose={() => setForwardModalVisible(false)}
-          tenants={visibleTenants}
+          tenants={combinedForwardList}
           selectedMembers={selectedForForward} // A separate state for forwarding selection
           onToggleMember={toggleForwardMember}
           onNext={() => handleForwardMessage(selectedForForward)}
@@ -1444,18 +1864,43 @@ const ChatManager = () => {
                   </TouchableOpacity>
 
                   {isGroupChat && (
-                    <TouchableOpacity
-                      className="flex-row items-center px-4 py-3 border-t border-gray-50"
-                      onPress={() => {
-                        setShowMenu(false);
-                        handleExitGroup();
-                      }}
-                    >
-                      <LogOut size={18} color="#ef4444" />
-                      <Text className="ml-3 font-medium text-red-500">
-                        Exit Group
-                      </Text>
-                    </TouchableOpacity>
+                    <>
+                      <TouchableOpacity
+                        className="flex-row items-center px-4 py-3 border-t border-gray-50"
+                        onPress={() => {
+                          setShowMenu(false);
+                          toggleGroupMute();
+                        }}
+                      >
+                        {isMuted ? (
+                          <>
+                            <Bell size={18} color="#6b7280" />
+                            <Text className="ml-3 font-medium text-gray-600">
+                              Unmute Notifications
+                            </Text>
+                          </>
+                        ) : (
+                          <>
+                            <BellOff size={18} color="#6b7280" />
+                            <Text className="ml-3 font-medium text-gray-600">
+                              Mute Notifications
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        className="flex-row items-center px-4 py-3 border-t border-gray-50"
+                        onPress={() => {
+                          setShowMenu(false);
+                          handleExitGroup();
+                        }}
+                      >
+                        <LogOut size={18} color="#ef4444" />
+                        <Text className="ml-3 font-medium text-red-500">
+                          Exit Group
+                        </Text>
+                      </TouchableOpacity>
+                    </>
                   )}
                 </View>
               </>
@@ -1634,14 +2079,6 @@ const ChatManager = () => {
               },
               message: replyMessage,
               onClear: () => setReplyMessage(null),
-              // onPress: (originalMsg) => {
-              //   const index = messages.findIndex(
-              //     (m) => m._id === originalMsg._id,
-              //   );
-              //   if (index > -1) {
-              //     flatListRef.current?.scrollToIndex({ index, animated: true });
-              //   }
-              // },
 
               renderPreview: (props) => {
                 if (!replyMessage) return null;
@@ -1935,6 +2372,22 @@ const ChatManager = () => {
         onFinalize={handleFinalizeGroup}
       />
 
+      <CreateGroupModal
+        isVisible={isBlockedModalVisible}
+        onClose={() => {
+          setBlockedModalVisible(false);
+          setSelectedForUnblock([]);
+        }}
+        tenants={blockedTenants}
+        selectedMembers={selectedForUnblock}
+        onToggleMember={toggleUnblockMember}
+        onNext={handleBulkUnblock}
+        insets={insets}
+        buttonText={selectedForUnblock.length > 0 ? "Unblock" : "Done"}
+        header="Blocked Residents"
+        count={0}
+      />
+
       {showGlobalMenu && (
         <>
           <TouchableOpacity
@@ -1962,7 +2415,7 @@ const ChatManager = () => {
               className="flex-row items-center px-4 py-3"
               onPress={() => {
                 setShowGlobalMenu(false);
-                alert("Open Blocked List Screen");
+                setBlockedModalVisible(true);
               }}
             >
               <ShieldAlert size={18} color="#f59e0b" />
@@ -1980,112 +2433,7 @@ const ChatManager = () => {
           item._id?.toString() ||
           Math.random().toString()
         }
-        renderItem={({ item }) => {
-          const itemName =
-            item.name && item.name.length > 10
-              ? `${item.name.substring(0, 15)}...`
-              : item?.name || "Chat";
-          let unreadCount = 0;
-
-          if (currentTab === "residents") {
-            const roomId = [user.id, item.id].sort().join("_");
-            const chatData = privateChats.find((chat) => chat.id === roomId);
-
-            unreadCount = chatData?.[`unreadCount_${myId}`] || 0;
-          } else {
-            const myMemberData = item.members?.find(
-              (m: any) => (m.user_id || m) === myId,
-            );
-            unreadCount = myMemberData?.unreadCount || 0;
-          }
-          if (currentTab === "residents") {
-            return (
-              <TouchableOpacity
-                onPress={() => {
-                  if (isCreateGroupMode) {
-                    const id = item.id!.toString();
-                    setSelectedGroupMembers((prev) =>
-                      prev.includes(id)
-                        ? prev.filter((m) => m !== id)
-                        : [...prev, id],
-                    );
-                  } else {
-                    setSelectedTenant(item);
-                  }
-                }}
-                className={`flex-row items-center p-4 m-2 rounded-2xl border ${
-                  selectedGroupMembers.includes(item.id?.toString() || "")
-                    ? "bg-indigo-50 border-indigo-500"
-                    : "bg-white border-indigo-50"
-                }`}
-              >
-                <Image
-                  source={{
-                    uri: item.avatar || "https://via.placeholder.com/50",
-                  }}
-                  className="w-12 h-12 rounded-full bg-gray-200"
-                />
-                <View className="ml-4">
-                  <Text className="font-bold text-gray-800">{itemName}</Text>
-                  <Text className="text-gray-400 text-xs">
-                    Block {item.block} • Unit {item.unit}
-                  </Text>
-                  <Text className="text-green-500 italic text-xs">
-                    {remoteTyping[item.id?.toString()] ? "typing" : ""}
-                  </Text>
-                </View>
-                {onlineUsers.includes(item.id?.toString() || "") && (
-                  <View className="absolute right-4 w-3 h-3 bg-green-500 rounded-full" />
-                )}
-                {isCreateGroupMode && (
-                  <View
-                    className={`ml-auto w-6 h-6 rounded-full border-2 ${
-                      selectedGroupMembers.includes(item.id?.toString() || "")
-                        ? "bg-indigo-500 border-indigo-500"
-                        : "border-gray-300"
-                    }`}
-                  />
-                )}
-                {unreadCount > 0 && (
-                  <View className="absolute -top-1 -right-1 bg-red-500 w-7 h-7 rounded-full items-center justify-center border-2 border-white">
-                    <Text className="text-white text-[9px] font-black">
-                      {unreadCount}
-                    </Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          }
-
-          return (
-            <TouchableOpacity
-              onPress={() => setSelectedTenant(item)}
-              className="flex-row items-center p-4 m-2 rounded-2xl border bg-white border-indigo-50"
-            >
-              <View className="w-12 h-12 rounded-full bg-indigo-100 items-center justify-center">
-                <Users size={24} color="#4f46e5" />
-              </View>
-              <View className="ml-4 flex-1">
-                <Text className="font-bold text-gray-800">{itemName}</Text>
-                <Text className="text-gray-400 text-xs">
-                  {item.members?.length || 0} Members
-                </Text>
-              </View>
-              <ChevronLeft
-                size={20}
-                color="#cbd5e1"
-                style={{ transform: [{ rotate: "180deg" }] }}
-              />
-              {unreadCount > 0 && (
-                <View className="absolute -top-1 -right-1 bg-red-500 w-7 h-7 rounded-full items-center justify-center border-2 border-white">
-                  <Text className="text-white text-[9px] font-black">
-                    {unreadCount}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          );
-        }}
+        renderItem={renderItem}
       />
     </View>
   );

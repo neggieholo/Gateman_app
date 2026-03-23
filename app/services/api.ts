@@ -1,10 +1,9 @@
 import Constants from "expo-constants";
 import * as Device from "expo-device";
+import { File } from "expo-file-system";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { Estate, tempNotification } from "./interfaces";
-
-import { File } from "expo-file-system";
 
 const BASE_URL = `${process.env.EXPO_PUBLIC_BASE_URL}/api`;
 
@@ -28,6 +27,22 @@ export const postLogin = async (email: string, password: string) => {
   }
 };
 
+export const updatePushTokenApi = async (token: string) => {
+  
+  try {
+    const response = await fetch(`${BASE_URL}/admin/update-push-token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pushToken: token }),
+      credentials: "include",
+    });
+    return await response.json();
+  } catch (error) {
+    console.error("Push Token Sync Error:", error);
+    return { success: false };
+  }
+};
+
 export const postRegister = async (
   name: string,
   email: string,
@@ -38,7 +53,7 @@ export const postRegister = async (
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, email, password }),
-      credentials: "include", // for session cookies
+      credentials: "include",
     });
 
     const data = await res.json();
@@ -68,6 +83,7 @@ export const postLogout = async () => {
   });
 
   const data = await res.json();
+
   return data;
 };
 
@@ -194,7 +210,7 @@ export const markNotificationAsRead = async () => {
 export default async function registerForPushNotificationsAsync() {
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("default", {
-      name: "default",
+      name: "GateMan Alerts",
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
       lightColor: "#FF231F7C",
@@ -218,7 +234,7 @@ export default async function registerForPushNotificationsAsync() {
     const projectId =
       Constants?.expoConfig?.extra?.eas?.projectId ??
       Constants?.easConfig?.projectId ??
-      "4396d409-a5e5-4832-acbe-8b1dc8b26edc"; // Fallback project ID
+      "986508ab-d7ea-483c-b310-bd21cda01f48"; 
 
     if (!projectId) {
       throw new Error("Project ID not found");
@@ -316,5 +332,54 @@ export const getCloudinaryUrl = async (
   } catch (err) {
     console.error("Upload Logic Error:", err);
     return null;
+  }
+};
+
+export const sendPushNotification = async (
+  targetToken: string | null | undefined,
+  title: string | undefined,
+  body: string,
+  data: any,
+) => {
+  if (!targetToken || !targetToken.startsWith("ExponentPushToken")) {
+    console.log("Skipping push: No valid token.");
+    return;
+  }
+
+  const message = {
+    to: targetToken,
+    sound: "default",
+    title: title,
+    body: body,
+    data: data,
+    channelId: "default", 
+  };
+
+  try {
+    await fetch("https://exp.host/--/api/v2/push/send", {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Accept-encoding": "gzip, deflate",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(message),
+    });
+  } catch (error) {
+    console.error("Error sending push notification:", error);
+  }
+};
+
+
+export const notifyGroupPush = async (data: any) => {
+  try {
+    await fetch(`${BASE_URL}/admin/send-group-notification`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+      credentials: "include"
+    });
+  } catch (e) {
+    console.warn("Group push trigger failed", e);
   }
 };

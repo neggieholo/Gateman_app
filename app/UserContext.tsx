@@ -1,6 +1,7 @@
 // app/context/UserContext.tsx
 import firestore from "@react-native-firebase/firestore";
 import * as Notifications from "expo-notifications";
+import { router } from "expo-router";
 import React, {
   createContext,
   ReactNode,
@@ -12,7 +13,6 @@ import { Platform } from "react-native";
 import { io, Socket } from "socket.io-client";
 import { fetchRequests } from "./services/api";
 import { tempNotification, User } from "./services/interfaces";
-import { router } from "expo-router";
 
 interface UserContextType {
   user: Partial<User> | null;
@@ -77,8 +77,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [privateUnread, setPrivateUnread] = useState(0);
   const [groupUnread, setGroupUnread] = useState(0);
   const totalUnread = privateUnread + groupUnread;
-  const BASE_URL = `${process.env.EXPO_PUBLIC_BASE_URL}`
-
+  const BASE_URL = `${process.env.EXPO_PUBLIC_BASE_URL}`;
 
   // useEffect(()=>{
   //   if(!user) {
@@ -224,7 +223,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       // 1. Create the Channel (Mandatory for Android Dev Builds)
       if (Platform.OS === "android") {
         await Notifications.setNotificationChannelAsync("default", {
-          name: "Default Channel",
+          name: "GateMan Alerts",
           importance: Notifications.AndroidImportance.MAX,
           showBadge: true,
           vibrationPattern: [0, 250, 250, 250],
@@ -245,7 +244,40 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     };
 
     setupNotifications(); //
-  }, []);
+  }, [user]);
+
+  useEffect(() => {
+    // 1. Handle notification that arrives while app is OPEN (Foreground)
+    const foregroundSubscription =
+      Notifications.addNotificationReceivedListener((notification) => {
+        console.log("Foreground Notification:", notification);
+        // You could trigger a small in-app toast here if you wanted
+      });
+
+    // 2. Handle tapping the notification (Background/Quit/Foreground)
+    const responseSubscription =
+      Notifications.addNotificationResponseReceivedListener((response) => {
+        const data = response.notification.request.content.data;
+
+        console.log("Notification Tapped with data:", data);
+
+        if (data.type === "chat" && data.roomId) {
+          router.push({
+            pathname: (user?.id && isConnected) ? "/ChatScreen" : "/",
+            params: {
+              autoId: String(data.senderId || ""), // Ensure it's a string
+              autoRoomId: String(data.roomId),
+              isGroup: data.isGroup ? "true" : "false",
+            },
+          });
+        }
+      });
+
+    return () => {
+      foregroundSubscription.remove();
+      responseSubscription.remove();
+    };
+  }, [isConnected, user]);
 
   return (
     <UserContext.Provider
@@ -265,9 +297,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         socket: socketRef.current,
         remoteTyping,
         privateUnread,
-        setPrivateUnread, 
+        setPrivateUnread,
         groupUnread,
-        setGroupUnread, 
+        setGroupUnread,
         totalUnread,
       }}
     >

@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import Slider from "@react-native-community/slider";
 import { Audio, ResizeMode, Video } from "expo-av";
 import { Directory, File, Paths } from "expo-file-system";
 import React, { useEffect, useState } from "react";
@@ -47,6 +48,8 @@ export const renderMessage = (props: any) => {
 export const RenderMessageAudio = ({ currentMessage, position }: any) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [playPosition, setPlayPosition] = useState(0); // Current spot in ms
+  const [duration, setDuration] = useState(0); // Total length in ms
   const isRight = position === "right";
 
   useEffect(() => {
@@ -59,14 +62,46 @@ export const RenderMessageAudio = ({ currentMessage, position }: any) => {
       }
     };
   }, [sound]);
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadMetadata = async () => {
+      try {
+        const { sound: metaSound } = await Audio.Sound.createAsync(
+          { uri: currentMessage.audio },
+          { shouldPlay: false }, // Don't play, just load
+        );
+        const status = await metaSound.getStatusAsync();
+
+        if (status.isLoaded && isMounted) {
+          setDuration(status.durationMillis || 0);
+        }
+
+        // Unload immediately to keep memory clean
+        await metaSound.unloadAsync();
+      } catch (e) {
+        console.log("Metadata load error:", e);
+      }
+    };
+
+    if (currentMessage.audio) {
+      loadMetadata();
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentMessage.audio]);
 
   const onPlaybackStatusUpdate = (status: any) => {
     if (status.isLoaded) {
       setIsPlaying(status.isPlaying);
+      setPlayPosition(status.positionMillis);
+      setDuration(status.durationMillis || 0);
 
       if (status.didJustFinish) {
         setIsPlaying(false);
-        // Unload if you want to save memory, or just reset position
+        setPlayPosition(0);
         sound?.setPositionAsync(0);
       }
     } else if (status.error) {
@@ -74,7 +109,26 @@ export const RenderMessageAudio = ({ currentMessage, position }: any) => {
     }
   };
 
-  // Inside RenderMessageAudio
+  const handleSeek = async (value: number) => {
+    if (sound) {
+      try {
+        // value will be from 0 to 1 (percentage of the slider)
+        const seekPosition = value * duration;
+        await sound.setPositionAsync(seekPosition);
+        setPlayPosition(seekPosition);
+      } catch (e) {
+        console.error("Seek Error:", e);
+      }
+    }
+  };
+
+  const formatTime = (millis: number) => {
+    const totalSeconds = millis / 1000;
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = Math.floor(totalSeconds % 60);
+    return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
+  };
+
   const handlePlayPause = async () => {
     try {
       // 1. Handle Global Overlap safely
@@ -132,22 +186,25 @@ export const RenderMessageAudio = ({ currentMessage, position }: any) => {
   };
 
   return (
-    <View className="m-2">
+    <View className="m-1">
+      {/* Forwarded Tag */}
       {currentMessage.isForwarded && (
         <View className="flex-row items-center mb-1 opacity-60 ml-2">
-          <Ionicons name="arrow-redo" size={12} color="white" />
+          <Ionicons
+            name="arrow-redo"
+            size={12}
+            color={isRight ? "white" : "gray"}
+          />
           <Text
-            className={`text-[10px] italic ml-1 font-medium ${
-              position === "right" ? "text-white" : "text-gray-500"
-            }`}
+            className={`text-[10px] italic ml-1 ${isRight ? "text-white" : "text-gray-500"}`}
           >
             Forwarded
           </Text>
         </View>
       )}
+
       {currentMessage.pending ? (
-        // SHOW SPINNER WHILE UPLOADING
-        <View className="flex-row items-center p-1">
+        <View className="flex-row items-center p-2">
           <ActivityIndicator
             size="small"
             color={isRight ? "white" : "#4b5563"}
@@ -159,19 +216,53 @@ export const RenderMessageAudio = ({ currentMessage, position }: any) => {
           </Text>
         </View>
       ) : (
-        <TouchableOpacity
-          onPress={handlePlayPause}
-          className="flex-row items-center p-3 bg-indigo-600 rounded-2xl m-2 w-48"
+        <View
+          className={`p-2 rounded-2xl w-64 ${isRight ? "bg-indigo-600" : "bg-gray-200"}`}
         >
-          <Ionicons
-            name={isPlaying ? "pause" : "play"}
-            size={24}
-            color="white"
-          />
-          <Text className="text-white ml-2 font-medium">
-            {isPlaying ? "Playing..." : "Voice Note"}
-          </Text>
-        </TouchableOpacity>
+          <View className="flex-row items-center">
+            {/* 1. SINGLE PLAY/PAUSE BUTTON */}
+            <TouchableOpacity
+              onPress={handlePlayPause}
+              className="justify-center items-center w-10"
+            >
+              <Ionicons
+                name={isPlaying ? "pause" : "play"}
+                size={28}
+                color={isRight ? "white" : "#4f46e5"}
+              />
+            </TouchableOpacity>
+
+            {/* 2. SLIDER & TIMERS CONTAINER */}
+            <View className="flex-1 ml-1 justify-center">
+              <Slider
+                style={{ width: "100%", height: 30 }}
+                minimumValue={0}
+                maximumValue={1}
+                value={duration > 0 ? playPosition / duration : 0}
+                onSlidingComplete={handleSeek}
+                minimumTrackTintColor={isRight ? "#fff" : "#4f46e5"}
+                maximumTrackTintColor={
+                  isRight ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.1)"
+                }
+                thumbTintColor={isRight ? "#fff" : "#4f46e5"}
+              />
+
+              {/* 3. TIME LABELS directly under slider */}
+              <View className="flex-row justify-between px-1 -mt-2">
+                <Text
+                  className={`text-[9px] ${isRight ? "text-indigo-100" : "text-gray-500"}`}
+                >
+                  {formatTime(playPosition)}
+                </Text>
+                <Text
+                  className={`text-[9px] ${isRight ? "text-indigo-100" : "text-gray-500"}`}
+                >
+                  {duration > 0 ? formatTime(duration) : "0:00"}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
       )}
     </View>
   );
@@ -212,7 +303,7 @@ export const renderCustomView = (props: any) => {
 
   if (currentMessage?.file) {
     return (
-      <View className="p-2 m-1 bg-white/10 rounded-xl w-64">
+      <View className="p-5 m-1 rounded-xl w-64">
         {currentMessage.isForwarded && (
           <View className="flex-row items-center mb-2 opacity-60">
             <Ionicons
@@ -304,37 +395,6 @@ export const renderCustomView = (props: any) => {
 //   }
 // };
 
-export const renderMessageImage = (props: any) => {
-  const { currentMessage, position, onOpen } = props;
-  return (
-    <View className="m-1">
-      {/* Forwarded Label for Images */}
-      {currentMessage.isForwarded && (
-        <View className="flex-row items-center mb-1 opacity-60 ml-1">
-          <Ionicons
-            name="arrow-redo"
-            size={12}
-            color={position === "right" ? "white" : "#4b5563"}
-          />
-          <Text
-            className={`text-[10px] italic ml-1 font-medium ${
-              position === "right" ? "text-white" : "text-gray-500"
-            }`}
-          >
-            Forwarded
-          </Text>
-        </View>
-      )}
-      <TouchableOpacity onPress={() => onOpen(currentMessage.image)}>
-        <Image
-          source={{ uri: currentMessage.image }}
-          style={{ width: 200, height: 150, borderRadius: 10, margin: 3 }}
-        />
-      </TouchableOpacity>
-    </View>
-  );
-};
-
 export const renderActions = (config: any) => {
   const { showActionSheet } = config;
 
@@ -396,7 +456,7 @@ export const RenderMessageImage = (props: any) => {
   const { currentMessage, onOpen, position } = props;
 
   return (
-    <View className="m-1">
+    <View className="m-1 p-5">
       {/* Forwarded Label - Styled exactly like the video one */}
       {currentMessage.isForwarded && (
         <View className="flex-row items-center mb-1 opacity-60 ml-1">
@@ -453,7 +513,7 @@ export const RenderMessageVideoComponent = (props: any) => {
   const { currentMessage, onOpen, position } = props;
 
   return (
-    <View className="m-1">
+    <View className="m-1 p-5">
       {/* Forwarded Label - keeping it consistent with your images */}
       {currentMessage.isForwarded && (
         <View className="flex-row items-center mb-1 opacity-60 ml-1">

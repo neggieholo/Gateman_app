@@ -14,7 +14,7 @@ import { User } from "../services/interfaces";
 interface CreateGroupModalProps {
   isVisible: boolean;
   onClose: () => void;
-  tenants: Partial<User>[];
+  tenants: Partial<User>[] | any;
   selectedMembers: string[];
   onToggleMember: (id: string) => void;
   onNext: () => void;
@@ -60,8 +60,9 @@ const CreateGroupModal = ({
 
     if (!query) return tenants;
 
-    return tenants.filter((t) => {
+    return tenants.filter((t: Partial<User>[] | any) => {
       const name = t.name?.toLowerCase() || "";
+      if (t.isGroup) return name.includes(query);
       const block = t.block?.toString().toLowerCase() || "";
       const unit = t.unit?.toString().toLowerCase() || "";
 
@@ -144,9 +145,15 @@ const CreateGroupModal = ({
                 />
                 <View className="ml-4 flex-1">
                   <Text className="font-bold text-gray-800">{item.name}</Text>
-                  <Text className="text-gray-400 text-xs">
-                    Block {item.block} • Unit {item.unit}
-                  </Text>
+                  {item.isGroup ? (
+                    <Text className="text-indigo-500 text-[11px] font-bold">
+                      COMMUNITY GROUP • {item.memberCount} MEMBERS
+                    </Text>
+                  ) : (
+                    <Text className="text-gray-400 text-xs">
+                      Block {item.block} • Unit {item.unit}
+                    </Text>
+                  )}
                 </View>
                 <View
                   className={`w-6 h-6 rounded-full border-2 ${
