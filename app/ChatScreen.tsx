@@ -1022,14 +1022,39 @@ const ChatManager = () => {
   };
 
   useEffect(() => {
-  if (isGroupChat && selectedTenant && 'mutedBy' in selectedTenant && user?.id) {
-    const muteStatus = selectedTenant.mutedBy.includes(user.id);
-    console.log("Mute status updated:", muteStatus);
-    setIsMuted(muteStatus);
-  } else {
-    setIsMuted(false);
-  }
-}, [selectedTenant, user?.id, isGroupChat]);
+    if (!isGroupChat || !selectedTenant?._id || !user?.estate_id) return;
+
+    // 1. Establish the path to the group
+    const groupRef = firestore()
+      .collection("estate_chats")
+      .doc(user.estate_id)
+      .collection("groups")
+      .doc(selectedTenant._id);
+
+    // 2. Start the Real-Time Listener
+    const unsubscribe = groupRef.onSnapshot(
+      (doc) => {
+        const isExisting =
+          typeof doc.exists === "function" ? doc.exists() : doc.exists;
+        if (doc && isExisting) {
+          const data = doc.data();
+          const mutedList = data?.mutedBy || [];
+          const isActuallyMuted = mutedList.includes(user?.id);
+          console.log('Is this chat muted:', isActuallyMuted)
+
+          // This will now fire EVERY TIME you click the toggle
+          setIsMuted(isActuallyMuted);
+          console.log("🔥 Firestore Push: Mute is now", isActuallyMuted);
+        }
+      },
+      (error) => {
+        console.error("Firestore Listen Error:", error);
+      },
+    );
+
+    // 3. Clean up the listener when leaving the chat
+    return () => unsubscribe();
+  }, [selectedTenant, isGroupChat, user]);
 
   const toggleGroupMute = async () => {
     if (!user?.id || !isGroupChat || !selectedTenant?._id) return;
@@ -1041,22 +1066,20 @@ const ChatManager = () => {
         .collection("groups")
         .doc(selectedTenant._id);
 
-      const isCurrentlyMuted = selectedTenant.mutedBy?.includes(user.id);
-
       await groupRef.update({
-        mutedBy: isCurrentlyMuted
+        mutedBy: isMuted
           ? firestore.FieldValue.arrayRemove(user.id)
           : firestore.FieldValue.arrayUnion(user.id),
       });
 
       Alert.alert(
         "Notifications",
-        isCurrentlyMuted
+        isMuted
           ? "Notifications unmuted for this group."
           : "Notifications muted for this group.",
       );
-      setIsMuted(!isCurrentlyMuted ? true : false)
-      console.log(!isCurrentlyMuted ? "Group Muted" : "Group Unmuted");
+
+      // console.log(!isMuted ? "Group Muted" : "Group Unmuted");
     } catch (err) {
       console.error("Failed to toggle mute:", err);
     }
