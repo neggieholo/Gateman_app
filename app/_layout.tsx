@@ -63,6 +63,14 @@ export default function RootLayout() {
                 headerShown: true,
               }}
             />
+
+            <Stack.Screen
+              name="CallScreen"
+              options={{
+                title: "Call",
+                headerShown: false,
+              }}
+            />
           </Stack>
         </UserProvider>
         </ActionSheetProvider>

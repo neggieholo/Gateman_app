@@ -28,7 +28,6 @@ export const postLogin = async (email: string, password: string) => {
 };
 
 export const updatePushTokenApi = async (token: string) => {
-  
   try {
     const response = await fetch(`${BASE_URL}/admin/update-push-token`, {
       method: "POST",
@@ -234,7 +233,7 @@ export default async function registerForPushNotificationsAsync() {
     const projectId =
       Constants?.expoConfig?.extra?.eas?.projectId ??
       Constants?.easConfig?.projectId ??
-      "986508ab-d7ea-483c-b310-bd21cda01f48"; 
+      "986508ab-d7ea-483c-b310-bd21cda01f48";
 
     if (!projectId) {
       throw new Error("Project ID not found");
@@ -352,7 +351,7 @@ export const sendPushNotification = async (
     title: title,
     body: body,
     data: data,
-    channelId: "default", 
+    channelId: "default",
   };
 
   try {
@@ -370,16 +369,70 @@ export const sendPushNotification = async (
   }
 };
 
-
 export const notifyGroupPush = async (data: any) => {
   try {
     await fetch(`${BASE_URL}/admin/send-group-notification`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
-      credentials: "include"
+      credentials: "include",
     });
   } catch (e) {
     console.warn("Group push trigger failed", e);
   }
+};
+
+export const communityApi = {
+  getPosts: async (estateId: string, category: string, userId: string) => {
+    try {
+      const response = await fetch(
+        `${BASE_URL}/posts?estate_id=${estateId}&category=${category}&user_id=${userId}`,
+      );
+      if (!response.ok)
+        throw new Error(`HTTP error! status: ${response.status}`);
+      return await response.json(); // Explicitly return the parsed JSON
+    } catch (error) {
+      console.error("getPosts Error:", error);
+      return []; // Return empty array so the app doesn't crash
+    }
+  },
+
+  createPost: async (data: any) => {
+    try {
+      const response = await fetch(`${BASE_URL}/posts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      return await response.json();
+    } catch (error) {
+      console.error("createPost Error:", error);
+    }
+  },
+
+  toggleLike: async (postId: string, userId: string) => {
+    try {
+      const response = await fetch(`${BASE_URL}/like`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ post_id: postId, user_id: userId }),
+      });
+      return await response.json();
+    } catch (error) {
+      console.error("toggleLike Error:", error);
+    }
+  },
+
+  addComment: async (data: any) => {
+    try {
+      const response = await fetch(`${BASE_URL}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      return await response.json();
+    } catch (error) {
+      console.error("addComment Error:", error);
+    }
+  },
 };

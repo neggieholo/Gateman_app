@@ -1,5 +1,5 @@
 import { FirebaseFirestoreTypes } from "@react-native-firebase/firestore";
-import { IMessage } from 'react-native-gifted-chat';
+import { IMessage } from "react-native-gifted-chat";
 
 export interface Estate {
   id: string;
@@ -12,8 +12,8 @@ export interface Apartment {
   id: string;
   unitNumber: string;
   residentName: string;
-  status: 'Occupied' | 'Vacant' | 'Under Maintenance';
-  type: 'Tenant' | 'Owner';
+  status: "Occupied" | "Vacant" | "Under Maintenance";
+  type: "Tenant" | "Owner";
   walletBalance: number;
 }
 
@@ -22,12 +22,12 @@ export interface User {
   name: string;
   email: string;
   password?: string;
-  isTemp: boolean; 
+  isTemp: boolean;
   created_at: string | null;
-  
+
   // Fields for Temp Tenants
   rejection_message?: {
-    type: 'decline' | 'block';
+    type: "decline" | "block";
     estate: string;
     message: string;
   } | null;
@@ -49,9 +49,9 @@ export interface User {
 }
 
 export interface tempNotification {
-  from: string;  
-  message: string; 
-  reason: string; 
+  from: string;
+  message: string;
+  reason: string;
 }
 
 export interface GroupMember {
@@ -61,7 +61,7 @@ export interface GroupMember {
 
 export interface ChatGroup {
   _id: string; // Firestore doc ID
-  id?: string; 
+  id?: string;
   name: string;
   members: GroupMember[];
   admins: string[];
@@ -76,7 +76,7 @@ export interface ChatRoom {
   id: string;
   lastMessageAt?: any;
   lastSenderId?: string;
-  [key: string]: any; 
+  [key: string]: any;
 }
 
 export interface IFileMessage extends IMessage {
@@ -86,5 +86,30 @@ export interface IFileMessage extends IMessage {
     type: string;
   };
   pending?: boolean;
-  isDeleted?: boolean
+  isDeleted?: boolean;
+}
+
+export interface Post {
+  id: string;
+  estate_id: string;
+  author_id: number;
+  author_name: string;
+  author_role: string;
+  title: string;
+  content: string;
+  category: string;
+  image_url?: string; 
+  thumbnail_url?: string; 
+  likes_count: number;
+  comments_count: number;
+  has_liked: boolean; 
+  created_at: string;
+}
+
+export interface Comment {
+  id: string;
+  author: string;
+  authorRole?: string;
+  content: string;
+  timestamp: string;
 }

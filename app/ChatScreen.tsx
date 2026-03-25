@@ -1040,11 +1040,8 @@ const ChatManager = () => {
           const data = doc.data();
           const mutedList = data?.mutedBy || [];
           const isActuallyMuted = mutedList.includes(user?.id);
-          console.log('Is this chat muted:', isActuallyMuted)
 
-          // This will now fire EVERY TIME you click the toggle
           setIsMuted(isActuallyMuted);
-          console.log("🔥 Firestore Push: Mute is now", isActuallyMuted);
         }
       },
       (error) => {
@@ -1601,6 +1598,60 @@ const ChatManager = () => {
     }
   };
 
+  const startPrivateCall = async (type: "voice" | "video") => {
+    if (!isGroupChat) {
+      if (!selectedTenant?.push_token) {
+        Alert.alert(
+          "User Offline",
+          "This resident cannot be reached at the moment because they haven't enabled notifications.",
+        );
+        return;
+      }
+    }
+
+    const callId = `call_${user?.id}_${Date.now()}`;
+
+    const pushData = {
+      type: "incoming_call",
+      callId: callId,
+      callerId: user?.id,
+      callerName: user?.name,
+      callerAvatar: user?.avatar,
+      callType: type,
+      channelName: callId,
+    };
+
+    if (!isGroupChat) {
+      try {
+        // 1. Send Signaling Push
+        await sendPushNotification(
+          selectedTenant.push_token,
+          `Incoming ${type === "video" ? "Video" : "Voice"} Call`,
+          `${user?.name} is calling...`,
+          pushData,
+        );
+
+        router.push({
+          pathname: "/CallScreen",
+          params: {
+            callId: pushData.callId,
+            callerName: pushData.callerName,
+            callerAvatar: pushData.callerAvatar || "",
+            callType: pushData.callType,
+            isIncoming: "false",
+            roomName: selectedTenant.name,
+          },
+        });
+      } catch (err) {
+        console.error("Call signaling failed:", err);
+        Alert.alert(
+          "Call Failed",
+          "Could not establish a connection. Please try again.",
+        );
+      }
+    }
+  };
+
   const renderItem = ({ item }: { item: any }) => {
     const itemName =
       item.name && item.name.length > 10
@@ -1866,7 +1917,7 @@ const ChatManager = () => {
                     className="flex-row items-center px-4 py-3 border-b border-gray-50"
                     onPress={() => {
                       setShowMenu(false);
-                      alert(`Calling ${selectedTenant.name}...`);
+                      startPrivateCall('voice');
                     }}
                   >
                     <Phone size={18} color="#4f46e5" />

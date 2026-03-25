@@ -257,17 +257,31 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     // 2. Handle tapping the notification (Background/Quit/Foreground)
     const responseSubscription =
       Notifications.addNotificationResponseReceivedListener((response) => {
-        const data = response.notification.request.content.data;
+        const data = response.notification.request.content.data as any;
 
         console.log("Notification Tapped with data:", data);
 
         if (data.type === "chat" && data.roomId) {
           router.push({
-            pathname: (user?.id && isConnected) ? "/ChatScreen" : "/",
+            pathname: user?.id && isConnected ? "/ChatScreen" : "/",
             params: {
-              autoId: String(data.senderId || ""), // Ensure it's a string
+              autoId: String(data.senderId || ""),
               autoRoomId: String(data.roomId),
               isGroup: data.isGroup ? "true" : "false",
+            },
+          });
+        }
+
+        if (data.type === "incoming_call") {
+          router.push({
+            pathname: "/CallScreen",
+            params: {
+              callId: data.callId,
+              callerName: data.callerName,
+              callerAvatar: data.callerAvatar || "",
+              callType: data.callType,
+              isIncoming: "true",
+              roomName: data.callerName,
             },
           });
         }
