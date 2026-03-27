@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "../components/Button";
 import { FormInput } from "../components/FormInput";
@@ -30,7 +31,7 @@ export default function LoginScreen() {
   const [isLogin, setIsLogin] = useState<boolean>(true);
   const [error, setError] = useState<string>("");
   const { setUser, setSessionId, setPushToken } = useContext(UserContext);
-  const BASE_URL = `${process.env.EXPO_PUBLIC_BASE_URL}`
+  const BASE_URL = `${process.env.EXPO_PUBLIC_BASE_URL}`;
 
   const handleLogin = async () => {
     setLoading(true);
@@ -87,7 +88,7 @@ export default function LoginScreen() {
   };
 
   const handleRegister = async () => {
-    const trimmedEmail = email.trim(); 
+    const trimmedEmail = email.trim();
 
     if (!validateEmail(trimmedEmail)) {
       Alert.alert("Invalid Email", "Please check your email format.");
@@ -114,120 +115,126 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1">
-      <ImageBackground
-        source={require("../../assets/images/gateman_bgimage.png")}
-        className="flex-1"
-        resizeMode="cover"
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          className="flex-1 px-6"
+    <KeyboardAwareScrollView
+      bottomOffset={60} // Space between keyboard and input
+      className="flex-1"
+      contentContainerStyle={{ flexGrow: 1 }}
+    >
+      <SafeAreaView className="flex-1">
+        <ImageBackground
+          source={require("../../assets/images/gateman_bgimage.png")}
+          className="flex-1"
+          resizeMode="cover"
         >
-          <View className="w-full flex-row justify-center items-center mt-12 px-4 rounded-lg">
-            <Image
-              source={require("../../assets/images/gateman_w_nobg_cropped.png")}
-              style={{
-                width: "100%",
-                height: 120,
-              }}
-              resizeMode="contain"
-            />
-          </View>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            className="flex-1 px-6"
+          >
+            <View className="w-full flex-row justify-center items-center mt-12 px-4 rounded-lg">
+              <Image
+                source={require("../../assets/images/gateman_w_nobg_cropped.png")}
+                style={{
+                  width: "100%",
+                  height: 120,
+                }}
+                resizeMode="contain"
+              />
+            </View>
 
-          {isLogin && (
-            <View className="flex-1 justify-center">
-              <View className="bg-white/70 rounded-md p-6">
-                <Text className="text-3xl font-bold mb-6 text-center text-black">
-                  {isLogin ? "Login" : "Register"}
-                </Text>
+            {isLogin && (
+              <View className="flex-1 justify-center">
+                <View className="bg-white/70 rounded-md p-6">
+                  <Text className="text-3xl font-bold mb-6 text-center text-black">
+                    {isLogin ? "Login" : "Register"}
+                  </Text>
 
-                <FormInput
-                  placeholder="Email"
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                />
-                <FormInput
-                  placeholder="Password"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry
-                />
+                  <FormInput
+                    placeholder="Email"
+                    value={email}
+                    onChangeText={setEmail}
+                    keyboardType="email-address"
+                  />
+                  <FormInput
+                    placeholder="Password"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry
+                  />
 
-                <Text className="text-md font-bold text-blue-500 m-2">
-                  Forgot Password?
-                </Text>
+                  <Text className="text-md font-bold text-blue-500 m-2">
+                    Forgot Password?
+                  </Text>
 
-                {error ? (
-                  <Text className="text-red-500 mb-2">{error}</Text>
-                ) : null}
+                  {error ? (
+                    <Text className="text-red-500 mb-2">{error}</Text>
+                  ) : null}
 
-                <Button
-                  title={loading ? "Logging in..." : "Login"}
-                  onPress={handleLogin}
-                  disabled={loading}
-                />
+                  <Button
+                    title={loading ? "Logging in..." : "Login"}
+                    onPress={handleLogin}
+                    disabled={loading}
+                  />
 
-                <View className="flex-row justify-center mt-4">
-                  <Text>Don&apos;t have an account? </Text>
-                  <TouchableOpacity onPress={() => setIsLogin(false)}>
-                    <Text className="text-blue-500 font-bold">Sign Up</Text>
-                  </TouchableOpacity>
+                  <View className="flex-row justify-center mt-4">
+                    <Text>Don&apos;t have an account? </Text>
+                    <TouchableOpacity onPress={() => setIsLogin(false)}>
+                      <Text className="text-blue-500 font-bold">Sign Up</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
-            </View>
-          )}
+            )}
 
-          {!isLogin && (
-            <View className="flex-1 justify-center">
-              <View className="bg-white/70 rounded-md p-6">
-                <Text className="text-3xl font-bold mb-6 text-center text-black">
-                  Register
-                </Text>
+            {!isLogin && (
+              <View className="flex-1 justify-center">
+                <View className="bg-white/70 rounded-md p-6">
+                  <Text className="text-3xl font-bold mb-6 text-center text-black">
+                    Register
+                  </Text>
 
-                <FormInput
-                  placeholder="Full Name"
-                  value={name}
-                  onChangeText={setName}
-                />
-                <FormInput
-                  placeholder="Email"
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  autoComplete="email"
-                />
-                <FormInput
-                  placeholder="Password"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry
-                />
+                  <FormInput
+                    placeholder="Full Name"
+                    value={name}
+                    onChangeText={setName}
+                  />
+                  <FormInput
+                    placeholder="Email"
+                    value={email}
+                    onChangeText={setEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    autoComplete="email"
+                  />
+                  <FormInput
+                    placeholder="Password"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry
+                  />
 
-                {error ? (
-                  <Text className="text-red-500 mb-2">{error}</Text>
-                ) : null}
+                  {error ? (
+                    <Text className="text-red-500 mb-2">{error}</Text>
+                  ) : null}
 
-                <Button
-                  title={loading ? "Registering..." : "Register"}
-                  onPress={handleRegister}
-                  disabled={loading}
-                />
+                  <Button
+                    title={loading ? "Registering..." : "Register"}
+                    onPress={handleRegister}
+                    disabled={loading}
+                  />
 
-                <View className="flex-row justify-center mt-4">
-                  <Text>Already have an account? </Text>
-                  <TouchableOpacity onPress={() => setIsLogin(true)}>
-                    <Text className="text-blue-500 font-bold">Login</Text>
-                  </TouchableOpacity>
+                  <View className="flex-row justify-center mt-4">
+                    <Text>Already have an account? </Text>
+                    <TouchableOpacity onPress={() => setIsLogin(true)}>
+                      <Text className="text-blue-500 font-bold">Login</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
-            </View>
-          )}
-        </KeyboardAvoidingView>
-      </ImageBackground>
-    </SafeAreaView>
+            )}
+          </KeyboardAvoidingView>
+        </ImageBackground>
+      </SafeAreaView>
+    </KeyboardAwareScrollView>
   );
 }

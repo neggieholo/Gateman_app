@@ -207,6 +207,7 @@ export const GroupNameModal = ({
 
           <TextInput
             className="bg-gray-100 p-4 rounded-xl text-gray-900 font-bold mb-6"
+            placeholderTextColor="#9ca3af"
             placeholder="Enter group name..."
             value={groupName}
             onChangeText={setGroupName}

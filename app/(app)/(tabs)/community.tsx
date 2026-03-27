@@ -1,40 +1,62 @@
-import { MOCK_POSTS } from "@/app/services/MockData";
-import { communityApi } from "@/app/services/api";
-import { Post } from "@/app/services/interfaces";
+import CreatePostModal from "@/app/components/CreatePostModal";
+import PostDetailModal from "@/app/components/PostDetailModal";
+import { communityApi, getRelativeTime } from "@/app/services/api";
+import { Comment, Post } from "@/app/services/interfaces";
 import { useRouter } from "expo-router";
-import { MessageSquare, Plus, Send, ThumbsUp } from "lucide-react-native";
-import React, { useEffect, useState } from "react";
 import {
+  ChevronRight,
+  ImageIcon,
+  MessageSquare,
+  Plus,
+  RefreshCw,
+  ThumbsUp,
+  Trash,
+} from "lucide-react-native";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  Alert,
   Keyboard,
+  RefreshControl,
   ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useUser } from "../../UserContext";
-import CreatePostModal from "@/app/components/CreatePostModal";
+
+const CATEGORIES = ["Alerts", "General", "Marketplace"];
 
 export default function Community() {
   const { user } = useUser();
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  const [posts, setPosts] = useState<Post[]>(MOCK_POSTS);
+  const [posts, setPosts] = useState<Post[]>([]);
   const [newComment, setNewComment] = useState("");
   const [activeCategory, setActiveCategory] = useState<string>("Alerts");
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [isDetailVisible, setIsDetailVisible] = useState(false);
+  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [loadingComments, setLoadingComments] = useState(false);
   const [postTitle, setPostTitle] = useState("");
   const [postContent, setPostContent] = useState("");
+  const scrollRef = useRef<ScrollView>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [postImageUrl, setPostImageUrl] = useState("");
+  const [upLoadingNewComment, setUpLoadingNewComment] = useState(false);
 
   const loadPosts = async () => {
     setLoading(true);
     if (user && user.estate_id && user.id) {
-      const data = await communityApi.getPosts(
-        user.estate_id,
-        activeCategory,
-        user.id,
-      );
+      const data = await communityApi.getPosts(user.estate_id);
+      // console.log("Posts:", data);
       setPosts(data);
       setLoading(false);
     } else return;
@@ -44,7 +66,11 @@ export default function Community() {
     setNewComment("");
     Keyboard.dismiss();
     loadPosts();
-  }, [activeCategory]);
+  }, []);
+
+  const filteredPosts = useMemo(() => {
+    return posts.filter((p) => p.category === activeCategory);
+  }, [posts, activeCategory]);
 
   const handleLike = async (postId: string) => {
     if (user && user.id) {
@@ -62,19 +88,8 @@ export default function Community() {
         ),
       );
 
-      await communityApi.toggleLike(postId, user.id);
+      await communityApi.toggleLike(postId);
     } else return;
-  };
-
-  const handleAddComment = async (postId: string) => {
-    const addNewComment = await communityApi.addComment({
-      post_id: postId,
-      user_id: user!.id,
-      author_name: user!.name,
-      content: newComment,
-    });
-
-    loadPosts();
   };
 
   const handleCreatePost = async () => {
@@ -82,13 +97,15 @@ export default function Community() {
 
     const payload = {
       estate_id: user!.estate_id,
-      author_id: user!.id,
       author_name: user!.name,
       author_role: "resident",
       title: postTitle,
       content: postContent,
+      image_url: postImageUrl,
       category: activeCategory,
     };
+
+    // console.log("Payload for post:", payload);
 
     await communityApi.createPost(payload);
 
@@ -97,6 +114,140 @@ export default function Community() {
     setPostContent("");
     setIsModalVisible(false);
     loadPosts(); // Refresh the list
+  };
+
+  const handleRefresh = useCallback(
+    async (shouldScrollToTop = false) => {
+      setIsRefreshing(true);
+      await loadPosts();
+
+      if (shouldScrollToTop) {
+        scrollRef.current?.scrollTo({ y: 0, animated: true });
+      }
+
+      setIsRefreshing(false);
+    },
+    [activeCategory, user],
+  );
+
+  const handleOpenPost = async (post: Post) => {
+    setSelectedPost(post);
+    setIsDetailVisible(true);
+    setLoadingComments(true);
+
+    try {
+      const data = await communityApi.getComments(post.id);
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === post.id ? { ...p, comments_count: data.length } : p,
+        ),
+      );
+      // console.log("Comments:", data);
+      setComments(data);
+    } catch (err) {
+      console.error("Failed to load comments", err);
+    } finally {
+      setLoadingComments(false);
+    }
+  };
+
+  const handleDelete = (postId: string) => {
+    Alert.alert(
+      "Delete Post",
+      "Are you sure you want to remove this post permanently?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              // 1. Call the API
+              const response = await communityApi.deletePost(postId.toString());
+
+              if (response.success) {
+                setPosts((prevPosts) =>
+                  prevPosts.filter((p) => p.id !== postId),
+                );
+
+                Alert.alert("Success", "Post deleted successfully.");
+              }
+            } catch (error: any) {
+              console.error("Delete Error:", error);
+              Alert.alert("Error", "Could not delete post. Please try again.");
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const handleAddComment = async (postId: string) => {
+    if (!newComment.trim()) return;
+
+    setUpLoadingNewComment(true);
+
+    try {
+      await communityApi.addComment({
+        post_id: postId,
+        author_name: user!.name,
+        content: newComment,
+      });
+      await loadPosts();
+
+      setNewComment("");
+    } catch (error) {
+      console.error("GateMan Comment Error:", error);
+      Alert.alert(
+        "Connection Error",
+        "Failed to add comment. Please check your internet and try again.",
+      );
+    } finally {
+      setUpLoadingNewComment(false);
+    }
+  };
+
+  // 3. Function to handle comment submission from inside the modal
+  const handleModalCommentSubmit = async () => {
+    if (!newComment.trim() || !selectedPost) return;
+
+    await handleAddComment(selectedPost.id); // Uses your existing logic
+    setNewComment("");
+
+    // Re-fetch comments to show the new one immediately
+    const updatedComments = await communityApi.getComments(selectedPost.id);
+    setComments(updatedComments);
+  };
+
+  const handleDeleteComment = (commentId: number) => {
+    Alert.alert(
+      "Delete Comment",
+      "Are you sure you want to remove this comment?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              // 1. Call the API we created in the backend
+              const response = await communityApi.deleteComment(
+                commentId.toString(),
+              );
+
+              if (response.success) {
+                // 2. Remove the comment from the local modal state
+                setComments((prev) => prev.filter((c) => c.id !== commentId));
+                Alert.alert("Success", "Comment removed.");
+              }
+            } catch (error) {
+              console.error("Delete Comment Error:", error);
+              Alert.alert("Error", "Could not delete comment.");
+            }
+          },
+        },
+      ],
+    );
   };
 
   const renderRoleBadge = (role?: string) => {
@@ -132,14 +283,10 @@ export default function Community() {
     );
   }
 
-  const categories = [...Array.from(new Set(posts.map((p) => p.category)))];
-
-  const filteredPosts = posts.filter((p) => p.category === activeCategory);
-
   return (
     <View className="flex-1 bg-gray-50">
       <View className="h-16 px-4 py-2 flex-row items-center">
-        {categories.map((cat) => (
+        {CATEGORIES.map((cat) => (
           <TouchableOpacity
             key={cat}
             className={`flex-1 mx-1 px-4 py-2 rounded-full items-center justify-center ${
@@ -148,9 +295,7 @@ export default function Community() {
             onPress={() => setActiveCategory(cat)}
           >
             <Text
-              className={`font-bold text-sm ${
-                activeCategory === cat ? "text-white" : "text-gray-700"
-              }`}
+              className={`font-bold ${activeCategory === cat ? "text-white" : "text-gray-700"}`}
             >
               {cat}
             </Text>
@@ -159,10 +304,24 @@ export default function Community() {
       </View>
 
       {/* Posts */}
-      <ScrollView key={activeCategory} className="px-4 pb-24">
+      <ScrollView
+        key={activeCategory}
+        ref={scrollRef}
+        className="px-4 pb-24"
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={() => handleRefresh(false)}
+            colors={["#4f46e5"]}
+            tintColor="#4f46e5"
+          />
+        }
+      >
         {filteredPosts.length === 0 && (
           <View className="py-12 items-center">
-            <Text className="text-gray-400 text-lg">No posts yet</Text>
+            <Text className="text-gray-400 text-lg">
+              {loading ? "Retrieving Posts ..." : "No posts yet"}
+            </Text>
           </View>
         )}
         {filteredPosts.map((post) => (
@@ -175,22 +334,34 @@ export default function Community() {
                 <View
                   className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-white ${post.author_role === "admin" || post.author_role === "superadmin" ? "bg-blue-600" : "bg-gray-400"}`}
                 >
-                  <Text>{post.author_name.charAt(0)}</Text>
+                  <Text className="text-white font-bold">
+                    {post.author_name
+                      ? post.author_name.charAt(0).toUpperCase()
+                      : "?"}
+                  </Text>
                 </View>
                 <View>
-                  <View className="flex items-center">
+                  <View className="flex items-start justify-center">
                     <Text className="font-bold text-gray-900">
                       {post.author_name}
                     </Text>
                   </View>
                   <Text className="text-xs text-gray-400">
-                    {post.created_at}
+                    {getRelativeTime(post.created_at)}
                   </Text>
                 </View>
               </View>
+
+              <TouchableOpacity
+                onPress={() => handleOpenPost(post)}
+                className="bg-white p-1 rounded-2x"
+              >
+                <ChevronRight size={20} color="#9ca3af" />
+              </TouchableOpacity>
             </View>
 
             <Text className="font-bold text-lg mb-1">{post.title}</Text>
+
             <Text className="text-gray-600 mb-2">{post.content}</Text>
 
             <View className="flex-row items-center justify-between my-3">
@@ -213,36 +384,59 @@ export default function Community() {
                 </Text>
               </View>
             </View>
+            <View className="flex-row items-center justify-between">
+              {/* 1. Show 'Image attached' badge only if URL exists */}
+              {post.image_url ? (
+                <View className="flex-row items-center mt-3 bg-indigo-50 self-start px-2 py-1 rounded-md">
+                  <ImageIcon size={14} color="#4f46e5" />
+                  <Text className="text-indigo-600 text-xs ml-1 font-bold">
+                    Image attached
+                  </Text>
+                </View>
+              ) : (
+                <View className="mt-3" /> // Keeps vertical alignment
+              )}
 
-            {/* Comment Input */}
-            <View className="flex-row items-center mt-2">
-              <TextInput
-                className="flex-1 bg-gray-100 rounded-2xl px-4 py-2 text-sm"
-                placeholder="Add a comment..."
-                value={newComment}
-                onChangeText={setNewComment}
-                onSubmitEditing={() => handleAddComment(post.id)}
-              />
-              <TouchableOpacity
-                onPress={() => handleAddComment(post.id)}
-                className="ml-2 bg-indigo-600 rounded-2xl p-2"
-              >
-                <Send size={18} color="white" />
-              </TouchableOpacity>
+              {/* 2. Show Trash icon ONLY if current user is the author */}
+              {user?.id === post.author_id && (
+                <TouchableOpacity
+                  onPress={() => handleDelete(post.id)}
+                  className="mt-3 p-1"
+                >
+                  <Trash size={20} color="#ef4444" />
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         ))}
       </ScrollView>
 
-      {/* Floating Action Button to create post */}
-      <TouchableOpacity
-        onPress={() => console.log("Create New Post")}
-        className="absolute bottom-10 right-6 bg-indigo-600 w-16 h-16 rounded-full items-center justify-center shadow-lg"
-      >
-        <Plus size={28} color="white" />
-      </TouchableOpacity>
+      <View className="absolute bottom-10 right-6 items-center">
+        <TouchableOpacity
+          onPress={() => {
+            handleRefresh(true);
+          }}
+          disabled={loading || isRefreshing}
+          className={`mb-4 w-16 h-16 rounded-full items-center justify-center shadow-lg border border-gray-100 ${
+            isRefreshing ? "bg-gray-100" : "bg-white"
+          }`}
+        >
+          <RefreshCw
+            size={20}
+            color="#4f46e5"
+            className={isRefreshing ? "animate-spin" : ""}
+          />
+        </TouchableOpacity>
 
-      <CreatePostModal 
+        <TouchableOpacity
+          onPress={() => setIsModalVisible(true)}
+          className="bg-indigo-600 w-16 h-16 rounded-full items-center justify-center shadow-xl"
+        >
+          <Plus size={28} color="white" />
+        </TouchableOpacity>
+      </View>
+
+      <CreatePostModal
         isVisible={isModalVisible}
         onClose={() => setIsModalVisible(false)}
         onSubmit={handleCreatePost}
@@ -251,6 +445,23 @@ export default function Community() {
         setTitle={setPostTitle}
         content={postContent}
         setContent={setPostContent}
+        setImageUrl={setPostImageUrl}
+      />
+      <PostDetailModal
+        isVisible={isDetailVisible}
+        onClose={() => {
+          setIsDetailVisible(false);
+          setSelectedPost(null);
+        }}
+        post={selectedPost}
+        comments={comments}
+        newComment={newComment}
+        setNewComment={setNewComment}
+        onAddComment={handleModalCommentSubmit}
+        onLike={handleLike}
+        isLoadingComments={loadingComments}
+        uploadingComment={upLoadingNewComment}
+        handleDelete={handleDeleteComment}
       />
     </View>
   );

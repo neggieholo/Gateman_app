@@ -54,13 +54,13 @@ export const MOCK_APARTMENT_LIST: Apartment[] = [
 export const MOCK_POSTS: Post[] = [
   {
     id: "1",
-    author: "Alice Freeman",
-    authorRole: "resident",
+    author_name: "Alice Freeman",
+    author_role: "resident",
     title: "Suspicious car parked near Gate B",
     content:
       "Has anyone seen a red sedan parked near Gate B for the last 3 days?",
     category: "Alerts",
-    likes: 12,
+    likes_count: 12,
     comments: [
       {
         id: "c1",

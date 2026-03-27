@@ -1,10 +1,10 @@
+import { formatDistanceToNow, parseISO } from "date-fns";
 import Constants from "expo-constants";
 import * as Device from "expo-device";
 import { File } from "expo-file-system";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { Estate, tempNotification } from "./interfaces";
-
 const BASE_URL = `${process.env.EXPO_PUBLIC_BASE_URL}/api`;
 
 export const postLogin = async (email: string, password: string) => {
@@ -383,10 +383,23 @@ export const notifyGroupPush = async (data: any) => {
 };
 
 export const communityApi = {
-  getPosts: async (estateId: string, category: string, userId: string) => {
+  // getPosts: async (estateId: string, category: string ) => {
+  //   try {
+  //     const response = await fetch(
+  //       `${BASE_URL}/community/posts?estate_id=${estateId}&category=${category}`,
+  //     );
+  //     if (!response.ok)
+  //       throw new Error(`HTTP error! status: ${response.status}`);
+  //     return await response.json(); // Explicitly return the parsed JSON
+  //   } catch (error) {
+  //     console.error("getPosts Error:", error);
+  //     return []; // Return empty array so the app doesn't crash
+  //   }
+  // },
+  getPosts: async (estateId: string) => {
     try {
       const response = await fetch(
-        `${BASE_URL}/posts?estate_id=${estateId}&category=${category}&user_id=${userId}`,
+        `${BASE_URL}/community/posts?estate_id=${estateId}`,
       );
       if (!response.ok)
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -399,7 +412,7 @@ export const communityApi = {
 
   createPost: async (data: any) => {
     try {
-      const response = await fetch(`${BASE_URL}/posts`, {
+      const response = await fetch(`${BASE_URL}/community/posts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
@@ -410,12 +423,33 @@ export const communityApi = {
     }
   },
 
-  toggleLike: async (postId: string, userId: string) => {
+  deletePost: async (postId: string) => {
     try {
-      const response = await fetch(`${BASE_URL}/like`, {
+      const response = await fetch(`${BASE_URL}/community/posts/${postId}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.error || `HTTP error! status: ${response.status}`,
+        );
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error("deletePost Error:", error);
+      throw error; // Throw so the UI can catch it and show an alert
+    }
+  },
+
+  toggleLike: async (postId: string) => {
+    try {
+      const response = await fetch(`${BASE_URL}/community/like`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ post_id: postId, user_id: userId }),
+        body: JSON.stringify({ post_id: postId }),
       });
       return await response.json();
     } catch (error) {
@@ -425,7 +459,7 @@ export const communityApi = {
 
   addComment: async (data: any) => {
     try {
-      const response = await fetch(`${BASE_URL}/comments`, {
+      const response = await fetch(`${BASE_URL}/community/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
@@ -435,4 +469,51 @@ export const communityApi = {
       console.error("addComment Error:", error);
     }
   },
+
+  getComments: async (postId: string) => {
+    try {
+      const response = await fetch(`${BASE_URL}/community/comments/${postId}`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error("getComments Error:", error);
+      return []; // Return empty array to prevent .map() crashes in the modal
+    }
+  },
+
+  deleteComment: async (commentId: string) => {
+    try {
+      const response = await fetch(
+        `${BASE_URL}/community/comments/${commentId}`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to delete comment");
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error("deleteComment Error:", error);
+      throw error;
+    }
+  },
+};
+
+export const getRelativeTime = (timestamp: string) => {
+  if (!timestamp) return "";
+  try {
+    const date = parseISO(timestamp);
+    return formatDistanceToNow(date, { addSuffix: true });
+  } catch (error) {
+    return timestamp; // Fallback to raw string if it fails
+  }
 };

@@ -8,12 +8,15 @@ import firestore, {
 import { useHeaderHeight } from "@react-navigation/elements";
 import { Audio, ResizeMode, Video } from "expo-av";
 import * as DocumentPicker from "expo-document-picker";
+import { Directory, File, Paths } from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
+import * as MediaLibrary from "expo-media-library";
 import { router, useLocalSearchParams } from "expo-router";
 import {
   Bell,
   BellOff,
   ChevronLeft,
+  Download,
   LogOut,
   MoreVertical,
   Phone,
@@ -21,6 +24,7 @@ import {
   ShieldAlert,
   Trash2,
   Users,
+  X,
 } from "lucide-react-native";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -121,6 +125,7 @@ const ChatManager = () => {
   const [messageToForward, setMessageToForward] = useState<IFileMessage | null>(
     null,
   );
+  const [isSavingImage, setIsSavingImage] = useState(false);
   const [selectedForForward, setSelectedForForward] = useState<string[]>([]);
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const { showActionSheetWithOptions } = useActionSheet();
@@ -1389,6 +1394,73 @@ const ChatManager = () => {
     }
   };
 
+  const handleSaveMedia = async (url: string, type: "image" | "video") => {
+    try {
+      setIsSavingImage(true);
+
+      // 1. Permissions Check
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Denied",
+          "We need access to your gallery to save the photo.",
+        );
+        return;
+      }
+
+      // 2. Setup Directory & File Extension
+      const gateManDir = new Directory(Paths.cache, "GateMan");
+      if (!gateManDir.exists) gateManDir.create();
+
+      // Determine extension based on type
+      const extension = type === "video" ? "mp4" : "jpg";
+      const localFile = new File(
+        gateManDir,
+        `GateMan_${Date.now()}.${extension}`,
+      );
+
+      console.log(`GateMan: Downloading ${type}...`);
+
+      // 3. Download Logic
+      const downloadedFile = await File.downloadFileAsync(url, localFile);
+
+      if (downloadedFile && downloadedFile.exists) {
+        try {
+          // 4. Save to Media Library
+          const asset = await MediaLibrary.createAssetAsync(downloadedFile.uri);
+          await MediaLibrary.createAlbumAsync("GateMan", asset, false);
+
+          Alert.alert("Success", `${type === "image" ? "Image" : "Video" } saved to your gallery!`);
+
+        } catch (mediaError: any) {
+          if (
+            mediaError.message.includes("user denied") ||
+            mediaError.message.includes("User rejected")
+          ) {
+            Alert.alert(
+              "Cancelled",
+              "Media was not saved because permission was declined.",
+            );
+          } else {
+            throw mediaError;
+          }
+        }
+      }
+    } catch (error: any) {
+      console.error("GateMan Save Error:", error);
+      if (error.message.includes("timeout")) {
+        Alert.alert(
+          "Network Error",
+          "The download timed out. Check your data connection.",
+        );
+      } else {
+        Alert.alert("Error", "An unexpected error occurred while saving.");
+      }
+    } finally {
+      setIsSavingImage(false);
+    }
+  };
+
   // 3. Documents (PDFs, etc.)
   const pickDocument = async () => {
     const result = await DocumentPicker.getDocumentAsync({
@@ -1917,7 +1989,7 @@ const ChatManager = () => {
                     className="flex-row items-center px-4 py-3 border-b border-gray-50"
                     onPress={() => {
                       setShowMenu(false);
-                      startPrivateCall('voice');
+                      startPrivateCall("voice");
                     }}
                   >
                     <Phone size={18} color="#4f46e5" />
@@ -2278,25 +2350,28 @@ const ChatManager = () => {
             animationType="fade"
             transparent={false}
           >
-            <View
-              style={{
-                flex: 1,
-                backgroundColor: "black",
-                justifyContent: "center",
-              }}
-            >
-              {/* The "X" to Return to Chat */}
+            <View className="flex-1 bg-black/95 justify-center items-center">
+              {/* Close Button */}
               <TouchableOpacity
                 onPress={() => setSelectedMedia(null)}
-                style={{
-                  position: "absolute",
-                  top: 50,
-                  right: 20,
-                  zIndex: 99,
-                  padding: 10,
-                }}
+                className="absolute top-12 right-6 z-20 bg-white/20 p-2 rounded-full"
               >
-                <Ionicons name="close-circle" size={42} color="white" />
+                <X size={24} color="white" />
+              </TouchableOpacity>
+
+              {/* Save Button */}
+              <TouchableOpacity
+                onPress={() =>
+                  handleSaveMedia(selectedMedia!.url, selectedMedia!.type)
+                }
+                disabled={isSavingImage}
+                className="absolute top-12 left-6 z-20 bg-indigo-600 p-2 rounded-full"
+              >
+                {isSavingImage ? (
+                  <ActivityIndicator size="small" color="white" />
+                ) : (
+                  <Download size={24} color="white" />
+                )}
               </TouchableOpacity>
 
               {selectedMedia?.type === "image" && (
