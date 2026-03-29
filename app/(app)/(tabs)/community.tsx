@@ -132,6 +132,7 @@ export default function Community() {
 
   const handleOpenPost = async (post: Post) => {
     setSelectedPost(post);
+    setComments([]);
     setIsDetailVisible(true);
     setLoadingComments(true);
 
