@@ -114,3 +114,9 @@ export interface Comment {
   content: string; 
   created_at: string; 
 }
+
+export interface Like {
+  user_id: string; 
+  author_name: string;
+  created_at: string;  
+}

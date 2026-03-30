@@ -1,7 +1,7 @@
 import CreatePostModal from "@/app/components/CreatePostModal";
 import PostDetailModal from "@/app/components/PostDetailModal";
 import { communityApi, getRelativeTime } from "@/app/services/api";
-import { Comment, Post } from "@/app/services/interfaces";
+import { Comment, Like, Post } from "@/app/services/interfaces";
 import { useRouter } from "expo-router";
 import {
   ChevronRight,
@@ -51,6 +51,7 @@ export default function Community() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [postImageUrl, setPostImageUrl] = useState("");
   const [upLoadingNewComment, setUpLoadingNewComment] = useState(false);
+  const [likes, setLikes] = useState<Like[]>([]);
 
   const loadPosts = async () => {
     setLoading(true);
@@ -133,20 +134,32 @@ export default function Community() {
   const handleOpenPost = async (post: Post) => {
     setSelectedPost(post);
     setComments([]);
+    setLikes([]); // Clear previous likes
     setIsDetailVisible(true);
     setLoadingComments(true);
 
     try {
-      const data = await communityApi.getComments(post.id);
+      const [commentsData, likesData] = await Promise.all([
+        communityApi.getComments(post.id),
+        communityApi.getLikes(post.id),
+      ]);
+
       setPosts((prev) =>
         prev.map((p) =>
-          p.id === post.id ? { ...p, comments_count: data.length } : p,
+          p.id === post.id
+            ? {
+                ...p,
+                comments_count: commentsData.length,
+                likes_count: likesData.length,
+              }
+            : p,
         ),
       );
-      // console.log("Comments:", data);
-      setComments(data);
+
+      setComments(commentsData);
+      setLikes(likesData);
     } catch (err) {
-      console.error("Failed to load comments", err);
+      console.error("Failed to load post details", err);
     } finally {
       setLoadingComments(false);
     }
@@ -456,6 +469,7 @@ export default function Community() {
         }}
         post={selectedPost}
         comments={comments}
+        likes={likes}
         newComment={newComment}
         setNewComment={setNewComment}
         onAddComment={handleModalCommentSubmit}

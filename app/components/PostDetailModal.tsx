@@ -1,6 +1,13 @@
 import { Directory, File, Paths } from "expo-file-system";
 import * as MediaLibrary from "expo-media-library";
-import { Download, ImageIcon, Send, Trash, X } from "lucide-react-native";
+import {
+  Download,
+  Heart,
+  ImageIcon,
+  Send,
+  Trash,
+  X,
+} from "lucide-react-native";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -15,7 +22,7 @@ import {
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getRelativeTime } from "../services/api";
-import { Comment, Post } from "../services/interfaces";
+import { Comment, Like, Post } from "../services/interfaces";
 import { useUser } from "../UserContext";
 
 export interface PostDetailModalProps {
@@ -23,6 +30,7 @@ export interface PostDetailModalProps {
   onClose: () => void;
   post: Post | null;
   comments: Comment[];
+  likes: Like[];
   newComment: string;
   setNewComment: (text: string) => void;
   onAddComment: () => void;
@@ -37,6 +45,7 @@ export default function PostDetailModal({
   onClose,
   post,
   comments,
+  likes,
   newComment,
   setNewComment,
   onAddComment,
@@ -154,7 +163,7 @@ export default function PostDetailModal({
               <Text
                 className={`text-xs font-bold uppercase tracking-widest ${activeTab === "likes" ? "text-indigo-600" : "text-gray-400"}`}
               >
-                Likes ({post?.likes_count ?? 0})
+                Likes ({likes?.length ?? 0})
               </Text>
             </TouchableOpacity>
           </View>
@@ -165,37 +174,81 @@ export default function PostDetailModal({
             bottomOffset={0} // Forces the input to sit flush on the keyboard
           >
             {/* COMMENTS LIST (The flex-1 here pushes the input to the bottom) */}
-            {isLoadingComments ? (
-              <View className="flex-1 p-4 flex items-center justify-center">
-                <ActivityIndicator size="large" color="#4f46e5" />
+            {activeTab === "likes" ? (
+              <View className="flex-1 p-4">
+                {isLoadingComments ? (
+                  <View className="flex-1 p-4 flex justify-center items-center">
+                    <ActivityIndicator size="small" color="#4f46e5" />
+                  </View>
+                ) : likes.length > 0 ? (
+                  likes.map((like: any, index: number) => (
+                    <View
+                      key={index}
+                      className="flex-row items-center mb-3 bg-white p-3 rounded-2xl border border-gray-100 shadow-sm"
+                    >
+                      {/* Avatar Initial */}
+                      <View className="w-10 h-10 rounded-full bg-indigo-50 items-center justify-center mr-3 border border-indigo-100">
+                        <Text className="text-indigo-600 font-bold text-sm">
+                          {like.author_name?.charAt(0).toUpperCase() || "U"}
+                        </Text>
+                      </View>
+
+                      <View className="flex-1">
+                        <Text className="text-sm font-bold text-gray-900">
+                          {like.author_name}
+                        </Text>
+                        <Text className="text-[10px] text-gray-400">
+                          Liked {getRelativeTime(like.created_at)}
+                        </Text>
+                      </View>
+
+                      {/* Heart indicator */}
+                      <View className="bg-red-50 p-2 rounded-full">
+                        <Heart size={12} color="#ef4444" fill="#ef4444" />
+                      </View>
+                    </View>
+                  ))
+                ) : (
+                  <View className="items-center py-10">
+                    <Text className="text-gray-400 text-xs">No likes yet</Text>
+                  </View>
+                )}
               </View>
             ) : (
               <View className="flex-1 p-4">
-                {comments.map((comment: any) => (
-                  <View
-                    key={comment.id}
-                    className="mb-3 bg-white p-3 rounded-2xl shadow-sm border border-gray-100"
-                  >
-                    <Text className="font-bold text-xs text-indigo-600">
-                      {comment.author_name}
-                    </Text>
-                    <Text className="text-gray-800 py-1 text-sm">
-                      {comment.content}
-                    </Text>
-                    <View className="flex-row justify-between w-full">
-                      <Text className="text-[9px] text-gray-400">
-                        {getRelativeTime(comment.created_at)}
+                {comments.length > 0 ? (
+                  comments.map((comment: any) => (
+                    <View
+                      key={comment.id}
+                      className="mb-3 bg-white p-3 rounded-2xl shadow-sm border border-gray-100"
+                    >
+                      <Text className="font-bold text-xs text-indigo-600">
+                        {comment.author_name}
                       </Text>
-                      {comment.user_id === user?.id && (
-                        <TouchableOpacity
-                          onPress={() => handleDelete(comment.id)}
-                        >
-                          <Trash size={14} color="red" />
-                        </TouchableOpacity>
-                      )}
+                      <Text className="text-gray-800 py-1 text-sm">
+                        {comment.content}
+                      </Text>
+                      <View className="flex-row justify-between w-full">
+                        <Text className="text-[9px] text-gray-400">
+                          {getRelativeTime(comment.created_at)}
+                        </Text>
+                        {comment.user_id === user?.id && (
+                          <TouchableOpacity
+                            onPress={() => handleDelete(comment.id)}
+                          >
+                            <Trash size={14} color="red" />
+                          </TouchableOpacity>
+                        )}
+                      </View>
                     </View>
+                  ))
+                ) : (
+                  <View className="items-center py-10">
+                    <Text className="text-gray-400 text-xs">
+                      No comments yet
+                    </Text>
                   </View>
-                ))}
+                )}
                 <View className="h-10" />
               </View>
             )}
@@ -203,16 +256,16 @@ export default function PostDetailModal({
         </View>
 
         {/* 3. THE INPUT BOX - Inside the scroll view but at the bottom */}
-        <View>
+        {activeTab === "comments" && <View>
           <KeyboardAwareScrollView
             className=" bg-gray-50"
             keyboardShouldPersistTaps="handled"
             bottomOffset={0}
           >
             <View className="p-4 border-t border-gray-100 bg-white">
-              <View className="flex-row items-center bg-gray-100 rounded-2xl px-4 h-12">
+              <View className="flex-row items-center px-4 h-12">
                 <TextInput
-                  className="flex-1 text-sm text-gray-900"
+                  className="flex-1 text-sm text-gray-900 bg-gray-100 rounded-2xl "
                   placeholder="Write a comment..."
                   placeholderTextColor="#9ca3af"
                   value={newComment}
@@ -232,7 +285,7 @@ export default function PostDetailModal({
               </View>
             </View>
           </KeyboardAwareScrollView>
-        </View>
+        </View>}
         <Modal
           visible={isImageModalVisible}
           transparent={true}

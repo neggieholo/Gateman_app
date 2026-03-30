@@ -456,6 +456,18 @@ export const communityApi = {
       console.error("toggleLike Error:", error);
     }
   },
+  getLikes: async (postId: string) => {
+    try {
+      const response = await fetch(`${BASE_URL}/community/likes/${postId}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error("getLikes Error:", error);
+      return []; // Return empty array to keep UI stable
+    }
+  },
 
   addComment: async (data: any) => {
     try {
@@ -504,6 +516,69 @@ export const communityApi = {
     } catch (error) {
       console.error("deleteComment Error:", error);
       throw error;
+    }
+  },
+};
+
+export const invitationApi = {
+  // --- 1. GET ALL INVITATIONS (BY ESTATE) ---
+  getInvitations: async (estateId: string) => {
+    try {
+      const response = await fetch(
+        `${BASE_URL}/invitations/resident?estate_id=${estateId}`,
+      );
+      if (!response.ok)
+        throw new Error(`HTTP error! status: ${response.status}`);
+
+      return await response.json();
+    } catch (error) {
+      console.error("getInvitations Error:", error);
+      return [];
+    }
+  },
+
+  // --- 2. CREATE AN INVITATION ---
+  createInvitation: async (data: any) => {
+    try {
+      const response = await fetch(`${BASE_URL}/invitations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.error || `HTTP error! status: ${response.status}`,
+        );
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error("createInvitation Error:", error);
+      throw error;
+    }
+  },
+
+  // --- 3. DELETE / CANCEL AN INVITATION ---
+  deleteInvitation: async (inviteId: string) => {
+    try {
+      const response = await fetch(`${BASE_URL}/invitations/${inviteId}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.error || `HTTP error! status: ${response.status}`,
+        );
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error("deleteInvitation Error:", error);
+      throw error; // Throw so the UI can catch it and show a Toast/Alert
     }
   },
 };
