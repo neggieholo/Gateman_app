@@ -15,12 +15,16 @@ import {
 import { Image, Text, TouchableOpacity, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { postLogout } from "../services/api";
+import { useState } from "react";
+import { set } from "date-fns";
 
 function CustomDrawerContent(props: any) {
   const { setUser, setSessionId, socket } = useUser();
+  const [loggingOut, setLoggingOut] = useState(false);
   const router = useRouter();
 
   const handleLogout = async () => {
+    setLoggingOut(true);
     try {
       if (socket) {
         console.log("🔌 Disconnecting socket...");
@@ -48,6 +52,8 @@ function CustomDrawerContent(props: any) {
       router.replace("/");
     } catch (e) {
       console.error("Logout failed", e);
+    } finally {
+      setLoggingOut(false);
     }
   };
 
@@ -82,7 +88,7 @@ function CustomDrawerContent(props: any) {
       />
 
       <DrawerItem
-        label="Logout"
+        label={loggingOut ? "Logging Out..." : "Logout"}
         labelStyle={{ color: "white", fontSize: 16, fontWeight: "bold" }}
         icon={() => <LogOut size={30} color="#ef4444" />}
         onPress={handleLogout}

@@ -3,12 +3,11 @@ import { getCloudinaryUrl, invitationApi } from "@/app/services/api";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
 import * as Sharing from "expo-sharing";
+import TrackGuestView from "@/app/components/TrackGuest";
 import {
   Calendar,
   Clock,
   ImageIcon,
-  MapPin,
-  Search,
   Send,
   X,
 } from "lucide-react-native";
@@ -316,43 +315,6 @@ const InviteGuestForm = () => {
   );
 };
 
-// --- 2. Track Guest View Component ---
-const TrackGuestView = () => {
-  return (
-    <View className="flex-1 items-center justify-center p-6">
-      {/* Search Bar (Mocked) */}
-      <View className="absolute top-0 right-0 p-4">
-        <TouchableOpacity className="bg-white p-3 rounded-full border border-gray-200 shadow-sm">
-          <Search size={22} color="#4B5563" />
-        </TouchableOpacity>
-      </View>
-
-      {/* Empty State Content */}
-      <View className="items-center mt-[-100]">
-        {/* Icon Placeholder */}
-        <View className="w-20 h-20 bg-gray-100 rounded-2xl items-center justify-center mb-4 border border-gray-200">
-          <MapPin size={36} color="#4B5563" />
-        </View>
-
-        <Text className="text-lg font-semibold text-gray-700 mb-6">
-          Nothing to show here
-        </Text>
-
-        <TouchableOpacity
-          onPress={() => {
-            /* Logic to switch back to Invite View */
-          }}
-          className="bg-indigo-600 py-3 px-6 rounded-xl shadow-md"
-        >
-          <Text className="text-white text-base font-bold text-center">
-            Invite a guest
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-};
-
 // --- Main Component ---
 export default function GuestInvitesComponent() {
   // State to toggle between 'Invite Guest' and 'Track Guest'
@@ -390,17 +352,7 @@ export default function GuestInvitesComponent() {
       </View>
 
       {/* --- Content Area --- */}
-      {currentView === "invite" ? <InviteGuestForm /> : <TrackGuestView />}
-
-      {/* --- Floating Action Button (Moved the FAB from TrackGuestView here for consistency) --- */}
-      {currentView === "track" && (
-        <TouchableOpacity
-          onPress={() => setCurrentView("invite")}
-          className="absolute bottom-6 right-6 bg-indigo-600 w-14 h-14 rounded-full items-center justify-center shadow-2xl shadow-indigo-500/50 z-10"
-        >
-          <Send size={24} color="white" />
-        </TouchableOpacity>
-      )}
+      {currentView === "invite" ? <InviteGuestForm /> : <TrackGuestView onInvitePress={() => setCurrentView("invite")} />}
     </View>
   );
 }

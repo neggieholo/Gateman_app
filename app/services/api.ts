@@ -560,6 +560,15 @@ export const invitationApi = {
     }
   },
 
+  extendStay: async (id: string, date: string, time: string) => {
+    const response = await fetch(`${BASE_URL}/invitations/extend/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ new_end_date: date, new_end_time: time }),
+    });
+    return await response.json();
+  },
+
   // --- 3. DELETE / CANCEL AN INVITATION ---
   deleteInvitation: async (inviteId: string) => {
     try {

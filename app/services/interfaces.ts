@@ -120,3 +120,18 @@ export interface Like {
   author_name: string;
   created_at: string;  
 }
+
+export interface Invitation {
+  id: string;
+  guest_name: string;
+  guest_image_url: string | null;
+  access_code: string;
+  invite_type: 'one_time' | 'multi_entry';
+  start_date: string;
+  end_date: string;
+  start_time: string;
+  end_time: string;
+  status: string;
+  created_at: string;
+  is_cancelled: boolean;
+}
