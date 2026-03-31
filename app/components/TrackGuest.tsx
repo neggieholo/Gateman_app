@@ -1,25 +1,47 @@
-import { Clock, MapPin, Search, Trash2, User, X } from "lucide-react-native";
-import React, { useEffect, useMemo, useState } from "react";
+import * as Sharing from "expo-sharing";
+import {
+  ChevronDown,
+  ChevronUp,
+  Edit2,
+  MapPin,
+  Search,
+  Share2,
+  Trash2,
+  User,
+  X,
+} from "lucide-react-native";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Image,
+  LayoutAnimation,
   RefreshControl,
   ScrollView,
+  Share,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { captureRef } from "react-native-view-shot";
 import { invitationApi } from "../services/api";
 import { Invitation } from "../services/interfaces";
 import { useUser } from "../UserContext";
+import { EditInvitationModal } from "./EditInvitationModal";
+import { InvitationCard } from "./InvitationCard";
 
 const TrackGuestView = ({ onInvitePress }: { onInvitePress: () => void }) => {
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const viewShotRef = useRef<any>(null); // Add this ref
+  const [isSharing, setIsSharing] = useState(false);
+  const [selectedInvitation, setSelectedInvitation] =
+    useState<Invitation | null>(null);
 
   const { user } = useUser();
   const estateId = user?.estate_id || "";
@@ -66,48 +88,100 @@ const TrackGuestView = ({ onInvitePress }: { onInvitePress: () => void }) => {
     );
   };
 
-  const handleExtend = async (id: string) => {
-    // Simple debug: Extend by 2 hours for now
-    const now = new Date();
-    now.setHours(now.getHours() + 2);
-    const newTime = now.toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
-    const newDate = now.toISOString().split("T")[0];
+  const handleEditPress = (item: Invitation) => {
+    setSelectedInvitation(item);
+    setEditModalVisible(true);
+  };
+
+  const handleUpdateInvitation = async (updatedData: Partial<Invitation>) => {
+    if (!selectedInvitation?.id) return;
 
     try {
-      await invitationApi.extendStay(id, newDate, newTime);
-      fetchInvitations(); // Refresh list
-      Alert.alert("Success", "Guest stay extended by 2 hours.");
+      // Call your service to update (ensure your API service has an 'update' method)
+      await invitationApi.updateInvitation(selectedInvitation.id, updatedData);
+
+      fetchInvitations(); // Refresh the list
+      setEditModalVisible(false);
+      Alert.alert("Success", "Invitation updated successfully.");
     } catch (err) {
-      Alert.alert("Error", "Could not extend stay.");
+      Alert.alert("Error", "Failed to update invitation.");
     }
   };
 
-  const formatDisplayName = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    }); // Result: 29 Mar 2026
+  const handleShare = async (item: Invitation) => {
+    try {
+      setIsSharing(true);
+      setSelectedInvitation(item);
+
+      // 1. Ensure the UI has rendered the card with the new data
+      await new Promise((resolve) => setTimeout(resolve, 400));
+
+      const imageUri = await captureRef(viewShotRef, {
+        format: "png",
+        quality: 1.0,
+      });
+
+      if (imageUri) {
+        // 2. Share the Image FIRST and WAIT for it to finish
+        await Sharing.shareAsync(imageUri, {
+          mimeType: "image/png",
+          dialogTitle: `Share Access Pass for ${item.guest_name}`,
+        });
+
+        // 3. Add a small buffer so the system share sheet can fully dismiss
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        // 4. Only share text if there are exclusions or if you want a follow-up message
+        if (item.excluded_dates && item.excluded_dates.length > 0) {
+          const formattedExclusions = item.excluded_dates
+            .map((d) => d.split("-").reverse().join("/"))
+            .join("\n• ");
+
+          const finalMessage = `Hello ${item.guest_name}, here is your access pass for GateMan estate.\n\n⚠️ NOTE: Access is DENIED on these dates:\n• ${formattedExclusions}`;
+
+          await Share.share({
+            message: finalMessage,
+          });
+        }
+      }
+    } catch (err) {
+      Alert.alert("Error", "Could not share invitation.");
+    } finally {
+      setIsSharing(false);
+    }
   };
 
-  const formatDisplayTime = (timeStr: string) => {
-    // If timeStr is "21:00:00", this converts it to "9:00 PM"
+  const formatDisplayName = (dateStr: string | Date) => {
+    const date = typeof dateStr === "string" ? new Date(dateStr) : dateStr;
+    return date.toLocaleDateString("en-GB"); // Result: DD/MM/YYYY
+  };
+
+  const formatDisplayTime = (timeStr: string | Date) => {
+    if (timeStr instanceof Date) {
+      return timeStr.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    }
+    // Handle "21:00:00" string from API
     const [hours, minutes] = timeStr.split(":");
     const date = new Date();
     date.setHours(parseInt(hours), parseInt(minutes));
-    return date.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
-  const getStatusDetails = (status: string) => {
+  const isPastTime = (endDate: string, endTime: string) => {
+    const [hours, minutes] = endTime.split(":");
+    const expiry = new Date(endDate);
+    expiry.setHours(parseInt(hours), parseInt(minutes), 0);
+    return new Date() > expiry;
+  };
+
+  const getStatusDetails = (status: string, isExpired: boolean) => {
+    if (status === "pending" && isExpired) {
+      return { label: "EXPIRED", container: "bg-red-50", text: "text-red-400" };
+    }
+
     switch (status) {
       case "pending":
         return {
@@ -140,6 +214,11 @@ const TrackGuestView = ({ onInvitePress }: { onInvitePress: () => void }) => {
           text: "text-gray-600",
         };
     }
+  };
+
+  const toggleExpand = (id: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpandedId(expandedId === id ? null : id);
   };
 
   if (isLoading) {
@@ -205,103 +284,211 @@ const TrackGuestView = ({ onInvitePress }: { onInvitePress: () => void }) => {
               />
             }
           >
-            {filteredInvitations.map((item) => (
-              <View
-                key={item.id}
-                className="bg-white p-4 rounded-2xl mb-4 border border-gray-100 shadow-sm flex-row items-center"
-              >
-                <View className="mr-4">
-                  {item.guest_image_url ? (
-                    <Image
-                      source={{ uri: item.guest_image_url }}
-                      className="w-14 h-14 rounded-full"
-                    />
-                  ) : (
-                    <View className="w-14 h-14 rounded-full bg-indigo-50 items-center justify-center">
-                      <User size={24} color="#4f46e5" />
+            {filteredInvitations.map((item) => {
+              const isExpired = isPastTime(item.end_date, item.end_time);
+              const isPending = item.status === "pending";
+              const isExpanded = expandedId === item.id;
+              const isMultiEntry = item.invite_type === "multi_entry";
+              const isDone =
+                item.status === "checked_out" || (isPending && isExpired);
+              const canCancel = isPending && !isExpired;
+              const canEdit = item.status !== "checked_out" && !isExpired;
+              const canShare = isPending && !isExpired;
+              const statusInfo = getStatusDetails(item.status, isExpired);
+              return (
+                <View key={item.id} className="mb-4 flex gap-2 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+                  <View className="flex-row items-center">
+                    <View className="mr-4">
+                      {item.guest_image_url ? (
+                        <Image
+                          source={{ uri: item.guest_image_url }}
+                          className="w-14 h-14 rounded-full"
+                        />
+                      ) : (
+                        <View className="w-14 h-14 rounded-full bg-indigo-50 items-center justify-center">
+                          <User size={24} color="#4f46e5" />
+                        </View>
+                      )}
+                    </View>
+
+                    <View className="flex-1">
+                      <View className="flex-row items-center justify-between">
+                        <Text
+                          className="text-lg font-bold text-gray-900 capitalize flex-1 mr-2" // Added flex-1 and margin here
+                          numberOfLines={1}
+                          ellipsizeMode="tail"
+                        >
+                          {item.guest_name}
+                        </Text>
+                      </View>
+
+                      <Text className="text-indigo-600 font-mono font-bold tracking-widest">
+                        {item.access_code}
+                      </Text>
+
+                      <View className="mt-1">
+                        {item.invite_type === "one_time" ? (
+                          <>
+                            <Text className="text-gray-600 text-xs font-semibold">
+                              {formatDisplayName(item.start_date)}
+                            </Text>
+                            <Text className="text-gray-400 text-[10px]">
+                              {formatDisplayTime(item.start_time)} —{" "}
+                              {formatDisplayTime(item.end_time)}
+                            </Text>
+                          </>
+                        ) : (
+                          <>
+                            <Text className="text-gray-600 text-xs font-semibold">
+                              {formatDisplayName(item.start_date)} -{" "}
+                              {formatDisplayName(item.end_date)}
+                            </Text>
+                            <Text className="text-gray-400 text-[10px]">
+                              Daily: {formatDisplayTime(item.start_time)} —{" "}
+                              {formatDisplayTime(item.end_time)}
+                            </Text>
+                          </>
+                        )}
+                      </View>
+
+                      <View
+                        className={`${statusInfo.container} px-2 py-0.5 rounded-md flex w-fit justify-center items-center mt-2`}
+                      >
+                        <Text
+                          className={`${statusInfo.text} text-[10px] font-extrabold`}
+                        >
+                          {statusInfo.label}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View className="flex items-center gap-3 mx-1">
+                      {canEdit && (
+                        <TouchableOpacity
+                          onPress={() => handleEditPress(item)} // This will open your new Modal
+                          className="p-3 bg-indigo-50 rounded-full"
+                        >
+                          <Edit2 size={18} color="#4f46e5" />
+                        </TouchableOpacity>
+                      )}
+
+                      {/* CANCEL BUTTON (Trash) - Only for Pending */}
+                      {canCancel && (
+                        <TouchableOpacity
+                          onPress={() =>
+                            handleCancel(item.id!, item.guest_name)
+                          }
+                          className="p-3 bg-red-50 rounded-full"
+                        >
+                          <Trash2 size={18} color="#ef4444" />
+                        </TouchableOpacity>
+                      )}
+
+                      {canShare && (
+                        <TouchableOpacity
+                          onPress={() => handleShare(item)}
+                          disabled={isSharing}
+                          className="p-3 bg-green-50 rounded-full"
+                        >
+                          <Share2 size={18} color="#10b981" />
+                        </TouchableOpacity>
+                      )}
+
+                      {/* LOCKED STATE (If nothing can be done) */}
+                      {isDone && (
+                        <View className="px-2">
+                          <Text className="text-gray-300 text-[10px] font-bold">
+                            HISTORY
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                  {isMultiEntry && (
+                    <View className="mt-2 border-t border-gray-50 pt-2">
+                      {/* The Toggle Row */}
+                      <TouchableOpacity
+                        onPress={() => toggleExpand(item.id!)}
+                        className="flex-row items-center justify-between"
+                      >
+                        <Text className="text-gray-500 text-[10px] font-bold uppercase">
+                          Exclusion Dates
+                        </Text>
+                        <View className="ml-2">
+                          {isExpanded ? (
+                            <ChevronUp size={18} color="#9CA3AF" />
+                          ) : (
+                            <ChevronDown size={18} color="#9CA3AF" />
+                          )}
+                        </View>
+                      </TouchableOpacity>
+
+                      {/* The Conditional Expansion */}
+                      {isExpanded && (
+                        <>
+                          {item.excluded_dates &&
+                          item.excluded_dates.length > 0 ? (
+                            <View className="flex-row flex-wrap gap-1 mt-2">
+                              {item.excluded_dates.map((date) => (
+                                <View
+                                  key={date}
+                                  className="bg-red-50 px-2 py-1 rounded-md border border-red-100"
+                                >
+                                  <Text className="text-red-600 text-[10px] font-medium">
+                                    {date.split("-").reverse().join("/")}
+                                  </Text>
+                                </View>
+                              ))}
+                            </View>
+                          ) : (
+                            <Text className="text-gray-400 text-[10px] italic mt-1">
+                              No excluded dates for this guest.
+                            </Text>
+                          )}
+                        </>
+                      )}
                     </View>
                   )}
                 </View>
-
-                <View className="flex-1">
-                  <View className="flex-row items-center justify-between">
-                    <Text
-                      className="text-lg font-bold text-gray-900 capitalize flex-1 mr-2" // Added flex-1 and margin here
-                      numberOfLines={1}
-                      ellipsizeMode="tail"
-                    >
-                      {item.guest_name}
-                    </Text>
-                  </View>
-
-                  <Text className="text-indigo-600 font-mono font-bold tracking-widest">
-                    {item.access_code}
-                  </Text>
-
-                  {/* Conditional Date/Time Rendering */}
-                  <View className="mt-1">
-                    {item.invite_type === "one_time" ? (
-                      <>
-                        <Text className="text-gray-600 text-xs font-semibold">
-                          {formatDisplayName(item.start_date)}
-                        </Text>
-                        <Text className="text-gray-400 text-[10px]">
-                          {formatDisplayTime(item.start_time)} —{" "}
-                          {formatDisplayTime(item.end_time)}
-                        </Text>
-                      </>
-                    ) : (
-                      <>
-                        <Text className="text-gray-600 text-xs font-semibold">
-                          {formatDisplayName(item.start_date)} -{" "}
-                          {formatDisplayName(item.end_date)}
-                        </Text>
-                        <Text className="text-gray-400 text-[10px]">
-                          Daily: {formatDisplayTime(item.start_time)} —{" "}
-                          {formatDisplayTime(item.end_time)}
-                        </Text>
-                      </>
-                    )}
-                  </View>
-
-                  {(() => {
-                    const { label, container, text } = getStatusDetails(
-                      item.status,
-                    );
-                    return (
-                      <View className={`${container} px-2 py-0.5 rounded-md mt-1 flex-row justify-center items-center w-24`}>
-                        <Text
-                          className={`${text} text-[10px] font-extrabold tracking-tight`}
-                        >
-                          {label}
-                        </Text>
-                      </View>
-                    );
-                  })()}
-                  
-                </View>
-
-                <View className="flex-row items-center gap-2">
-                  <TouchableOpacity
-                    onPress={() => handleCancel(item.id!, item.guest_name)}
-                    className="p-3 bg-red-50 rounded-full"
-                  >
-                    <Trash2 size={20} color="#ef4444" />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={() => handleExtend(item.id)}
-                    className="p-3 bg-indigo-50 rounded-full mr-2"
-                  >
-                    <Clock size={20} color="#4f46e5" />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))}
+              );
+            })}
             <View className="h-20" />
           </ScrollView>
         </>
       )}
+      <InvitationCard
+        viewShotRef={viewShotRef}
+        guestName={selectedInvitation?.guest_name || ""}
+        guestImage={selectedInvitation?.guest_image_url || null}
+        accessCode={selectedInvitation?.access_code || "000000"}
+        startDate={
+          selectedInvitation
+            ? formatDisplayName(selectedInvitation.start_date)
+            : ""
+        }
+        endDate={
+          selectedInvitation
+            ? formatDisplayName(selectedInvitation.end_date)
+            : ""
+        }
+        startTime={
+          selectedInvitation
+            ? formatDisplayTime(selectedInvitation.start_time)
+            : ""
+        }
+        endTime={
+          selectedInvitation
+            ? formatDisplayTime(selectedInvitation.end_time)
+            : ""
+        }
+        inviteType={selectedInvitation ? selectedInvitation?.invite_type : ""}
+      />
+      <EditInvitationModal
+        visible={editModalVisible}
+        invitation={selectedInvitation}
+        onClose={() => setEditModalVisible(false)}
+        onUpdate={handleUpdateInvitation}
+      />
     </View>
   );
 };

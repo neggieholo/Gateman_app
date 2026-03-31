@@ -16,7 +16,6 @@ import { Image, Text, TouchableOpacity, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { postLogout } from "../services/api";
 import { useState } from "react";
-import { set } from "date-fns";
 
 function CustomDrawerContent(props: any) {
   const { setUser, setSessionId, socket } = useUser();

@@ -127,10 +127,11 @@ export interface Invitation {
   guest_image_url: string | null;
   access_code: string;
   invite_type: 'one_time' | 'multi_entry';
-  start_date: string;
-  end_date: string;
-  start_time: string;
-  end_time: string;
+  start_date: any;
+  end_date: any;
+  start_time: any;
+  end_time: any;
+  excluded_dates: string[]; // Array of date strings in 'YYYY-MM-DD' format
   status: string;
   created_at: string;
   is_cancelled: boolean;

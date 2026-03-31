@@ -4,7 +4,7 @@ import * as Device from "expo-device";
 import { File } from "expo-file-system";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
-import { Estate, tempNotification } from "./interfaces";
+import { Estate, Invitation, tempNotification } from "./interfaces";
 const BASE_URL = `${process.env.EXPO_PUBLIC_BASE_URL}/api`;
 
 export const postLogin = async (email: string, password: string) => {
@@ -560,11 +560,12 @@ export const invitationApi = {
     }
   },
 
-  extendStay: async (id: string, date: string, time: string) => {
-    const response = await fetch(`${BASE_URL}/invitations/extend/${id}`, {
+  updateInvitation: async (id: string, data: Partial<Invitation>) => {
+    console.log("Updating invitation with ID:", id, "and data:", data);
+    const response = await fetch(`${BASE_URL}/invitations/edit/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ new_end_date: date, new_end_time: time }),
+      body: JSON.stringify(data),
     });
     return await response.json();
   },
