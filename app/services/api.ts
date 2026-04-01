@@ -42,16 +42,32 @@ export const updatePushTokenApi = async (token: string) => {
   }
 };
 
+export const sendOtpApi = async (email: string) => {
+  try {
+    const res = await fetch(`${BASE_URL}/auth/otp/send`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    return await res.json();
+  } catch (err) {
+    console.log("OTP error:", err);
+    return { success: false, message: "Network error" };
+  }
+};
+
 export const postRegister = async (
   name: string,
   email: string,
   password: string,
+  otp: string, 
+  metadata: string, 
 ) => {
   try {
     const res = await fetch(`${BASE_URL}/auth/register/tenant`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, password }),
+      body: JSON.stringify({ name, email, password, otp, metadata }),
       credentials: "include",
     });
 
@@ -59,6 +75,27 @@ export const postRegister = async (
     return data;
   } catch (err) {
     console.log("Registration error:", err);
+    return { success: false, message: "Network error" };
+  }
+};
+
+export const forgotPasswordApi = async ( email: string, role: "admin" | "tenant") => {
+  try {
+    const res = await fetch(`${BASE_URL}/forgot-password`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ 
+        email: email.trim(), 
+        role
+      }),
+    });
+
+    const data = await res.json();
+    return data;
+  } catch (err) {
+    console.log("Forgot Password Error:", err);
     return { success: false, message: "Network error" };
   }
 };
