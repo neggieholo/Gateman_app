@@ -154,7 +154,6 @@ export default function JoinRequestForm() {
             },
           ],
         );
-        // Reset or Navigate away
       }
     } catch (err: any) {
       Alert.alert("Error", err.message || "Upload failed");
@@ -344,6 +343,9 @@ export default function JoinRequestForm() {
                     >
                       <Text>
                         {item.name} ({item.estate_code})
+                      </Text>
+                      <Text>
+                        {item.city}, {item.town}
                       </Text>
                     </TouchableOpacity>
                   )}

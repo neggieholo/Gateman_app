@@ -8,6 +8,7 @@ import { useUser } from "../UserContext";
 import {
   Bell,
   HelpCircle,
+  KeyIcon,
   LogOut,
   MessageSquare,
   X,
@@ -80,10 +81,10 @@ function CustomDrawerContent(props: any) {
       <View className="h-16" />
 
       <DrawerItem
-        label="Help"
+        label="Change Password"
         labelStyle={{ color: "white", fontSize: 16, fontWeight: "bold" }}
-        icon={() => <HelpCircle size={30} color="white" />}
-        onPress={() => {}}
+        icon={() => <KeyIcon size={30} color="white" />}
+        onPress={() => {router.push("/ChangePassword" as any)}}
       />
 
       <DrawerItem

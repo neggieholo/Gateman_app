@@ -5,6 +5,8 @@ import { File } from "expo-file-system";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { Estate, Invitation, tempNotification } from "./interfaces";
+
+
 const BASE_URL = `${process.env.EXPO_PUBLIC_BASE_URL}/api`;
 
 export const postLogin = async (email: string, password: string) => {
@@ -19,6 +21,13 @@ export const postLogin = async (email: string, password: string) => {
     });
 
     const data = await res.json();
+
+    if (!res.ok) {
+      return { 
+        success: false, 
+        message: data.error || "Login failed"
+      };
+    }
 
     return data;
   } catch (err) {
@@ -628,6 +637,19 @@ export const invitationApi = {
       throw error; // Throw so the UI can catch it and show a Toast/Alert
     }
   },
+};
+
+export const changePassword = async (currentPassword: string, newPassword: string, role: string) => {
+  try {
+    const response = await fetch(`${BASE_URL}/api/change-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ currentPassword, newPassword, role }),
+    });
+    return await response.json();
+  } catch (err) {
+    return { success: false, message: "Network error" };
+  }
 };
 
 export const getRelativeTime = (timestamp: string) => {

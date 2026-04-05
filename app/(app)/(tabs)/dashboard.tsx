@@ -33,7 +33,6 @@ export default function Dashboard() {
 
   const handleDismissWelcome = () => {
     setShowBanner(false);
-    // Update context state so it doesn't reappear until the next "first login" event
     if (user) {
       setUser({ ...user, showWelcome: false });
     }

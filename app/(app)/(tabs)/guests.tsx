@@ -121,16 +121,29 @@ const InviteGuestForm = () => {
         if (url) uploadedUrl = url;
       }
 
+      let finalEndDate = new Date(startDate);
+
+      if (guestType === "one_time") {
+        // We compare hours/minutes specifically
+        const fromVal = fromTime.getHours() * 60 + fromTime.getMinutes();
+        const toVal = toTime.getHours() * 60 + toTime.getMinutes();
+
+        if (toVal < fromVal) {
+          // If check-out time is numerically "earlier" than check-in,
+          // it's an overnight stay. Add 1 day.
+          finalEndDate.setDate(finalEndDate.getDate() + 1);
+        }
+      } else {
+        finalEndDate = new Date(endDate);
+      }
+
       // 2. Prepare & Send Payload
       const payload = {
         guest_name: guestName,
         guest_image_url: uploadedUrl,
         invite_type: guestType,
-        start_date: startDate.toISOString().split("T")[0],
-        end_date:
-          guestType === "one_time"
-            ? startDate.toISOString().split("T")[0]
-            : endDate.toISOString().split("T")[0],
+        start_date: formatDate(startDate),
+        end_date: formatDate(finalEndDate),
         start_time: formatTime(fromTime),
         end_time: formatTime(toTime),
         excluded_dates: guestType === "multi_entry" ? excludedDates : [],

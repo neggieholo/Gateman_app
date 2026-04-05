@@ -6,6 +6,8 @@ export interface Estate {
   name: string;
   estate_code: string;
   created_at: string | null;
+  city: string | null;
+  town: string | null;
 }
 
 export interface Apartment {
@@ -131,8 +133,12 @@ export interface Invitation {
   end_date: any;
   start_time: any;
   end_time: any;
-  excluded_dates: string[]; // Array of date strings in 'YYYY-MM-DD' format
+  excluded_dates: string[]; 
   status: string;
+  actual_checkin: any;
+  actual_checkout: any;
+  actual_checkin_date: any;
+  actual_checkout_date: any;
   created_at: string;
   is_cancelled: boolean;
 }

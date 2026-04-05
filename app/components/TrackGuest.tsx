@@ -177,41 +177,124 @@ const TrackGuestView = ({ onInvitePress }: { onInvitePress: () => void }) => {
     return new Date() > expiry;
   };
 
-  const getStatusDetails = (status: string, isExpired: boolean) => {
-    if (status === "pending" && isExpired) {
-      return { label: "EXPIRED", container: "bg-red-50", text: "text-red-400" };
+  const getMultiEntryStatus = (invite: Invitation) => {
+    if (invite.is_cancelled) {
+      return { label: "CANCELLED", container: "bg-rose-100", text: "text-rose-700" };
     }
 
+    const now = new Date();
+    const toLocalDateStr = (d: any): string => {
+      if (!d) return "";
+      return new Date(d).toLocaleDateString('en-CA'); 
+    };
+
+    const todayStr = toLocalDateStr(now); 
+    const checkinDateStr = toLocalDateStr(invite.actual_checkin_date);
+    const checkoutDateStr = toLocalDateStr(invite.actual_checkout_date);
+
+    // console.log(`Sync Check - Local Today: ${todayStr}, DB In: ${checkinDateStr}`);
+
+    const [endH, endM] = invite.end_time.split(":");
+    const overallExpiry = new Date(invite.end_date);
+    overallExpiry.setHours(parseInt(endH), parseInt(endM), 0);
+    
+    if (now > overallExpiry) {
+      return { label: "EXPIRED", container: "bg-rose-50", text: "text-rose-500" };
+    }
+
+    if (invite.excluded_dates?.includes(todayStr)) {
+      return { label: "NOT ALLOWED TODAY", container: "bg-amber-100", text: "text-amber-700" };
+    }
+
+    const isCheckedInToday = checkinDateStr === todayStr;
+    const isCheckedOutToday = checkoutDateStr === todayStr;
+
+    if ((invite.status === 'checked_in' || isCheckedInToday) && !isCheckedOutToday) {
+      const [h, m] = invite.end_time.split(":");
+      const todayCutoff = new Date();
+      todayCutoff.setHours(parseInt(h), parseInt(m), 0);
+
+      if (now > todayCutoff) {
+        return { label: "OVERSTAYED", container: "bg-red-100", text: "text-red-700" };
+      }
+      return { label: "INSIDE", container: "bg-emerald-100", text: "text-emerald-700" };
+    }
+
+    if (isCheckedOutToday) {
+      return { label: "DEPARTED TODAY", container: "bg-blue-100", text: "text-blue-700" };
+    }
+
+    const startDate = toLocalDateStr(invite.start_date);
+    const endDate = toLocalDateStr(invite.end_date);
+    
+    if (startDate && endDate && todayStr >= startDate && todayStr <= endDate) {
+      return { label: "NOT ARRIVED TODAY", container: "bg-slate-100", text: "text-slate-500" };
+    }
+
+    return { label: "UPCOMING", container: "bg-slate-50", text: "text-slate-400" };
+  };
+
+  const getStatusDetails = (status: string, isExpired: boolean, startDate: string, isCancelled: boolean) => {
+    if (isCancelled) {
+      return { label: "CANCELLED", container: "bg-rose-100", text: "text-rose-700" };
+    }
+
+    const now = new Date();
+    const start = new Date(startDate);
+    
+    // Reset hours to 0 for a clean "day-by-day" comparison
+    const today = new Date(now.setHours(0, 0, 0, 0));
+    const startDay = new Date(start.setHours(0, 0, 0, 0));
+
+    // 1. Check if the invitation hasn't started yet
+    if (status === "pending" && today < startDay) {
+      return { 
+        label: "UPCOMING", 
+        container: "bg-indigo-50", 
+        text: "text-indigo-500" 
+      };
+    }
+
+    // 2. Check if the invitation is past its end date/time
+    if (status === "pending" && isExpired) {
+      return { 
+        label: "EXPIRED", 
+        container: "bg-rose-50", 
+        text: "text-rose-500" 
+      };
+    }
+
+    // 3. Normal Status Switch
     switch (status) {
       case "pending":
-        return {
-          label: "NOT ARRIVED",
-          container: "bg-gray-100",
-          text: "text-gray-600",
+        return { 
+          label: "NOT ARRIVED", 
+          container: "bg-slate-100", 
+          text: "text-slate-600" 
         };
       case "checked_in":
-        return {
-          label: "INSIDE",
-          container: "bg-green-100",
-          text: "text-green-700",
+        return { 
+          label: "INSIDE", 
+          container: "bg-emerald-100", 
+          text: "text-emerald-700" 
         };
       case "checked_out":
-        return {
-          label: "DEPARTED",
-          container: "bg-blue-100",
-          text: "text-blue-700",
+        return { 
+          label: "DEPARTED", 
+          container: "bg-blue-100", 
+          text: "text-blue-700" 
         };
       case "overstayed":
-        return {
-          label: "OVERSTAYED",
-          container: "bg-red-100",
-          text: "text-red-700",
+        return { 
+          label: "OVERSTAYED", 
+          container: "bg-amber-100", 
+          text: "text-amber-700" 
         };
       default:
-        return {
-          label: status.toUpperCase(),
-          container: "bg-gray-100",
-          text: "text-gray-600",
+        return { 
+          label: status.toUpperCase(), 
+          container: "bg-slate-100", 
+          text: "text-slate-600" 
         };
     }
   };
@@ -294,9 +377,15 @@ const TrackGuestView = ({ onInvitePress }: { onInvitePress: () => void }) => {
               const canCancel = isPending && !isExpired;
               const canEdit = item.status !== "checked_out" && !isExpired;
               const canShare = isPending && !isExpired;
-              const statusInfo = getStatusDetails(item.status, isExpired);
+              const statusInfo = isMultiEntry 
+                ? getMultiEntryStatus(item) 
+                : getStatusDetails(item.status, isExpired, item.start_date, item.is_cancelled);
+
               return (
-                <View key={item.id} className="mb-4 flex gap-2 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+                <View
+                  key={item.id}
+                  className="mb-4 flex gap-2 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm"
+                >
                   <View className="flex-row items-center">
                     <View className="mr-4">
                       {item.guest_image_url ? (
