@@ -149,6 +149,8 @@ const InviteGuestForm = () => {
         excluded_dates: guestType === "multi_entry" ? excludedDates : [],
       };
 
+      setEndDate(finalEndDate)
+
       const response = await invitationApi.createInvitation(payload);
 
       if (response && response.access_code) {

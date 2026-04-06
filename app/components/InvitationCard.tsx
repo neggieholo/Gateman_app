@@ -24,7 +24,7 @@ export const InvitationCard = ({
   endDate,
   startTime,
   endTime,
-  inviteType
+  inviteType,
 }: CardProps) => {
   return (
     <View style={{ position: "absolute", left: -1000, top: -1000 }}>
@@ -76,9 +76,9 @@ export const InvitationCard = ({
             <View className="w-32 bg-gray-50 p-4 rounded-xl items-center">
               <Text className="text-gray-500 text-sm font-medium">DATE:</Text>
               <Text className="text-xl font-bold text-gray-800">
-                {endDate
-                  ? `${startDate.split("/")[0]}/${startDate.split("/")[1]} - ${endDate.split("/")[0]}/${endDate.split("/")[1]}`
-                  : startDate}
+                {!endDate || startDate === endDate
+                  ? startDate
+                  : `${startDate.split("/")[0]}/${startDate.split("/")[1]} - ${endDate.split("/")[0]}/${endDate.split("/")[1]}`}
               </Text>
             </View>
           </View>
@@ -91,7 +91,9 @@ export const InvitationCard = ({
           </View>
 
           <View className="mt-6 border-t border-gray-200 pt-4">
-            <Text className="text-[8px] text-indigo-600 font-bold">{inviteType === "multi_entry" ? 'MULTI-ENTRY' : 'ONE-TIME'}</Text>
+            <Text className="text-[8px] text-indigo-600 font-bold">
+              {inviteType === "multi_entry" ? "MULTI-ENTRY" : "ONE-TIME"}
+            </Text>
           </View>
 
           <Text className="text-center text-gray-400 text-[10px] italic mt-5 leading-4">
