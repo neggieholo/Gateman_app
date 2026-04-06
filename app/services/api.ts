@@ -4,7 +4,7 @@ import * as Device from "expo-device";
 import { File } from "expo-file-system";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
-import { Estate, Invitation, tempNotification } from "./interfaces";
+import { Estate, FetchNotificationsResponse, Invitation, tempNotification } from "./interfaces";
 
 
 const BASE_URL = `${process.env.EXPO_PUBLIC_BASE_URL}/api`;
@@ -190,16 +190,22 @@ export const fetchRequests = async () => {
       if (data.activeRequest) {
         standardized = {
           from: "Gateman",
+          type: "pending",
           message: `Your join request to ${data.activeRequest.estate_name} is still pending`,
           reason: "",
         };
       } else if (data.feedback) {
+        const parsedFeedback = typeof data.feedback === 'string' 
+          ? JSON.parse(data.feedback) 
+          : data.feedback;
+
+        const type = parsedFeedback.type;
+
         standardized = {
           from: data.feedback.estate,
-          message:
-            data.feedback.type === "decline"
-              ? "Your request was declined"
-              : "You have been blocked",
+          type: type,
+            message: type === "decline" 
+              ? "Your request was declined" : type === "approve" ? 'You have been approved': "You have been restricted",
           reason: data.feedback.message || "No reason was given",
         };
       }
@@ -211,6 +217,44 @@ export const fetchRequests = async () => {
     }
   } catch (error) {
     console.error("Error fetching temp notifications:", error);
+  }
+};
+
+export const fetchNotifications = async () : Promise<FetchNotificationsResponse> => {
+  try {
+    const res = await fetch(`${BASE_URL}/notifications`, {
+      method: "GET",
+      credentials: "include",
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, list: [], lastReadAt: '1970-01-01' };
+  }
+};
+
+export const markAllAsReadApi = async () => {
+  try {
+    const res = await fetch(`${BASE_URL}/notifications/read-all`, {
+      method: "PUT",
+      credentials: "include",
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false };
+  }
+};
+
+export const deleteNotificationApi = async (id: string) => {
+  try {
+    const res = await fetch(`${BASE_URL}/notifications/${id}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    });
+    return await res.json();
+  } catch (err) {
+    console.error("Delete API Error:", err);
+    return { success: false };
   }
 };
 

@@ -1,80 +1,115 @@
-
-import React, { use, useContext, useEffect } from "react";
-import { ScrollView, View, Text, TouchableOpacity } from "react-native";
+import React, { useContext, useEffect } from "react";
+import {
+  RefreshControl,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { UserContext } from "./UserContext";
-import TempNotificationCard from "./components/TempNotificationCard";
+import NotificationCard from "./components/NotificationCard";
 import SwipeDismiss from "./components/SwipeableNotification";
-import { dismissNotification, markNotificationAsRead } from "./services/api";
+import TempNotificationCard from "./components/TempNotificationCard";
+import {
+  deleteNotificationApi,
+  dismissNotification,
+  markAllAsReadApi,
+  markNotificationAsRead,
+} from "./services/api";
 
 export default function NotificationsPage() {
-  const { user, tempnotification, setTempnotification, triggerRefresh, setBadgeCount } = useContext(UserContext);
+  const {
+    user,
+    tempnotification,
+    setTempnotification,
+    notifications,
+    setNotifications,
+    triggerRefresh,
+    setBadgeCount,
+    loadingNotifications,
+  } = useContext(UserContext);
 
   useEffect(() => {
-    
-const handleMarkRead = async () => {
-  if (tempnotification) {
-    console.log("Read action triggered locally");
-    setBadgeCount(0); 
-    const result = await markNotificationAsRead();
-    
-    if (result.success) {
-      console.log("✅ Server: Notification marked as read");
-    } else {
-      console.error("❌ Server sync failed");
+    if (user?.isTemp) {
+      triggerRefresh();
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    const handleRead = async () => {
+      if (user?.isTemp && tempnotification) {
+        setBadgeCount(0);
+        await markNotificationAsRead();
+      } else if (!user?.isTemp && notifications.length > 0) {
+        await markAllAsReadApi();
+        setBadgeCount(0);
+      }
+    };
+    handleRead();
+  }, [tempnotification, notifications.length]);
+
+  const handleDelete = async (id?: string) => {
+    if (user?.isTemp) {
+      setTempnotification(null);
+      await dismissNotification();
+    } else if (id) {
+      setNotifications(notifications.filter((n) => n.id !== id));
+      await deleteNotificationApi(id);
+    }
   };
 
-  handleMarkRead();
-
-  },[tempnotification, setBadgeCount]);
-
-const handleDelete = async () => {
-console.log("👋 Swipe dismiss triggered");
-
-setTempnotification(null); 
-
-// 2. Sync with Backend
-const result = await dismissNotification();
-
-if (!result.success) {
-  // Optional: If it fails, you could trigger a refresh to bring it back
-  console.error("Failed to sync dismissal with server");
-}
-};
-
   return (
-    <ScrollView className="flex-1 bg-gray-50">
+    <ScrollView
+      className="flex-1 bg-gray-50"
+      refreshControl={
+        <RefreshControl
+          refreshing={loadingNotifications}
+          onRefresh={triggerRefresh}
+        />
+      }
+    >
       <View className="p-4 flex-row justify-between items-center">
         <Text className="text-2xl font-bold text-gray-900">Notifications</Text>
-        {user?.isTemp && (
-          <TouchableOpacity onPress={triggerRefresh}>
-            <Text className="text-blue-600 font-semibold">Refresh</Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity onPress={triggerRefresh}>
+          <Text className="text-blue-600 font-semibold">Refresh</Text>
+        </TouchableOpacity>
       </View>
-      
-        {user?.isTemp ? (
-          <View>
-            {tempnotification ? (
-              <SwipeDismiss onDismiss={handleDelete}>
-                <TempNotificationCard data={tempnotification} />
+
+      <View className="px-2">
+        {/* Render Temp Notification (Singular) */}
+        {user?.isTemp && tempnotification && (
+          <SwipeDismiss onDismiss={() => handleDelete()}>
+            <TempNotificationCard data={tempnotification} />
+          </SwipeDismiss>
+        )}
+
+        {/* Render Permanent Notifications (List) */}
+        {!user?.isTemp && notifications.length > 0
+          ? notifications.map((item) => (
+              <SwipeDismiss
+                key={item.id}
+                onDismiss={() => handleDelete(item.id)}
+              >
+                <NotificationCard item={item} />
               </SwipeDismiss>
-            ) : (
-              <View className="items-center justify-center mt-20 px-10">
+            ))
+          : !user?.isTemp && (
+              <View className="items-center mt-20 px-10">
                 <Text className="text-gray-400 text-center">
-                  No active requests found. Use the &quot;Join Estate&quot; option to get started.
+                  Your notification tray is empty.
                 </Text>
               </View>
             )}
-          </View>
-        ) : (
-          /* Regular Tenant Notifications go here */
-          <View className="p-10 items-center">
-            <Text className="text-gray-400 text-center">Your notification tray is empty.</Text>
+
+        {/* Empty State for Temp Users */}
+        {user?.isTemp && !tempnotification && (
+          <View className="items-center mt-20 px-10">
+            <Text className="text-gray-400 text-center">
+              Your notification tray is empty.
+            </Text>
           </View>
         )}
+      </View>
     </ScrollView>
   );
-  
 }
