@@ -1,8 +1,10 @@
 import { InvitationCard } from "@/app/components/InvitationCard";
 import TrackGuestView from "@/app/components/TrackGuest";
 import { getCloudinaryUrl, invitationApi } from "@/app/services/api";
+import { useUser } from "@/app/UserContext";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
+import { router } from "expo-router";
 import * as Sharing from "expo-sharing";
 import { Calendar, Clock, ImageIcon, X } from "lucide-react-native";
 import React, { useRef, useState } from "react";
@@ -149,7 +151,7 @@ const InviteGuestForm = () => {
         excluded_dates: guestType === "multi_entry" ? excludedDates : [],
       };
 
-      setEndDate(finalEndDate)
+      setEndDate(finalEndDate);
 
       const response = await invitationApi.createInvitation(payload);
 
@@ -459,11 +461,29 @@ const InviteGuestForm = () => {
 
 // --- Main Component ---
 export default function GuestInvitesComponent() {
-  const [currentView, setCurrentView] = useState("invite");
+  const [currentView, setCurrentView] = useState("invite");  
+  const {user} = useUser();
   const tabData = [
     { key: "invite", label: "Invite Guest" },
     { key: "track", label: "Track Guest" },
   ];
+
+  
+
+  if (!user?.estate_id) {
+    return (
+      <View className="flex-1 justify-center items-center p-6 bg-gray-50">
+        <TouchableOpacity
+          className="bg-indigo-600 py-3 px-6 rounded-xl"
+          onPress={() => router.push("/JoinRequest")}
+        >
+          <Text className="text-white font-bold text-lg text-center">
+            Join an Esatate
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View className="flex-1 bg-gray-50 p-4">

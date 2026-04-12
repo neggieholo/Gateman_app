@@ -11,7 +11,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.snametech.gateman",
-      "googleServicesFile": "./GoogleService-Info.plist"
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "infoPlist": {
+        "UIBackgroundModes": ["voip", "remote-notification", "audio"]
+      }
     },
     "android": {
       "softwareKeyboardLayoutMode": "pan",
@@ -28,7 +31,10 @@
         "INTERNET",
         "WAKE_LOCK",
         "ACCESS_NETWORK_STATE",
-        "BLUETOOTH"
+        "BLUETOOTH",
+        "BIND_TELECOM_CONNECTION_SERVICE",
+        "FOREGROUND_SERVICE",
+        "CALL_PHONE"
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -55,6 +61,14 @@
           "enableFileSharing": true
         }
       ],
+      [
+        "react-native-callkeep",
+        {
+          "ios": { "appName": "GateMan" },
+          "android": { "selfManaged": true }
+        }
+      ],
+      "@react-native-community/push-notification-ios",
       [
         "expo-splash-screen",
         {

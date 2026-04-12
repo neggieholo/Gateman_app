@@ -9,7 +9,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Alert, Platform } from "react-native";
+import { Alert, Platform, Vibration } from "react-native";
 import { io, Socket } from "socket.io-client";
 import { fetchNotifications, fetchRequests } from "./services/api";
 import { notification, tempNotification, User } from "./services/interfaces";
@@ -197,6 +197,19 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       });
 
       setBadgeCount((prev) => prev + 1);
+
+      if (newNotif.type?.toLowerCase() === "emergency") {
+        router.replace({
+          pathname: "/EmergencyAlertPage",
+          params: {
+            title: newNotif.title,
+            message: newNotif.message,
+            residentId: newNotif.user_id,
+          },
+        });
+
+        Vibration.vibrate([0, 500, 200, 500], true);
+      }
     });
 
     socketRef.current = newSocket;
@@ -279,11 +292,22 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   }, [user]);
 
   useEffect(() => {
-    // 1. Handle notification that arrives while app is OPEN (Foreground)
     const foregroundSubscription =
       Notifications.addNotificationReceivedListener((notification) => {
-        console.log("Foreground Notification:", notification);
-        // You could trigger a small in-app toast here if you wanted
+        const data = notification.request.content.data as any;
+
+        if (data.subtype === "emergency") {
+          router.replace({
+            pathname: "/EmergencyAlertPage",
+            params: {
+              title: notification.request.content.title || "EMERGENCY",
+              message: notification.request.content.body || "",
+              residentId: data.user_id,
+            },
+          });
+
+          Vibration.vibrate([0, 500, 200, 500], true);
+        }
       });
 
     // 2. Handle tapping the notification (Background/Quit/Foreground)
@@ -318,6 +342,19 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           });
         }
 
+        if (data.type === "notification" && data.subtype === "emergency") {
+          router.replace({
+            pathname: "/EmergencyAlertPage",
+            params: {
+              title: response.notification.request.content.title || "Emergency",
+              message: response.notification.request.content.body || "",
+              residentId: data.user_id,
+            },
+          });
+          Vibration.vibrate([0, 500, 200, 500], true);
+          return;
+        }
+
         if (data.type === "notification") {
           router.push({
             pathname: user?.id && isConnected ? "/NotificationsPage" : "/",
@@ -330,6 +367,30 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       responseSubscription.remove();
     };
   }, [isConnected, user]);
+
+  useEffect(() => {
+    const checkInitialNotification = async () => {
+      // This is the current, non-deprecated way to fetch the last response manually
+      const response = Notifications.getLastNotificationResponse();
+
+      if (response) {
+        const data = response.notification.request.content.data as any;
+        if (data?.subtype === "emergency") {
+          router.replace({
+            pathname: "/EmergencyAlertPage",
+            params: {
+              title: response.notification.request.content.title || "EMERGENCY",
+              message: response.notification.request.content.body || "",
+              residentId: data.user_id,
+            },
+          });
+          Vibration.vibrate([0, 500, 200, 500], true);
+        }
+      }
+    };
+
+    checkInitialNotification();
+  }, []);
 
   return (
     <UserContext.Provider

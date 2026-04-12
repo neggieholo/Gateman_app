@@ -1,6 +1,6 @@
 import CookieManager from "@react-native-cookies/cookies";
 import { useRouter } from "expo-router";
-import React, { useContext, useState } from "react";
+import React, { useContext, useRef, useState } from "react";
 import {
   Alert,
   Image,
@@ -14,6 +14,7 @@ import {
   View,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import PhoneInput from "react-native-phone-number-input";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "../components/Button";
 import { FormInput } from "../components/FormInput";
@@ -31,6 +32,8 @@ export default function LoginScreen() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
+  const [phone, setPhone] = useState<string>("");
+  const [formattedPhone, setFormattedPhone] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const [isLogin, setIsLogin] = useState<boolean>(true);
   const [isForgot, setIsForgot] = useState<boolean>(false);
@@ -40,6 +43,7 @@ export default function LoginScreen() {
   const [otp, setOtp] = useState<string[]>(["", "", "", "", "", ""]);
   const [metadata, setMetadata] = useState("");
   const [showOtpInput, setShowOtpInput] = useState(false);
+  const phoneInputRef = useRef<PhoneInput>(null);
   const inputRefs = Array(6)
     .fill(0)
     .map(() => React.createRef<TextInput>());
@@ -102,6 +106,16 @@ export default function LoginScreen() {
     const trimmedEmail = email.trim();
     if (!validateEmail(trimmedEmail)) {
       Alert.alert("Invalid Email", "Check your email format.");
+      return;
+    }
+
+    const checkValid = phoneInputRef.current?.isValidNumber(phone);
+
+    if (!phone || !checkValid) {
+      Alert.alert(
+        "Invalid Phone Number",
+        "The phone number provided is incorrect for the selected country.",
+      );
       return;
     }
 
@@ -170,6 +184,7 @@ export default function LoginScreen() {
         name,
         trimmedEmail,
         password,
+        formattedPhone,
         newOtp,
         metadata,
       );
@@ -319,6 +334,43 @@ export default function LoginScreen() {
                     autoCorrect={false}
                     autoComplete="email"
                   />
+                  <View className="mb-4">
+                    <PhoneInput
+                      ref={phoneInputRef}
+                      defaultValue={phone}
+                      defaultCode="NG"
+                      layout="first"
+                      onChangeText={setPhone}
+                      onChangeFormattedText={setFormattedPhone}
+                      placeholder="Phone Number"
+                      containerStyle={{
+                        width: "100%",
+                        height: 40,
+                        borderRadius: 5,
+                        backgroundColor: "rgba(0,0,0,0.7)",
+                        borderWidth: 1,
+                        borderColor: "#4B5563",
+                        overflow: "hidden",
+                      }}
+                      textContainerStyle={{
+                        backgroundColor: "transparent",
+                        paddingVertical: 0,
+                      }}
+                      textInputStyle={{
+                        color: "#FFFFFF",
+                        fontSize: 16,
+                        height: 55,
+                      }}
+                      codeTextStyle={{
+                        color: "#FFFFFF",
+                        fontSize: 16,
+                      }}
+                      textInputProps={{
+                        placeholderTextColor: "rgba(255,255,255,0.6)",
+                      }}
+                      withDarkTheme
+                    />
+                  </View>
                   <FormInput
                     placeholder="Password"
                     value={password}

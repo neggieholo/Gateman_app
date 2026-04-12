@@ -69,6 +69,7 @@ export const postRegister = async (
   name: string,
   email: string,
   password: string,
+  phone: string,
   otp: string, 
   metadata: string, 
 ) => {
@@ -76,7 +77,7 @@ export const postRegister = async (
     const res = await fetch(`${BASE_URL}/auth/register/tenant`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, password, otp, metadata }),
+      body: JSON.stringify({ name, email, password, phone, otp, metadata }),
       credentials: "include",
     });
 
@@ -473,19 +474,6 @@ export const notifyGroupPush = async (data: any) => {
 };
 
 export const communityApi = {
-  // getPosts: async (estateId: string, category: string ) => {
-  //   try {
-  //     const response = await fetch(
-  //       `${BASE_URL}/community/posts?estate_id=${estateId}&category=${category}`,
-  //     );
-  //     if (!response.ok)
-  //       throw new Error(`HTTP error! status: ${response.status}`);
-  //     return await response.json(); // Explicitly return the parsed JSON
-  //   } catch (error) {
-  //     console.error("getPosts Error:", error);
-  //     return []; // Return empty array so the app doesn't crash
-  //   }
-  // },
   getPosts: async (estateId: string) => {
     try {
       const response = await fetch(
