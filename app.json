@@ -13,7 +13,15 @@
       "bundleIdentifier": "com.snametech.gateman",
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
-        "UIBackgroundModes": ["voip", "remote-notification", "audio"]
+        "UIBackgroundModes": [
+          "voip",
+          "remote-notification",
+          "audio",
+          "voip",
+          "remote-notification",
+          "audio"
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -25,16 +33,18 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "permissions": [
-        "CAMERA",
-        "RECORD_AUDIO",
-        "MODIFY_AUDIO_SETTINGS",
-        "INTERNET",
-        "WAKE_LOCK",
-        "ACCESS_NETWORK_STATE",
-        "BLUETOOTH",
-        "BIND_TELECOM_CONNECTION_SERVICE",
-        "FOREGROUND_SERVICE",
-        "CALL_PHONE"
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.INTERNET",
+        "android.permission.WAKE_LOCK",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.BLUETOOTH",
+        "android.permission.BIND_TELECOM_CONNECTION_SERVICE",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.CALL_PHONE",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -49,6 +59,13 @@
       "expo-router",
       "expo-notifications",
       [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow GateMan to access your camera for video calls.",
+          "microphonePermission": "Allow GateMan to access your microphone for intercom audio."
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "photosPermission": "Allow GateMan to access your photos to update group profiles."
@@ -62,13 +79,14 @@
         }
       ],
       [
-        "react-native-callkeep",
+        "expo-build-properties",
         {
-          "ios": { "appName": "GateMan" },
-          "android": { "selfManaged": true }
+          "ios": {
+            "deploymentTarget": "15.1",
+            "buildReactNativeFromSource": true
+          }
         }
       ],
-      "@react-native-community/push-notification-ios",
       [
         "expo-splash-screen",
         {
@@ -84,7 +102,8 @@
       "@react-native-firebase/app",
       "@react-native-firebase/messaging",
       "@react-native-firebase/auth",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-build-properties"
     ],
     "experiments": {
       "typedRoutes": true,

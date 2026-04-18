@@ -70,6 +70,7 @@ import {
   sendPushNotification,
 } from "./services/api";
 import { ChatGroup, ChatRoom, IFileMessage, User } from "./services/interfaces";
+import { useCallService } from "./services/CallService";
 
 const ChatManager = () => {
   const insets = useSafeAreaInsets();
@@ -135,7 +136,8 @@ const ChatManager = () => {
   } | null>(null);
   const flatListRef = useRef<any>(null);
   const [isMuted, setIsMuted] = useState(false);
-  const { autoId, autoRoomId } = useLocalSearchParams();
+  const { autoId } = useLocalSearchParams();
+  const { startCall, CallOverlay } = useCallService();
 
   const displayName =
     selectedTenant?.name && selectedTenant.name.length > 10
@@ -1670,58 +1672,66 @@ const ChatManager = () => {
     }
   };
 
-  const startPrivateCall = async (type: "voice" | "video") => {
-    if (!isGroupChat) {
-      if (!selectedTenant?.push_token) {
-        Alert.alert(
-          "User Offline",
-          "This resident cannot be reached at the moment because they haven't enabled notifications.",
-        );
-        return;
-      }
-    }
+  // const startCall = async (type: "voice" | "video") => {
+  //   if (!isGroupChat) {
+  //     if (!selectedTenant?.push_token) {
+  //       Alert.alert(
+  //         "User Offline",
+  //         "This resident cannot be reached at the moment because they haven't enabled notifications.",
+  //       );
+  //       return;
+  //     }
+  //   }
 
-    const callId = `call_${user?.id}_${Date.now()}`;
+  //   const callId = `call_${user?.id}_${Date.now()}`;
 
-    const pushData = {
-      type: "incoming_call",
-      callId: callId,
-      callerId: user?.id,
-      callerName: user?.name,
-      callerAvatar: user?.avatar,
-      callType: type,
-      channelName: callId,
-    };
+  //   const pushData = {
+  //     type: "incoming_call",
+  //     callId: callId,
+  //     callerId: user?.id,
+  //     callerName: user?.name,
+  //     callerAvatar: user?.avatar,
+  //     callType: type,
+  //     channelName: callId,
+  //   };
 
-    if (!isGroupChat) {
-      try {
-        // 1. Send Signaling Push
-        await sendPushNotification(
-          selectedTenant.push_token,
-          `Incoming ${type === "video" ? "Video" : "Voice"} Call`,
-          `${user?.name} is calling...`,
-          pushData,
-        );
+  //   if (!isGroupChat) {
+  //     try {
+  //       // 1. Send Signaling Push
+  //       await sendPushNotification(
+  //         selectedTenant.push_token,
+  //         `Incoming ${type === "video" ? "Video" : "Voice"} Call`,
+  //         `${user?.name} is calling...`,
+  //         pushData,
+  //       );
 
-        router.push({
-          pathname: "/CallScreen",
-          params: {
-            callId: pushData.callId,
-            callerName: pushData.callerName,
-            callerAvatar: pushData.callerAvatar || "",
-            callType: pushData.callType,
-            isIncoming: "false",
-            roomName: selectedTenant.name,
-          },
-        });
-      } catch (err) {
-        console.error("Call signaling failed:", err);
-        Alert.alert(
-          "Call Failed",
-          "Could not establish a connection. Please try again.",
-        );
-      }
-    }
+  //       router.push({
+  //         pathname: "/CallScreen",
+  //         params: {
+  //           callId: pushData.callId,
+  //           callerName: pushData.callerName,
+  //           callerAvatar: pushData.callerAvatar || "",
+  //           callType: pushData.callType,
+  //           isIncoming: "false",
+  //           roomName: selectedTenant.name,
+  //         },
+  //       });
+  //     } catch (err) {
+  //       console.error("Call signaling failed:", err);
+  //       Alert.alert(
+  //         "Call Failed",
+  //         "Could not establish a connection. Please try again.",
+  //       );
+  //     }
+  //   }
+  // };
+
+  const handleStartCall = () => {
+    if (!selectedTenant) return;
+
+    const channelName = `gate_${user?.id}_${selectedTenant.id}`;
+    
+    startCall(channelName, false);
   };
 
   const renderItem = ({ item }: { item: any }) => {
@@ -1878,6 +1888,7 @@ const ChatManager = () => {
         className="flex-1 bg-white"
         style={{ paddingBottom: insets.bottom }}
       >
+        <CallOverlay />
         <Modal
           visible={isImageModalVisible}
           transparent={true}
@@ -1989,7 +2000,7 @@ const ChatManager = () => {
                     className="flex-row items-center px-4 py-3 border-b border-gray-50"
                     onPress={() => {
                       setShowMenu(false);
-                      startPrivateCall("voice");
+                      handleStartCall();
                     }}
                   >
                     <Phone size={18} color="#4f46e5" />

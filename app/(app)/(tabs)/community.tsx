@@ -204,7 +204,6 @@ export default function Community() {
     try {
       await communityApi.addComment({
         post_id: postId,
-        author_name: user!.name,
         content: newComment,
       });
       await loadPosts();
@@ -264,22 +263,6 @@ export default function Community() {
     );
   };
 
-  const renderRoleBadge = (role?: string) => {
-    if (!role) return null;
-    const bgColor =
-      role === "superadmin"
-        ? "bg-purple-200 text-purple-800"
-        : role === "admin"
-          ? "bg-blue-200 text-blue-800"
-          : "bg-gray-200 text-gray-800";
-    return (
-      <Text
-        className={`ml-2 px-2 py-0.5 rounded-full text-xs font-bold ${bgColor}`}
-      >
-        {role.toUpperCase()}
-      </Text>
-    );
-  };
 
   // --- If user has no estate, show only Join button ---
   if (!user?.estate_id) {

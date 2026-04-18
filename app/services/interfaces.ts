@@ -132,6 +132,7 @@ export interface Comment {
   id: number; 
   post_id: number;
   user_id: string;
+  user_type: string;
   author_name: string;
   content: string; 
   created_at: string; 
