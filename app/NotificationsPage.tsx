@@ -59,15 +59,7 @@ export default function NotificationsPage() {
   };
 
   return (
-    <ScrollView
-      className="flex-1 bg-gray-50"
-      refreshControl={
-        <RefreshControl
-          refreshing={loadingNotifications}
-          onRefresh={triggerRefresh}
-        />
-      }
-    >
+    <View className="flex flex-1 bg-gray-50">
       <View className="p-4 flex-row justify-between items-center">
         <Text className="text-2xl font-bold text-gray-900">Notifications</Text>
         <TouchableOpacity onPress={triggerRefresh}>
@@ -75,7 +67,16 @@ export default function NotificationsPage() {
         </TouchableOpacity>
       </View>
 
-      <View className="px-2">
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1 }}
+        className="bg-gray-50"
+        refreshControl={
+          <RefreshControl
+            refreshing={loadingNotifications}
+            onRefresh={triggerRefresh}
+          />
+        }
+      >
         {/* Render Temp Notification (Singular) */}
         {user?.isTemp && tempnotification && (
           <SwipeDismiss onDismiss={() => handleDelete()}>
@@ -109,7 +110,7 @@ export default function NotificationsPage() {
             </Text>
           </View>
         )}
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }

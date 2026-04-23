@@ -144,10 +144,10 @@ const InviteGuestForm = () => {
         guest_name: guestName,
         guest_image_url: uploadedUrl,
         invite_type: guestType,
-        start_date: formatDate(startDate),
-        end_date: formatDate(finalEndDate),
-        start_time: formatTime(fromTime),
-        end_time: formatTime(toTime),
+        start_date: startDate.toISOString().split("T")[0],
+        end_date: finalEndDate.toISOString().split("T")[0],
+        start_time: fromTime.toTimeString().split(" ")[0].slice(0, 5),
+        end_time: toTime.toTimeString().split(" ")[0].slice(0, 5),
         excluded_dates: guestType === "multi_entry" ? excludedDates : [],
       };
 
@@ -319,8 +319,7 @@ const InviteGuestForm = () => {
                           className="bg-white border border-gray-300 pl-3 pr-1 py-1 rounded-full flex-row items-center"
                         >
                           <Text className="text-gray-700 text-xs font-medium mr-2">
-                            {dateStr.split("-").reverse().join("/")}{" "}
-                            {/* DD/MM/YYYY */}
+                            {dateStr.split("-").reverse().join("/")}
                           </Text>
                           <TouchableOpacity
                             onPress={() =>
@@ -330,8 +329,7 @@ const InviteGuestForm = () => {
                             }
                             className="bg-red-50 p-1 rounded-full"
                           >
-                            <X size={14} color="#ef4444" />{" "}
-                            {/* Or a Trash icon if you prefer */}
+                            <X size={14} color="#ef4444" />
                           </TouchableOpacity>
                         </View>
                       ))}
@@ -461,14 +459,12 @@ const InviteGuestForm = () => {
 
 // --- Main Component ---
 export default function GuestInvitesComponent() {
-  const [currentView, setCurrentView] = useState("invite");  
-  const {user} = useUser();
+  const [currentView, setCurrentView] = useState("invite");
+  const { user } = useUser();
   const tabData = [
     { key: "invite", label: "Invite Guest" },
     { key: "track", label: "Track Guest" },
   ];
-
-  
 
   if (!user?.estate_id) {
     return (

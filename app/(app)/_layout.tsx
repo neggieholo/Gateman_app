@@ -72,7 +72,7 @@ function CustomDrawerContent(props: any) {
       </View>
       <View className="flex items-center justify-start">
         <Image
-          source={require("../../assets/images/gateman_w_nobg_cropped copy.png")}
+          source={require("../../assets/images/gateman_logo_cropped_copy.png")}
           style={{ borderRadius: 10 }}
           className="w-full h-16 mb-4 mt-5"
         />

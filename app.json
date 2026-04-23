@@ -83,6 +83,7 @@
         {
           "ios": {
             "deploymentTarget": "15.1",
+            "useFrameworks": "static",
             "buildReactNativeFromSource": true
           }
         }
@@ -99,7 +100,14 @@
           }
         }
       ],
-      "@react-native-firebase/app",
+      [
+        "@react-native-firebase/app",
+        {
+          "ios": {
+            "useModularHeaders": true
+          }
+        }
+      ],
       "@react-native-firebase/messaging",
       "@react-native-firebase/auth",
       "@react-native-community/datetimepicker",

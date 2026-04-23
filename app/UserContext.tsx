@@ -145,6 +145,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       path: "/api/socket.io",
       transports: ["websocket"],
       autoConnect: true,
+      withCredentials: true,
       extraHeaders: {
         cookie: `gateman.sid=${sessionId}`,
       },

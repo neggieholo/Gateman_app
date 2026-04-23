@@ -55,6 +55,7 @@ import CreateGroupModal, {
   GroupNameModal,
 } from "./components/CreateChatGroupModal";
 import GroupProfileModal from "./components/GroupChatProfile";
+import { useCallService } from "./services/CallService";
 import {
   renderActions,
   renderCustomView,
@@ -70,7 +71,6 @@ import {
   sendPushNotification,
 } from "./services/api";
 import { ChatGroup, ChatRoom, IFileMessage, User } from "./services/interfaces";
-import { useCallService } from "./services/CallService";
 
 const ChatManager = () => {
   const insets = useSafeAreaInsets();
@@ -1432,8 +1432,10 @@ const ChatManager = () => {
           const asset = await MediaLibrary.createAssetAsync(downloadedFile.uri);
           await MediaLibrary.createAlbumAsync("GateMan", asset, false);
 
-          Alert.alert("Success", `${type === "image" ? "Image" : "Video" } saved to your gallery!`);
-
+          Alert.alert(
+            "Success",
+            `${type === "image" ? "Image" : "Video"} saved to your gallery!`,
+          );
         } catch (mediaError: any) {
           if (
             mediaError.message.includes("user denied") ||
@@ -1730,7 +1732,7 @@ const ChatManager = () => {
     if (!selectedTenant) return;
 
     const channelName = `gate_${user?.id}_${selectedTenant.id}`;
-    
+
     startCall(channelName, false);
   };
 
@@ -1912,7 +1914,7 @@ const ChatManager = () => {
           isVisible={isForwardModalVisible}
           onClose={() => setForwardModalVisible(false)}
           tenants={combinedForwardList}
-          selectedMembers={selectedForForward} // A separate state for forwarding selection
+          selectedMembers={selectedForForward}
           onToggleMember={toggleForwardMember}
           onNext={() => handleForwardMessage(selectedForForward)}
           insets={insets}
@@ -1922,7 +1924,6 @@ const ChatManager = () => {
         />
 
         <View
-          style={{ paddingTop: insets.top }}
           className="flex-row items-center p-4 border-b border-gray-100 bg-white"
         >
           <TouchableOpacity
@@ -1957,7 +1958,6 @@ const ChatManager = () => {
                   />
                 ) : (
                   <View className="w-10 h-10 rounded-full bg-gray-200 items-center justify-center">
-                    {/* Scale the icon down to fit the 10x10 (w-10 h-10) circle */}
                     <Users size={24} color="#4f46e5" />
                   </View>
                 )}
@@ -2068,7 +2068,7 @@ const ChatManager = () => {
         <KeyboardAvoidingView
           className="flex-1"
           behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
         >
           <GiftedChat
             messages={messages}

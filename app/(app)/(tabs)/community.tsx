@@ -4,7 +4,6 @@ import { communityApi, getRelativeTime } from "@/app/services/api";
 import { Comment, Like, Post } from "@/app/services/interfaces";
 import { useRouter } from "expo-router";
 import {
-  ChevronRight,
   ImageIcon,
   MessageSquare,
   Plus,
@@ -97,7 +96,6 @@ export default function Community() {
     if (!postTitle.trim() || !postContent.trim()) return;
 
     const payload = {
-      estate_id: user!.estate_id,
       author_name: user!.name,
       author_role: "resident",
       title: postTitle,
@@ -199,25 +197,50 @@ export default function Community() {
   const handleAddComment = async (postId: string) => {
     if (!newComment.trim()) return;
 
-    setUpLoadingNewComment(true);
+    const commentText = newComment;
+    setNewComment("");
+
+    // 1. Create the Optimistic Comment object
+    const optimisticComment: Comment = {
+      id: Date.now(),
+      post_id: Number(postId),
+      user_id: user?.id || "",
+      user_type: 'admin',
+      author_name: "ADMIN",
+      content: commentText,
+      created_at: new Date().toISOString(),
+    };
+
+    // 2. Update UI states immediately
+    setComments((prev) => [...prev, optimisticComment]);
+
+    setPosts((prev) =>
+      prev.map((p) =>
+        p.id === postId ? { ...p, comments_count: p.comments_count + 1 } : p,
+      ),
+    );
+
+    if (selectedPost && selectedPost.id === postId) {
+      setSelectedPost({
+        ...selectedPost,
+        comments_count: selectedPost.comments_count + 1,
+      });
+    }
 
     try {
-      await communityApi.addComment({
+      const response = await communityApi.addComment({
         post_id: postId,
-        content: newComment,
+        content: commentText,
       });
-      await loadPosts();
 
-      setNewComment("");
+      setComments((prev) =>
+        prev.map((c) => (c.id === optimisticComment.id ? response : c)),
+      );
     } catch (error) {
       console.error("GateMan Comment Error:", error);
-      Alert.alert(
-        "Connection Error",
-        "Failed to add comment. Please check your internet and try again.",
-      );
-    } finally {
-      setUpLoadingNewComment(false);
-    }
+      Alert.alert("Failed to add comment.");
+      loadPosts();
+    } 
   };
 
   // 3. Function to handle comment submission from inside the modal
@@ -262,7 +285,6 @@ export default function Community() {
       ],
     );
   };
-
 
   // --- If user has no estate, show only Join button ---
   if (!user?.estate_id) {
@@ -326,7 +348,10 @@ export default function Community() {
             key={post.id}
             className="bg-white p-4 rounded-2xl mb-4 shadow border border-gray-100"
           >
-            <View className="flex-row justify-between items-start mb-2">
+            <TouchableOpacity
+              className="items-start mb-2 w-full rounded-2xl p-2 border border-gray-100"
+              onPress={() => handleOpenPost(post)}
+            >
               <View className="flex-row items-center gap-2">
                 <View
                   className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-white ${post.author_role === "admin" || post.author_role === "superadmin" ? "bg-blue-600" : "bg-gray-400"}`}
@@ -348,18 +373,11 @@ export default function Community() {
                   </Text>
                 </View>
               </View>
-
-              <TouchableOpacity
-                onPress={() => handleOpenPost(post)}
-                className="bg-white p-1 rounded-2x"
-              >
-                <ChevronRight size={20} color="#9ca3af" />
-              </TouchableOpacity>
-            </View>
-
-            <Text className="font-bold text-lg mb-1">{post.title}</Text>
-
-            <Text className="text-gray-600 mb-2">{post.content}</Text>
+              <View className="p-3">
+                <Text className="font-bold text-lg mb-1">{post.title}</Text>
+                <Text className="text-gray-600 mb-2">{post.content}</Text>
+              </View>
+            </TouchableOpacity>
 
             <View className="flex-row items-center justify-between my-3">
               <TouchableOpacity
