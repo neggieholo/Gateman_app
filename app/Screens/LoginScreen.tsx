@@ -14,7 +14,7 @@ import {
   View,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
-import PhoneInput from "react-native-phone-number-input";
+// import PhoneInput from "react-native-phone-number-input";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "../components/Button";
 import { FormInput } from "../components/FormInput";
@@ -32,8 +32,8 @@ export default function LoginScreen() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
-  const [phone, setPhone] = useState<string>("");
-  const [formattedPhone, setFormattedPhone] = useState<string>("");
+  // const [phone, setPhone] = useState<string>("");
+  // const [formattedPhone, setFormattedPhone] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const [isLogin, setIsLogin] = useState<boolean>(true);
   const [isForgot, setIsForgot] = useState<boolean>(false);
@@ -43,7 +43,7 @@ export default function LoginScreen() {
   const [otp, setOtp] = useState<string[]>(["", "", "", "", "", ""]);
   const [metadata, setMetadata] = useState("");
   const [showOtpInput, setShowOtpInput] = useState(false);
-  const phoneInputRef = useRef<PhoneInput>(null);
+  // const phoneInputRef = useRef<PhoneInput>(null);
   const inputRefs = Array(6)
     .fill(0)
     .map(() => React.createRef<TextInput>());
@@ -53,17 +53,6 @@ export default function LoginScreen() {
     setError("");
     console.log("Login details:", email, password);
     try {
-      try {
-        const pushTokenResponse = await registerForPushNotificationsAsync();
-        if (pushTokenResponse) {
-          console.log("📱 Push token obtained:", pushTokenResponse);
-          setPushToken(pushTokenResponse);
-          await updatePushTokenApi(pushTokenResponse);
-        }
-      } catch (pushErr) {
-        console.warn("Push token failed, continuing login:", pushErr);
-      }
-
       await CookieManager.clearAll();
       console.log("🧹 Cookie Jar Wiped!");
       const response = await postLogin(email, password);
@@ -79,6 +68,17 @@ export default function LoginScreen() {
           );
         }
         setUser(response.user);
+        try {
+          const pushTokenResponse = await registerForPushNotificationsAsync();
+          if (pushTokenResponse) {
+            console.log("📱 Push token obtained:", pushTokenResponse);
+            setPushToken(pushTokenResponse);
+            await updatePushTokenApi(pushTokenResponse, response.user.id);
+          }
+        } catch (pushErr) {
+          console.warn("Push token failed, continuing login:", pushErr);
+        }
+
         console.log("Login successful, session ID:", response.sessionId);
         setSessionId?.(response.sessionId);
         router.replace("/dashboard");
@@ -109,15 +109,15 @@ export default function LoginScreen() {
       return;
     }
 
-    const checkValid = phoneInputRef.current?.isValidNumber(phone);
+    // const checkValid = phoneInputRef.current?.isValidNumber(phone);
 
-    if (!phone || !checkValid) {
-      Alert.alert(
-        "Invalid Phone Number",
-        "The phone number provided is incorrect for the selected country.",
-      );
-      return;
-    }
+    // if (!phone || !checkValid) {
+    //   Alert.alert(
+    //     "Invalid Phone Number",
+    //     "The phone number provided is incorrect for the selected country.",
+    //   );
+    //   return;
+    // }
 
     setLoading(true);
     setError("");
@@ -184,7 +184,7 @@ export default function LoginScreen() {
         name,
         trimmedEmail,
         password,
-        formattedPhone,
+        // formattedPhone,
         newOtp,
         metadata,
       );
@@ -334,7 +334,7 @@ export default function LoginScreen() {
                     autoCorrect={false}
                     autoComplete="email"
                   />
-                  <View className="mb-4">
+                  {/* <View className="mb-4">
                     <PhoneInput
                       ref={phoneInputRef}
                       defaultValue={phone}
@@ -370,7 +370,7 @@ export default function LoginScreen() {
                       }}
                       withDarkTheme
                     />
-                  </View>
+                  </View> */}
                   <FormInput
                     placeholder="Password"
                     value={password}

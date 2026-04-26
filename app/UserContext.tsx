@@ -1,5 +1,6 @@
 // app/context/UserContext.tsx
 import firestore from "@react-native-firebase/firestore";
+import { useNavigation } from "@react-navigation/native";
 import * as Notifications from "expo-notifications";
 import { router } from "expo-router";
 import React, {
@@ -10,7 +11,9 @@ import React, {
   useState,
 } from "react";
 import { Alert, Platform, Vibration } from "react-native";
+// import RNCallKeep from "react-native-callkeep";
 import { io, Socket } from "socket.io-client";
+import { startEmergencyAlarm } from "./services/alarm";
 import { fetchNotifications, fetchRequests } from "./services/api";
 import { notification, tempNotification, User } from "./services/interfaces";
 
@@ -86,6 +89,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [groupUnread, setGroupUnread] = useState(0);
   const totalUnread = privateUnread + groupUnread;
   const BASE_URL = `${process.env.EXPO_PUBLIC_BASE_URL}`;
+  const navigation = useNavigation<any>();
 
   // useEffect(()=>{
   //   if(!user) {
@@ -213,6 +217,20 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       }
     });
 
+    newSocket.on("incoming_call", async (data) => {
+      console.log("🚨 EMERGENCY SOCKET RECEIVED");
+      await startEmergencyAlarm();
+
+      router.push({
+        pathname: "/EmergencyAlertPage",
+        params: {
+          title: "EMERGENCY ALERT",
+          message: `${data.senderName} is calling for help!`,
+          residentId: data.senderId,
+        },
+      });
+    });
+
     socketRef.current = newSocket;
 
     return () => {
@@ -220,10 +238,31 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       newSocket.off("is_typing");
       newSocket.off("status_update");
       newSocket.off("new_notification");
+      newSocket.off("incoming_call");
       newSocket.close();
       socketRef.current = null;
     };
-  }, [sessionId]);
+  }, [sessionId, BASE_URL]);
+
+  // useEffect(() => {
+  //   // Listen for the "Answer" button press on the native CallKeep screen
+  //   const onAnswer = ({ callUUID }: any) => {
+  //     Vibration.cancel();
+  //     RNCallKeep.backToForeground();
+
+  //     // ROUTE TO YOUR EMERGENCY PAGE
+  //     router.push({
+  //       pathname: "/EmergencyCallPage",
+  //       params: {
+  //         channelName: `gate_man_${callUUID}`, // Matches the UUID you sent in push
+  //         residentName: "Emergency Call",
+  //       },
+  //     });
+  //   };
+
+  //   RNCallKeep.addEventListener("answerCall", onAnswer);
+  //   return () => RNCallKeep.removeEventListener("answerCall");
+  // }, []);
 
   useEffect(() => {
     const getStatus = async () => {
@@ -264,6 +303,21 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     getStatus();
   }, [user, refreshTrigger]);
 
+  // useEffect(() => {
+  //   RNCallKeep.setup({
+  //     ios: { appName: "GateMan" },
+  //     android: {
+  //       alertTitle: "Permissions required",
+  //       alertDescription:
+  //         "This app needs to access your phone accounts to display calls",
+  //       cancelButton: "Cancel",
+  //       okButton: "ok",
+  //       selfManaged: true,
+  //       additionalPermissions: [],
+  //     },
+  //   });
+  // }, []);
+
   useEffect(() => {
     const setupNotifications = async () => {
       // 1. Create the Channel (Mandatory for Android Dev Builds)
@@ -275,17 +329,33 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           vibrationPattern: [0, 250, 250, 250],
           lightColor: "#FF231F7C",
         });
+
+        await Notifications.setNotificationChannelAsync("emergency-silent", {
+          name: "GateMan Emergency",
+          importance: Notifications.AndroidImportance.LOW,
+          showBadge: false,
+        });
       }
 
       // 2. Set the handler
       Notifications.setNotificationHandler({
-        handleNotification: async () => ({
-          shouldShowAlert: true,
-          shouldPlaySound: true,
-          shouldSetBadge: true,
-          shouldShowBanner: true,
-          shouldShowList: true,
-        }),
+        handleNotification: (notification) => {
+          const data = notification.request.content.data as any;
+
+          // Fix: Match exactly what your listener and server use
+          const isEmergency =
+            data?.subtype === "emergency" ||
+            data?.type === "emergency" ||
+            data?.type === "alarm";
+
+          return Promise.resolve({
+            shouldShowAlert: !isEmergency,
+            shouldPlaySound: !isEmergency,
+            shouldSetBadge: true,
+            shouldShowBanner: !isEmergency,
+            shouldShowList: !isEmergency,
+          });
+        },
       });
     };
 
@@ -294,20 +364,20 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const foregroundSubscription =
-      Notifications.addNotificationReceivedListener((notification) => {
+      Notifications.addNotificationReceivedListener(async (notification) => {
         const data = notification.request.content.data as any;
 
-        if (data.subtype === "emergency") {
+        if (data.type === "notification" && data.subtype === "emergency") {
+          await startEmergencyAlarm(); //
+
           router.replace({
             pathname: "/EmergencyAlertPage",
             params: {
-              title: notification.request.content.title || "EMERGENCY",
+              title: notification.request.content.title || "Emergency",
               message: notification.request.content.body || "",
               residentId: data.user_id,
             },
           });
-
-          Vibration.vibrate([0, 500, 200, 500], true);
         }
       });
 
@@ -329,19 +399,19 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           });
         }
 
-        if (data.type === "incoming_call") {
-          router.push({
-            pathname: "/CallScreen",
-            params: {
-              callId: data.callId,
-              callerName: data.callerName,
-              callerAvatar: data.callerAvatar || "",
-              callType: data.callType,
-              isIncoming: "true",
-              roomName: data.callerName,
-            },
-          });
-        }
+        // if (data.type === "incoming_call") {
+        //   router.push({
+        //     pathname: "/CallScreen",
+        //     params: {
+        //       callId: data.callId,
+        //       callerName: data.callerName,
+        //       callerAvatar: data.callerAvatar || "",
+        //       callType: data.callType,
+        //       isIncoming: "true",
+        //       roomName: data.callerName,
+        //     },
+        //   });
+        // }
 
         if (data.type === "notification" && data.subtype === "emergency") {
           router.replace({

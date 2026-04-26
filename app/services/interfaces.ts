@@ -23,6 +23,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  phone: string;
   password?: string;
   isTemp: boolean;
   created_at: string | null;
@@ -163,3 +164,13 @@ export interface Invitation {
   created_at: string;
   is_cancelled: boolean;
 }
+
+export type RootStackParamList = {
+  ChatScreen: { tenantId: string; displayName: string };
+  EmergencyCallPage: { 
+    channelName: string; 
+    residentName: string; 
+    mode: 'alarm' | 'voice' 
+  };
+  // Add other screens here...
+};

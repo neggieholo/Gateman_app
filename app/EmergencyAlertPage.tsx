@@ -1,79 +1,68 @@
 import React, { useEffect } from 'react';
 import { View, Text, TouchableOpacity, Vibration } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { ShieldAlert, XCircle } from 'lucide-react-native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { startEmergencyAlarm, stopEmergencyAlarm } from './services/alarm';
 
-// Define the shape of your navigation params
-export type RootStackParamList = {
-  EmergencyAlert: { title: string; message: string; residentId?: string };
-  Dashboard: undefined;
-};
 
-type Props = NativeStackScreenProps<RootStackParamList, 'EmergencyAlert'>;
-
-const EmergencyAlertPage: React.FC<Props> = ({ route, navigation }) => {
-  const { title, message } = route.params;
+export default function EmergencyAlertPage() {
+  const router = useRouter();
+  const { senderName, message } = useLocalSearchParams();
 
   useEffect(() => {
-    // Start a heavy "SOS" vibration pattern immediately on mount
-    // [delay, duration, delay, duration...]
-    const pattern = [500, 1000, 500, 1000, 500, 1000];
-    Vibration.vibrate(pattern, true); // 'true' makes it loop
+    startEmergencyAlarm();
+    Vibration.vibrate([1000, 500, 1000], true);
 
-    return () => Vibration.cancel(); // Stop when they leave the screen
+    return () => {
+      stopEmergencyAlarm();
+      Vibration.cancel();
+    };
   }, []);
 
-  const dismissAlert = () => {
+  const handleAcknowledge = async () => {
+    await stopEmergencyAlarm();
     Vibration.cancel();
-    // Using goBack or navigating to a specific security dashboard
-    if (navigation.canGoBack()) {
-      navigation.goBack();
+    if (router.canGoBack()) {
+      router.back();
     } else {
-      navigation.replace('Dashboard');
+      router.replace('/');
     }
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-red-600">
-      <View className="flex-1 items-center justify-center px-6">
+    <View className="flex-1 bg-[#D32F2F] items-center justify-center p-5">
+      <View className="items-center w-full">
+        <Ionicons name="warning" size={100} color="white" />
         
-        {/* Animated Icon Container */}
-        <View className="mb-8 items-center justify-center">
-          <View className="absolute h-32 w-32 animate-ping rounded-full bg-white/20" />
-          <ShieldAlert size={100} color="white" strokeWidth={2.5} />
+        <Text className="text-white text-4xl font-bold text-center my-6">
+          EMERGENCY ALERT
+        </Text>
+        
+        <View className="bg-white/20 rounded-2xl p-6 w-full mb-10 border border-white/30">
+          <Text className="text-red-100 text-xs uppercase tracking-widest mb-1">
+            Resident
+          </Text>
+          <Text className="text-white text-2xl font-semibold mb-5">
+            {senderName || "Unknown Resident"}
+          </Text>
+          
+          <Text className="text-red-100 text-xs uppercase tracking-widest mb-1">
+            Situation
+          </Text>
+          <Text className="text-white text-xl font-medium">
+            {message || "Panic button pressed!"}
+          </Text>
         </View>
 
-        {/* Text Content */}
-        <View className="items-center">
-          <Text className="text-sm font-black tracking-[4px] text-white/80 uppercase">
-            Emergency Alert
+        <TouchableOpacity 
+          className="bg-white py-5 px-10 rounded-full shadow-xl active:bg-gray-100"
+          onPress={handleAcknowledge}
+        >
+          <Text className="text-[#D32F2F] text-lg font-bold">
+            ACKNOWLEDGE & STOP
           </Text>
-          <Text className="mt-4 text-center text-3xl font-black leading-tight text-white uppercase">
-            {title}
-          </Text>
-          <Text className="mt-4 text-center text-lg font-medium text-white/90">
-            {message}
-          </Text>
-        </View>
-
-        {/* Action Button */}
-        <View className="mt-12 w-full px-4">
-          <TouchableOpacity 
-            activeOpacity={0.8}
-            onPress={dismissAlert}
-            className="flex-row items-center justify-center rounded-full bg-white py-5 shadow-2xl shadow-black"
-          >
-            <XCircle color="#dc2626" size={24} />
-            <Text className="ml-3 text-lg font-black tracking-tight text-red-600 uppercase">
-              Dismiss Alert
-            </Text>
-          </TouchableOpacity>
-        </View>
-
+        </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </View>
   );
-};
-
-export default EmergencyAlertPage;
+}

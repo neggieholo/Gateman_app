@@ -21,6 +21,7 @@
           "remote-notification",
           "audio"
         ],
+        "NSMicrophoneUsageDescription": "GateMan needs access to your microphone for emergency voice calls between residents and security.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -44,7 +45,15 @@
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.CALL_PHONE",
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE"
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.FOREGROUND_SERVICE_MICROPHONE",
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.VIBRATE",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.USE_FULL_SCREEN_INTENT"
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -108,10 +117,9 @@
           }
         }
       ],
-      "@react-native-firebase/messaging",
       "@react-native-firebase/auth",
       "@react-native-community/datetimepicker",
-      "expo-build-properties"
+      "expo-av"
     ],
     "experiments": {
       "typedRoutes": true,

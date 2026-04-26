@@ -8,7 +8,7 @@ import { UserProvider } from "./UserContext";
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <KeyboardProvider >
+      <KeyboardProvider>
         <GestureHandlerRootView style={{ flex: 1 }}>
           <ActionSheetProvider>
             <UserProvider>
@@ -71,6 +71,22 @@ export default function RootLayout() {
                   options={{
                     title: "Call",
                     headerShown: false,
+                  }}
+                />
+
+                <Stack.Screen
+                  name="EmergencyAlertPage"
+                  options={{
+                    title: "Emergency Alerts",
+                    headerShown: false,
+                  }}
+                />
+
+                <Stack.Screen
+                  name="SettingsScreen"
+                  options={{
+                    title: "Settings",
+                    headerShown: true,
                   }}
                 />
               </Stack>

@@ -6,6 +6,7 @@ import firestore, {
   FirebaseFirestoreTypes,
 } from "@react-native-firebase/firestore";
 import { useHeaderHeight } from "@react-navigation/elements";
+import { useNavigation } from "@react-navigation/native";
 import { Audio, ResizeMode, Video } from "expo-av";
 import * as DocumentPicker from "expo-document-picker";
 import { Directory, File, Paths } from "expo-file-system";
@@ -55,7 +56,7 @@ import CreateGroupModal, {
   GroupNameModal,
 } from "./components/CreateChatGroupModal";
 import GroupProfileModal from "./components/GroupChatProfile";
-import { useCallService } from "./services/CallService";
+import { useEmergencyCall } from "./services/CallService";
 import {
   renderActions,
   renderCustomView,
@@ -137,7 +138,8 @@ const ChatManager = () => {
   const flatListRef = useRef<any>(null);
   const [isMuted, setIsMuted] = useState(false);
   const { autoId } = useLocalSearchParams();
-  const { startCall, CallOverlay } = useCallService();
+  const { startVoipCall, CallOverlay } = useEmergencyCall();
+  const navigation = useNavigation<any>();
 
   const displayName =
     selectedTenant?.name && selectedTenant.name.length > 10
@@ -1728,14 +1730,41 @@ const ChatManager = () => {
   //   }
   // };
 
-  const handleStartCall = () => {
-    if (!selectedTenant) return;
+  // const handleStartCall = () => {
+  //   if (!selectedTenant) return;
 
-    const channelName = `gate_${user?.id}_${selectedTenant.id}`;
+  //   const channelName = `gate_${user?.id}_${selectedTenant.id}`;
 
-    startCall(channelName, false);
+  //   startVoipCall(channelName);
+  // };
+
+  const handleStartCall = async () => {
+    const channelName = `gate_man_${selectedTenant?.id}`;
+
+    const callData = {
+      type: "emergency_call",
+      channelName: channelName,
+      senderName: user?.name, 
+      senderId: myId,
+    };
+
+    if(socket) {socket.emit('initiate_call', callData)}
+
+    // 1. Send the push to the Tenant
+    if (!isGroupChat && selectedTenant && selectedTenant.push_token) {
+      await sendPushNotification(
+      selectedTenant.push_token,
+      "🚨 INCOMING CALL",
+      `${user?.name} is calling you!`,
+      callData,
+    );}
+
+    // 2. Navigate yourself to the call page
+    navigation.navigate("EmergencyCallPage", {
+      channelName: callData.channelName,
+      residentName: selectedTenant?.name,
+    });
   };
-
   const renderItem = ({ item }: { item: any }) => {
     const itemName =
       item.name && item.name.length > 10
@@ -1923,9 +1952,7 @@ const ChatManager = () => {
           count={0}
         />
 
-        <View
-          className="flex-row items-center p-4 border-b border-gray-100 bg-white"
-        >
+        <View className="flex-row items-center p-4 border-b border-gray-100 bg-white">
           <TouchableOpacity
             onPress={() => {
               setSelectedTenant(null);

@@ -7,10 +7,9 @@ import { Drawer } from "expo-router/drawer";
 import { useUser } from "../UserContext";
 import {
   Bell,
-  HelpCircle,
-  KeyIcon,
   LogOut,
   MessageSquare,
+  Settings,
   X,
 } from "lucide-react-native";
 import { Image, Text, TouchableOpacity, View } from "react-native";
@@ -81,10 +80,10 @@ function CustomDrawerContent(props: any) {
       <View className="h-16" />
 
       <DrawerItem
-        label="Change Password"
+        label="Settings"
         labelStyle={{ color: "white", fontSize: 16, fontWeight: "bold" }}
-        icon={() => <KeyIcon size={30} color="white" />}
-        onPress={() => {router.push("/ChangePassword" as any)}}
+        icon={() => <Settings size={30} color="white" />}
+        onPress={() => {router.push("/SettingsScreen" as any); props.navigation.dispatch(DrawerActions.closeDrawer())}}
       />
 
       <DrawerItem

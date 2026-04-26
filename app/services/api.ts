@@ -4,8 +4,12 @@ import * as Device from "expo-device";
 import { File } from "expo-file-system";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
-import { Estate, FetchNotificationsResponse, Invitation, tempNotification } from "./interfaces";
-
+import {
+  Estate,
+  FetchNotificationsResponse,
+  Invitation,
+  tempNotification,
+} from "./interfaces";
 
 const BASE_URL = `${process.env.EXPO_PUBLIC_BASE_URL}/api`;
 
@@ -23,9 +27,9 @@ export const postLogin = async (email: string, password: string) => {
     const data = await res.json();
 
     if (!res.ok) {
-      return { 
-        success: false, 
-        message: data.error || "Login failed"
+      return {
+        success: false,
+        message: data.error || "Login failed",
       };
     }
 
@@ -36,12 +40,12 @@ export const postLogin = async (email: string, password: string) => {
   }
 };
 
-export const updatePushTokenApi = async (token: string) => {
+export const updatePushTokenApi = async (token: string, userId: string) => {
   try {
     const response = await fetch(`${BASE_URL}/admin/update-push-token`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pushToken: token }),
+      body: JSON.stringify({ pushToken: token, userId: userId }),
       credentials: "include",
     });
     return await response.json();
@@ -65,19 +69,40 @@ export const sendOtpApi = async (email: string) => {
   }
 };
 
+export const sendPofileChangeOtpApi = async (target: string, type: string) => {
+  try {
+    const res = await fetch(`${BASE_URL}/admin/tenant/send-otp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target, type }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      return { success: false, message: data.message || "Server error" };
+    }
+
+    return data;
+  } catch (err) {
+    console.error("OTP error:", err);
+    return { success: false, message: "Network connection failed" };
+  }
+};
+
 export const postRegister = async (
   name: string,
   email: string,
   password: string,
-  phone: string,
-  otp: string, 
-  metadata: string, 
+  // phone: string,
+  otp: string,
+  metadata: string,
 ) => {
   try {
     const res = await fetch(`${BASE_URL}/auth/register/tenant`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, password, phone, otp, metadata }),
+      body: JSON.stringify({ name, email, password, otp, metadata }),
       credentials: "include",
     });
 
@@ -89,16 +114,19 @@ export const postRegister = async (
   }
 };
 
-export const forgotPasswordApi = async ( email: string, role: "admin" | "tenant") => {
+export const forgotPasswordApi = async (
+  email: string,
+  role: "admin" | "tenant",
+) => {
   try {
     const res = await fetch(`${BASE_URL}/forgot-password`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ 
-        email: email.trim(), 
-        role
+      body: JSON.stringify({
+        email: email.trim(),
+        role,
       }),
     });
 
@@ -196,17 +224,22 @@ export const fetchRequests = async () => {
           reason: "",
         };
       } else if (data.feedback) {
-        const parsedFeedback = typeof data.feedback === 'string' 
-          ? JSON.parse(data.feedback) 
-          : data.feedback;
+        const parsedFeedback =
+          typeof data.feedback === "string"
+            ? JSON.parse(data.feedback)
+            : data.feedback;
 
         const type = parsedFeedback.type;
 
         standardized = {
           from: data.feedback.estate,
           type: type,
-            message: type === "decline" 
-              ? "Your request was declined" : type === "approve" ? 'You have been approved': "You have been restricted",
+          message:
+            type === "decline"
+              ? "Your request was declined"
+              : type === "approve"
+                ? "You have been approved"
+                : "You have been restricted",
           reason: data.feedback.message || "No reason was given",
         };
       }
@@ -221,17 +254,18 @@ export const fetchRequests = async () => {
   }
 };
 
-export const fetchNotifications = async () : Promise<FetchNotificationsResponse> => {
-  try {
-    const res = await fetch(`${BASE_URL}/notifications`, {
-      method: "GET",
-      credentials: "include",
-    });
-    return await res.json();
-  } catch (err) {
-    return { success: false, list: [], lastReadAt: '1970-01-01' };
-  }
-};
+export const fetchNotifications =
+  async (): Promise<FetchNotificationsResponse> => {
+    try {
+      const res = await fetch(`${BASE_URL}/notifications`, {
+        method: "GET",
+        credentials: "include",
+      });
+      return await res.json();
+    } catch (err) {
+      return { success: false, list: [], lastReadAt: "1970-01-01" };
+    }
+  };
 
 export const markAllAsReadApi = async () => {
   try {
@@ -671,7 +705,11 @@ export const invitationApi = {
   },
 };
 
-export const changePassword = async (currentPassword: string, newPassword: string, role: string) => {
+export const changePassword = async (
+  currentPassword: string,
+  newPassword: string,
+  role: string,
+) => {
   try {
     const response = await fetch(`${BASE_URL}/api/change-password`, {
       method: "POST",
