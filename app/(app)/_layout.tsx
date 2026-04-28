@@ -104,7 +104,7 @@ export default function AppLayout() {
     if (pathname.includes("community")) return "Community";
     if (pathname.includes("events")) return "Events";
     if (pathname.includes("guests")) return "Guests";
-    if (pathname.includes("invoices")) return "Invoices";
+    if (pathname.includes("services")) return "Services";
     return "";
   };
   const isDashboard = pathname.includes("dashboard");

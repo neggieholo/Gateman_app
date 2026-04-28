@@ -8,6 +8,7 @@ import {
   Estate,
   FetchNotificationsResponse,
   Invitation,
+  SubmitReportPayload,
   tempNotification,
 } from "./interfaces";
 
@@ -730,4 +731,48 @@ export const getRelativeTime = (timestamp: string) => {
   } catch (error) {
     return timestamp; // Fallback to raw string if it fails
   }
+};
+
+export const getSecurityColleagues = async () => {
+  try {
+    const res = await fetch(`${BASE_URL}/security/all`, {
+      method: "GET",
+      credentials: "include",
+    });
+    return await res.json();
+  } catch (err) {
+    console.error("Fetch Colleagues Error:", err);
+    return { success: false };
+  }
+};
+
+export const submitEstateReport = async (payload: SubmitReportPayload) => {
+  try {
+    const res = await fetch(`${BASE_URL}/security/report`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, error: "Network error" };
+  }
+};
+
+export const getMyReports = async () => {
+  try {
+    const res = await fetch(`${BASE_URL}/security/my-reports`, {
+      method: "GET",
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, error: "Network error" };
+  }
+};
+
+export const deleteReport = async (id: string) => {
+  const res = await fetch(`${BASE_URL}/security/my-reports/${id}`, {
+    method: "DELETE",
+  });
+  return await res.json();
 };

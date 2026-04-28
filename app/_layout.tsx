@@ -89,6 +89,38 @@ export default function RootLayout() {
                     headerShown: true,
                   }}
                 />
+
+                <Stack.Screen
+                  name="SecurityPersonnels"
+                  options={{
+                    title: "Security Center",
+                    headerShown: true,
+                  }}
+                />
+
+                <Stack.Screen
+                  name="SubmitSecurityReport"
+                  options={{
+                    title: "Report",
+                    headerShown: true,
+                  }}
+                />
+
+                <Stack.Screen
+                  name="ResolutionCenter"
+                  options={{
+                    title: "Resolution Center",
+                    headerShown: true,
+                  }}
+                />
+
+                <Stack.Screen
+                  name="SecurityReportsHistory"
+                  options={{
+                    title: "Reports History",
+                    headerShown: true,
+                  }}
+                />
               </Stack>
             </UserProvider>
           </ActionSheetProvider>

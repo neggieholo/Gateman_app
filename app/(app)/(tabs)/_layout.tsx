@@ -46,10 +46,10 @@ export default function TenantTabsLayout() {
         />
 
         <Tabs.Screen
-          name="invoices"
+          name="services"
           options={{
-            title: "Invoices",
-            tabBarIcon: ({ color, size }) => <Ionicons name="document-text" size={size} color={color} />,
+            title: "Services",
+            tabBarIcon: ({ color, size }) => <Ionicons name="grid" size={size} color={color} />,
           }}
         />
       </Tabs>

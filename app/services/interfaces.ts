@@ -165,12 +165,39 @@ export interface Invitation {
   is_cancelled: boolean;
 }
 
-export type RootStackParamList = {
-  ChatScreen: { tenantId: string; displayName: string };
-  EmergencyCallPage: { 
-    channelName: string; 
-    residentName: string; 
-    mode: 'alarm' | 'voice' 
-  };
-  // Add other screens here...
-};
+export type ReportType = 'GENERAL' | 'SECURITY';
+export type ReportCategory = 'COMPLAINT' | 'INFORMATION' | 'EMERGENCY';
+export type ReportStatus = 'PENDING' | 'REVIEWED' | 'RESOLVED';
+
+export interface EstateReport {
+  id: string;
+  estate_id: string;
+  reporter_id: string;
+  reporter_name?: string; // From the JOIN
+  type: ReportType;
+  category: ReportCategory;
+  target_security_ids: string[];
+  subject: string;
+  description: string;
+  status: ReportStatus;
+  created_at: string;
+}
+
+export interface SubmitReportPayload {
+  type: ReportType;
+  category: ReportCategory;
+  target_security_ids?: string[];
+  subject: string;
+  description: string;
+}
+
+export interface Guard {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  avatar: string;
+  is_on_duty: boolean;
+  check_in_location?: string;
+  last_known_location?: string;
+}
