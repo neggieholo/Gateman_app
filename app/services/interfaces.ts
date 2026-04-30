@@ -60,21 +60,21 @@ export interface tempNotification {
 }
 
 export interface notification {
-  id: string;              
-  estate_id: number;  
-  user_id: number | null;  
-  recipient_role: 'tenant' | 'security' | 'admin';
+  id: string;
+  estate_id: number;
+  user_id: number | null;
+  recipient_role: "tenant" | "security" | "admin";
   title: string;
   message: string;
-  type: 'general' | 'emergency' | 'entry' | 'invite' | 'announcement';
-  created_at: string; 
+  type: "general" | "emergency" | "entry" | "invite" | "announcement";
+  created_at: string;
   is_deleted: boolean;
 }
 
 export interface FetchNotificationsResponse {
   success: boolean;
   list: notification[];
-  lastReadAt: string;   
+  lastReadAt: string;
 }
 
 export interface GroupMember {
@@ -130,19 +130,19 @@ export interface Post {
 }
 
 export interface Comment {
-  id: number; 
+  id: number;
   post_id: number;
   user_id: string;
   user_type: string;
   author_name: string;
-  content: string; 
-  created_at: string; 
+  content: string;
+  created_at: string;
 }
 
 export interface Like {
-  user_id: string; 
+  user_id: string;
   author_name: string;
-  created_at: string;  
+  created_at: string;
 }
 
 export interface Invitation {
@@ -150,12 +150,12 @@ export interface Invitation {
   guest_name: string;
   guest_image_url: string | null;
   access_code: string;
-  invite_type: 'one_time' | 'multi_entry';
+  invite_type: "one_time" | "multi_entry";
   start_date: any;
   end_date: any;
   start_time: any;
   end_time: any;
-  excluded_dates: string[]; 
+  excluded_dates: string[];
   status: string;
   actual_checkin: any;
   actual_checkout: any;
@@ -165,9 +165,9 @@ export interface Invitation {
   is_cancelled: boolean;
 }
 
-export type ReportType = 'GENERAL' | 'SECURITY';
-export type ReportCategory = 'COMPLAINT' | 'INFORMATION' | 'EMERGENCY';
-export type ReportStatus = 'PENDING' | 'REVIEWED' | 'RESOLVED';
+export type ReportType = "GENERAL" | "SECURITY" | "PAYMENT";
+export type ReportCategory = "COMPLAINT" | "INFORMATION" | "EMERGENCY";
+export type ReportStatus = "PENDING" | "REVIEWED" | "RESOLVED";
 
 export interface EstateReport {
   id: string;
@@ -180,6 +180,7 @@ export interface EstateReport {
   subject: string;
   description: string;
   status: ReportStatus;
+  admin_response: string;
   created_at: string;
 }
 
@@ -188,6 +189,7 @@ export interface SubmitReportPayload {
   category: ReportCategory;
   target_security_ids?: string[];
   subject: string;
+  payment_id?: string;
   description: string;
 }
 
@@ -200,4 +202,48 @@ export interface Guard {
   is_on_duty: boolean;
   check_in_location?: string;
   last_known_location?: string;
+}
+
+export type PaymentMode = "manual" | "api";
+
+export interface PaymentSettingsResponse {
+  success: boolean;
+  data?: {
+    payment_type: PaymentMode;
+    details: {
+      bank_name?: string;
+      bank_account_number?: string;
+      bank_account_name?: string;
+      external_api_url?: string;
+    };
+  };
+  error?: string;
+}
+
+export interface UtilityPaymentInfo {
+  bank_name?: string;
+  bank_account_number?: string;
+  bank_account_name?: string;
+  external_api_url?: string;
+}
+
+export interface PaymentLog {
+  id: string;
+  amount: number;
+  category: string;             // Payment For (Electricity, etc.)
+  transaction_reference: string; // The Bank's Session ID / Ref
+  receipt_url: string; 
+  payment_date: string;   
+  payment_type: string;       
+  notes?: string;                
+  status: 'pending' | 'verified' | 'rejected';
+  created_at: string;
+  resident_name: string;        
+}
+
+
+export interface EmergencyContact {
+  id: number;
+  name: string;
+  phone: string; // Matches your saved data key
 }

@@ -121,6 +121,31 @@ export default function RootLayout() {
                     headerShown: true,
                   }}
                 />
+
+                <Stack.Screen
+                  name="UtilityPayment"
+                  options={{
+                    title: "Utility & Dues",
+                    headerShown: true,
+                  }}
+                />
+
+                <Stack.Screen
+                  name="PaymentHistory"
+                  options={{
+                    title: "Payments History",
+                    headerShown: true,
+                  }}
+                />
+
+                <Stack.Screen
+                  name="EmergencyContactsPage"
+                  options={{
+                    title: "Emergency Contacts",
+                    headerShown: true,
+                  }}
+                />
+                
               </Stack>
             </UserProvider>
           </ActionSheetProvider>

@@ -5,9 +5,11 @@ import { File } from "expo-file-system";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import {
+  EmergencyContact,
   Estate,
   FetchNotificationsResponse,
   Invitation,
+  PaymentSettingsResponse,
   SubmitReportPayload,
   tempNotification,
 } from "./interfaces";
@@ -775,4 +777,102 @@ export const deleteReport = async (id: string) => {
     method: "DELETE",
   });
   return await res.json();
+};
+
+export const getEstatePaymentSettings =
+  async (): Promise<PaymentSettingsResponse> => {
+    try {
+      const res = await fetch(`${BASE_URL}/admin/payment-settings`, {
+        method: "GET",
+        credentials: "include", // Essential for express-session
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        return {
+          success: false,
+          data: null as any, // Match your interface expectation
+          error: data.error || "Failed to fetch settings",
+        };
+      }
+
+      return data;
+    } catch (err) {
+      console.error("Payment Settings Fetch Error:", err);
+      return {
+        success: false,
+        data: null as any,
+        error: "Network error or server unreachable",
+      };
+    }
+  };
+
+// POST: Upload Payment Record
+export const uploadPaymentLog = async (payload: any) => {
+  try {
+    const res = await fetch(`${BASE_URL}/payment/upload`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      credentials: "include",
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: "Network error" };
+  }
+};
+
+// GET: Fetch History with Date Filters
+export const getPaymentHistory = async (
+  startDate?: string,
+  endDate?: string,
+) => {
+  try {
+    const query =
+      startDate && endDate ? `?startDate=${startDate}&endDate=${endDate}` : "";
+    console.log("History dates:", query);
+    const res = await fetch(`${BASE_URL}/payment/history${query}`, {
+      method: "GET",
+      credentials: "include",
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, history: [] };
+  }
+};
+
+export const deletePaymentLog = async (id: string) => {
+  try {
+    const res = await fetch(`${BASE_URL}/payment/delete/${id}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    return res.json();
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.response?.data?.message || "Delete failed",
+    };
+  }
+};
+
+export const getEmergencyContacts = async (): Promise<{
+  success: boolean;
+  contacts: EmergencyContact[];
+  error?: string;
+}> => {
+  try {
+    const res = await fetch(`${BASE_URL}/admin/emergency-contacts`, {
+      method: "GET",
+      credentials: "include",
+    });
+    return res.json();
+  } catch (error: any) {
+    return {
+      success: false,
+      contacts: [],
+      error: error
+    };
+  }
 };

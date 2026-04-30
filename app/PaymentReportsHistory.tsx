@@ -16,7 +16,6 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   FlatList,
-  Image,
   Modal,
   RefreshControl,
   ScrollView,
@@ -24,18 +23,13 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import {
-  deleteReport,
-  getMyReports,
-  getSecurityColleagues,
-} from "./services/api";
-import { EstateReport, Guard } from "./services/interfaces";
+import { deleteReport, getMyReports } from "./services/api";
+import { EstateReport } from "./services/interfaces";
 
 type StatusType = "ALL" | "PENDING" | "REVIEWED" | "RESOLVED";
 
-export default function SecurityReportsHistory() {
+export default function PaymentReportsHistory() {
   const [reports, setReports] = useState<EstateReport[]>([]);
-  const [guards, setGuards] = useState<Guard[]>([]);
   const [fetching, setFetching] = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusType>("ALL");
   const [selectedReport, setSelectedReport] = useState<EstateReport | null>(
@@ -46,17 +40,13 @@ export default function SecurityReportsHistory() {
   const loadData = useCallback(async () => {
     setFetching(true);
     try {
-      const [reportRes, guardRes] = await Promise.all([
-        getMyReports(),
-        getSecurityColleagues(),
-      ]);
+      const reportRes = await getMyReports();
+
       if (reportRes.success) {
-        // Strictly Security reports for this view
         setReports(
-          reportRes.reports.filter((r: EstateReport) => r.type === "SECURITY"),
+          reportRes.reports.filter((r: EstateReport) => r.type === "PAYMENT"),
         );
       }
-      if (guardRes.success) setGuards(guardRes.securityGuards);
     } catch (e) {
       console.error(e);
     } finally {
@@ -124,41 +114,6 @@ export default function SecurityReportsHistory() {
     );
   };
 
-  const renderPersonnel = (targetIds: string[]) => {
-    const mentionedGuards = guards.filter((g) => targetIds.includes(g.id));
-    if (mentionedGuards.length === 0) return null;
-
-    return (
-      <View className="mt-6 pt-6">
-        <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-4">
-          Mentioned Personnel
-        </Text>
-        <View className="flex-row flex-wrap gap-3">
-          {mentionedGuards.map((guard) => (
-            <View
-              key={guard.id}
-              className="flex-row items-center bg-slate-50 p-3 rounded-2xl border border-slate-100"
-            >
-              <View className="w-8 h-8 rounded-full bg-indigo-100 items-center justify-center mr-3">
-                <Image
-                  source={{
-                    uri: guard.avatar || "https://via.placeholder.com/150",
-                  }}
-                  className="w-8 h-8" // Match the container size
-                  resizeMode="cover"
-                />
-              </View>
-              <View>
-                <Text className="text-xs font-black text-slate-800">
-                  {guard.name}
-                </Text>
-              </View>
-            </View>
-          ))}
-        </View>
-      </View>
-    );
-  };
   // --- DETAIL VIEW ---
   if (selectedReport) {
     return (
@@ -217,13 +172,6 @@ export default function SecurityReportsHistory() {
           <Text className="text-slate-700 text-lg font-medium leading-7 mb-6">
             {selectedReport.description}
           </Text>
-          {selectedReport.category === "COMPLAINT" &&
-            selectedReport.target_security_ids &&
-            selectedReport.target_security_ids.length > 0 && (
-              <View className="flex-1 pt-2 border-t border-slate-100">
-                {renderPersonnel(selectedReport.target_security_ids)}
-              </View>
-            )}
         </ScrollView>
         <Modal visible={responseModal} animationType="fade" transparent>
           <View className="flex-1 justify-center items-center bg-black/60 px-6">
@@ -315,7 +263,7 @@ export default function SecurityReportsHistory() {
                             ? "#f59e0b"
                             : "#10b981",
                     }}
-                    className="w-3 h-3 rounded-full mx-2"
+                    className="w-3 h-3 rounded-full mx-2 items-center"
                   />
 
                   {/* Mail Icon if Admin Response exists */}
@@ -339,7 +287,6 @@ export default function SecurityReportsHistory() {
           </TouchableOpacity>
         )}
         ListEmptyComponent={
-          // This only renders if data is empty AND we aren't currently fetching
           !fetching ? (
             <View className="items-center mt-20 animate-in fade-in duration-500">
               <ClipboardList size={40} color="#cbd5e1" />

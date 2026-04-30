@@ -3,14 +3,20 @@ import {
   ArrowLeft,
   Calendar,
   CheckCircle2,
+  ChevronRight,
   ClipboardList,
   Clock,
+  Mail,
+  MessageSquare,
+  ShieldAlert,
   Trash2,
+  XCircle,
 } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   FlatList,
+  Modal,
   RefreshControl,
   ScrollView,
   Text,
@@ -29,6 +35,7 @@ export default function ReportsHistory() {
   const [selectedReport, setSelectedReport] = useState<EstateReport | null>(
     null,
   );
+  const [responseModal, setResponseModal] = useState(false);
 
   const loadReports = useCallback(async () => {
     setFetching(true);
@@ -133,10 +140,23 @@ export default function ReportsHistory() {
           </TouchableOpacity>
         </View>
 
-        <View className="flex-row items-center gap-2 mb-4">
-          <View className="bg-indigo-50 px-3 py-1 rounded-full">
+        <View className="flex-row items-center gap-2 mb-4 justify-between">
+          <View className="flex-row items-center gap-2">
+            {renderStatusBadge(selectedReport.status)}
           </View>
-          {renderStatusBadge(selectedReport.status)}
+          {selectedReport.admin_response && (
+            <TouchableOpacity
+              onPress={() => {
+                setResponseModal(true);
+              }}
+              className="bg-indigo-600 p-2 rounded-2xl flex-row items-center"
+            >
+              <MessageSquare size={12} color="white" />
+              <Text className="ml-2 text-white font-bold text-[11px] uppercase">
+                View Response
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <Text className="text-3xl font-black text-slate-900 mb-6">
@@ -160,6 +180,34 @@ export default function ReportsHistory() {
             {selectedReport.description}
           </Text>
         </ScrollView>
+        <Modal visible={responseModal} animationType="fade" transparent>
+          <View className="flex-1 justify-center items-center bg-black/60 px-6">
+            <View className="bg-white w-full rounded-[40px] p-8 shadow-2xl">
+              <View className="flex-row justify-between items-center mb-6">
+                <View className="flex-row items-center">
+                  <View className="bg-indigo-100 p-2 rounded-xl mr-3">
+                    <ShieldAlert size={20} color="#4f46e5" />
+                  </View>
+                  <Text className="text-xl font-black text-slate-900">
+                    Admin Response
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => setResponseModal(false)}>
+                  <XCircle size={28} color="#94a3b8" />
+                </TouchableOpacity>
+              </View>
+
+              <View className="bg-slate-50 p-6 rounded-3xl border border-slate-100 mb-6">
+                <Text className="text-[10px] font-black text-indigo-500 uppercase mb-2">
+                  Official Feedback
+                </Text>
+                <Text className="text-base font-medium text-slate-800 leading-6">
+                  {selectedReport?.admin_response || "No message provided."}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </View>
     );
   }
@@ -202,25 +250,53 @@ export default function ReportsHistory() {
             className="bg-white p-5 rounded-[30px] mb-4 border border-slate-100 shadow-sm flex-row items-center justify-between"
           >
             <View className="flex-1 mr-4">
-              <View className="flex-row items-center gap-2 mb-1">
-                <Text
-                  className="text-base font-black text-slate-900"
-                  numberOfLines={1}
-                >
-                  {item.subject}
+              <View className="flex-row items-center mb-1 justify-between">
+                <View className="flex-1">
+                  <Text
+                    className="text-base font-black text-slate-900 flex-shrink"
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
+                    {item.subject.length > 30
+                      ? `${item.subject.substring(0, 30)}...`
+                      : item.subject}
+                  </Text>
+                </View>
+
+                <View className="flex-row gap-2">
+                  <View
+                    style={{
+                      backgroundColor:
+                        item.status === "PENDING"
+                          ? "#64748b"
+                          : item.status === "REVIEWED"
+                            ? "#f59e0b"
+                            : "#10b981",
+                    }}
+                    className="w-3 h-3 rounded-full mx-2"
+                  />
+
+                  {/* Mail Icon if Admin Response exists */}
+                  {item.admin_response && (
+                    <View className="bg-indigo-100 p-1.5 rounded-full">
+                      <Mail size={12} color="#4f46e5" strokeWidth={3} />
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              <View className="items-start">
+                <Text className="text-[10px] text-slate-400 mt-1 font-bold">
+                  {new Date(item.created_at).toLocaleDateString()}
                 </Text>
-                <View className="w-1 h-1 rounded-full bg-slate-300" />
               </View>
             </View>
-            <View className="items-end">
-              <Text className="text-[9px] text-slate-300 mt-2 font-bold">
-                {new Date(item.created_at).toLocaleDateString()}
-              </Text>
-            </View>
+
+            {/* Right-side Arrow for better UX */}
+            <ChevronRight size={20} color="#cbd5e1" />
           </TouchableOpacity>
         )}
         ListEmptyComponent={
-          // This only renders if data is empty AND we aren't currently fetching
           !fetching ? (
             <View className="items-center mt-20 animate-in fade-in duration-500">
               <ClipboardList size={40} color="#cbd5e1" />
