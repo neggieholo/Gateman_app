@@ -5,11 +5,15 @@ import { File } from "expo-file-system";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import {
+  CreateEventRequest,
   EmergencyContact,
   Estate,
+  EstateEvent,
   FetchNotificationsResponse,
   Invitation,
   PaymentSettingsResponse,
+  RSVPRequest,
+  RSVPResponse,
   SubmitReportPayload,
   tempNotification,
 } from "./interfaces";
@@ -875,4 +879,37 @@ export const getEmergencyContacts = async (): Promise<{
       error: error
     };
   }
+};
+
+
+const handleResponse = async (response: Response) => {
+  const data = await response.json();
+  if (!response.ok) {
+    throw data.error || 'Something went wrong';
+  }
+  return data;
+};
+
+export const createEvent = async (eventData: CreateEventRequest): Promise<EstateEvent> => {
+  const response = await fetch(`${BASE_URL}/event/create`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(eventData),
+  });
+  const data = await handleResponse(response);
+  return data.event;
+};
+
+
+export const getOrganizerEvents = async (): Promise<EstateEvent[]> => {
+  const response = await fetch(`${BASE_URL}/event/organizer/all`);
+  return await handleResponse(response);
+};
+
+
+export const deleteEvent = async (eventId: string): Promise<void> => {
+  const response = await fetch(`${BASE_URL}/event/delete/${eventId}`, {
+    method: 'DELETE',
+  });
+  await handleResponse(response);
 };

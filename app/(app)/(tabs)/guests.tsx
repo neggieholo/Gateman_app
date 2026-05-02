@@ -23,6 +23,7 @@ import { captureRef } from "react-native-view-shot";
 
 // --- 1. Invite Guest View Component ---
 const InviteGuestForm = () => {
+  const {user} = useUser()
   const [guestType, setGuestType] = useState("one_time");
   const [guestName, setGuestName] = useState("");
   const viewShotRef = useRef<any>(null);
@@ -210,6 +211,21 @@ const InviteGuestForm = () => {
       setExcludedDates([]);
     }
   };
+
+  if (!user?.estate_id) {
+      return (
+        <View className="flex-1 justify-center items-center p-6 bg-gray-50">
+          <TouchableOpacity
+            className="bg-indigo-600 py-3 px-6 rounded-xl"
+            onPress={() => router.push("/JoinRequest")}
+          >
+            <Text className="text-white font-bold text-lg text-center">
+              Join an Esatate
+            </Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
 
   return (
     <>
