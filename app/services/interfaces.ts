@@ -265,7 +265,7 @@ export interface EstateEvent {
   end_time: string;
   
   venue_detail: string | null;
-  registered_number: number;
+  registered_guests: number;
   expected_guests: number;
   banner_url: string | null;
   

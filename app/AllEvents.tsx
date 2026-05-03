@@ -242,7 +242,7 @@ export default function AllEventsScreen() {
                     Register at
                   </Text>
                   <Text className="text-indigo-600 font-black text-sm lowercase">
-                    www.gatemanhq.com/{selectedEvent.ref_code}
+                    www.gatemanhq.com/event/{selectedEvent.ref_code}
                   </Text>
                 </View>
               </View>
@@ -259,7 +259,7 @@ export default function AllEventsScreen() {
                   </View>
                   <View className="mt-1 p-2 border-b border-slate-100">
                     <Text className="text-indigo-900 font-bold">
-                      {selectedEvent.registered_number || 0} /{" "}
+                      {selectedEvent.registered_guests || 0} /{" "}
                       {selectedEvent.expected_guests} Guests Registered
                     </Text>
                   </View>

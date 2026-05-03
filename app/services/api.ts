@@ -717,8 +717,9 @@ export const changePassword = async (
   newPassword: string,
   role: string,
 ) => {
+  console.log("Passwords in api:",currentPassword, newPassword, role)
   try {
-    const response = await fetch(`${BASE_URL}/api/change-password`, {
+    const response = await fetch(`${BASE_URL}/change-password`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ currentPassword, newPassword, role }),

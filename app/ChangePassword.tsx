@@ -1,83 +1,136 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
-import { changePassword } from './services/api';
-import { useUser } from './UserContext';
+import React, { useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { changePassword } from "./services/api";
+import { useUser } from "./UserContext";
 
 export default function ChangePasswordScreen() {
   const { user } = useUser();
   const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [form, setForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
 
-const handleUpdate = async () => {
-  // 1. Client-side Validation
-  if (form.newPassword !== form.confirmPassword) {
-    return Alert.alert("Error", "New passwords do not match");
-  }
-  
-  if (form.newPassword.length < 6) {
-    return Alert.alert("Error", "Password must be at least 6 characters");
-  }
-
-  setLoading(true);
-  
-  try {
-    // 2. Call the service function
-    const role = user?.isTemp ? 'temp_tenant' : 'tenant';
-    const data = await changePassword(form.currentPassword, form.newPassword, role);
-
-    // 3. Handle the structured response
-    if (data.success) {
-      Alert.alert("Success", "Password updated successfully");
-      setForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
-    } else {
-      // This will now catch "Current password is incorrect" or other backend errors
-      Alert.alert("Failed", data.message || "Could not update password");
+  const handleUpdate = async () => {
+    if (form.newPassword !== form.confirmPassword) {
+      console.log("Passwords:", form.newPassword, form.confirmPassword);
+      return Alert.alert("Error", "New passwords do not match");
     }
-  } catch (err) {
-    // This catches unexpected logic errors, though the service handles network errors
-    Alert.alert("Error", "An unexpected error occurred");
-  } finally {
-    setLoading(false);
-  }
-};
+
+    if (form.newPassword.length < 6) {
+      return Alert.alert("Error", "Password must be at least 6 characters");
+    }
+
+    setLoading(true);
+
+    try {
+      const role = user?.isTemp ? "temp_tenant" : "tenant";
+      const data = await changePassword(
+        form.currentPassword,
+        form.newPassword,
+        role,
+      );
+
+      if (data.success) {
+        Alert.alert("Success", "Password updated successfully");
+        setForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      } else {
+        Alert.alert("Failed", data.message || "Could not update password");
+      }
+    } catch (err) {
+      Alert.alert("Error", "An unexpected error occurred");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.label}>Current Password</Text>
-      <TextInput 
-        style={styles.input} 
-        secureTextEntry 
-        value={form.currentPassword}
-        onChangeText={(txt) => setForm({...form, currentPassword: txt})} 
-      />
+    <View className="flex-1 bg-white p-6">
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1 }}
+        showsVerticalScrollIndicator={false}
+      >
+        <View className="flex-1 justify-between pb-6">
+          {/* Input Section */}
+          <View className="flex-none">
+            {/* Current Password */}
+            <View className="mb-6">
+              <Text className="text-slate-900 text-sm font-black uppercase tracking-tight mb-3">
+                Current Password
+              </Text>
+              <TextInput
+                className="bg-slate-100 border border-slate-300 p-5 rounded-2xl text-slate-900 font-bold"
+                secureTextEntry
+                placeholder="Enter current password"
+                placeholderTextColor="#64748b" // slate-500 for darker visibility
+                value={form.currentPassword}
+                onChangeText={(txt) =>
+                  setForm({ ...form, currentPassword: txt })
+                }
+              />
+            </View>
 
-      <Text style={styles.label}>New Password</Text>
-      <TextInput 
-        style={styles.input} 
-        secureTextEntry 
-        value={form.newPassword}
-        onChangeText={(txt) => setForm({...form, newPassword: txt})} 
-      />
+            {/* New Password */}
+            <View className="mb-6">
+              <Text className="text-slate-900 text-sm font-black uppercase tracking-tight mb-3">
+                New Password
+              </Text>
+              <TextInput
+                className="bg-slate-100 border border-slate-300 p-5 rounded-2xl text-slate-900 font-bold"
+                secureTextEntry
+                placeholder="New password (min 6 chars)"
+                placeholderTextColor="#64748b"
+                value={form.newPassword}
+                onChangeText={(txt) => setForm({ ...form, newPassword: txt })}
+              />
+            </View>
 
-      <Text style={styles.label}>Confirm New Password</Text>
-      <TextInput 
-        style={styles.input} 
-        secureTextEntry 
-        value={form.confirmPassword}
-        onChangeText={(txt) => setForm({...form, confirmPassword: txt})} 
-      />
+            {/* Confirm Password */}
+            <View className="mb-6">
+              <Text className="text-slate-900 text-sm font-black uppercase tracking-tight mb-3">
+                Confirm New Password
+              </Text>
+              <TextInput
+                className="bg-slate-100 border border-slate-300 p-5 rounded-2xl text-slate-900 font-bold"
+                secureTextEntry
+                placeholder="Repeat new password"
+                placeholderTextColor="#64748b"
+                value={form.confirmPassword}
+                onChangeText={(txt) =>
+                  setForm({ ...form, confirmPassword: txt })
+                }
+              />
+            </View>
+          </View>
 
-      <TouchableOpacity style={styles.button} onPress={handleUpdate} disabled={loading}>
-        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Update Password</Text>}
-      </TouchableOpacity>
+          {/* Bottom Section */}
+          <View className="mb-8">
+            <TouchableOpacity
+              activeOpacity={0.8}
+              className={`h-20 rounded-[2.5rem] flex-row items-center justify-center shadow-2xl shadow-indigo-200 ${loading ? "bg-indigo-400" : "bg-indigo-600"}`}
+              onPress={handleUpdate}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text className="text-white font-black text-sm uppercase tracking-[0.25em]">
+                  Update Password
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: '#fff' },
-  label: { fontSize: 14, color: '#374151', marginBottom: 5, fontWeight: '600' },
-  input: { borderWidth: 1, borderColor: '#D1D5DB', padding: 12, borderRadius: 8, marginBottom: 20 },
-  button: { backgroundColor: '#2563EB', padding: 15, borderRadius: 8, alignItems: 'center' },
-  buttonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 }
-});
