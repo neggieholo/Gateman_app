@@ -7,17 +7,17 @@ import {
   ShieldCheck,
   User,
 } from "lucide-react-native";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   Modal,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import PhoneInput from "react-native-phone-number-input";
 import { useUser } from "./UserContext";
 import { sendPofileChangeOtpApi } from "./services/api";
@@ -78,6 +78,7 @@ export default function ResidentSettings() {
   };
 
   const handlePhoneChange = (value: string) => {
+    console.log("Phone change:", value);
     const phoneValue = value || "";
     setProfile((prev) => ({
       ...prev,
@@ -97,7 +98,6 @@ export default function ResidentSettings() {
   };
 
   const handleRequestOtp = async (target: string, type: "email" | "phone") => {
-    console.log("Verifying:", target);
     let actualTarget = target;
 
     if (type === "email") {
@@ -116,7 +116,6 @@ export default function ResidentSettings() {
         actualTarget = profile.phone;
       }
     }
-    console.log("Verifying Target:", actualTarget);
     setVerifyingField(type);
 
     setOtpLoading(true);
@@ -161,13 +160,18 @@ export default function ResidentSettings() {
   const handleOtpVerify = async (finalOtp: string) => {
     setverifyingOtp(true);
     try {
+      const targetValue =
+        verifyingField === "phone"
+          ? phoneInputRef.current?.getNumberAfterPossiblyEliminatingZero()
+              ?.formattedNumber || profile.phone
+          : profile.email;
       const res = await fetch(`${BASE_URL}/admin/verify-otp-only`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           otp: finalOtp,
           metadata: metadata,
-          target: verifyingField === "email" ? profile.email : profile.phone,
+          target: targetValue,
         }),
       });
 
@@ -237,8 +241,8 @@ export default function ResidentSettings() {
     profile.email.trim() !== (user?.email || "") ||
     profile.phone.trim() !== (user?.phone || "");
 
-  return (
-    <KeyboardAwareScrollView className="flex-1 bg-slate-50">
+  const memoizedHeader = useMemo(
+    () => (
       <View className="p-6 pb-20">
         <Text className="text-slate-500 font-medium mb-8">
           Manage your contact and security info
@@ -295,7 +299,23 @@ export default function ResidentSettings() {
                 Contact Details
               </Text>
             </View>
-            <TouchableOpacity onPress={() => setIsEditing(!isEditing)}>
+            <TouchableOpacity
+              onPress={() => {
+                if (isEditing) {
+                  setProfile({
+                    name: user?.name || "",
+                    block: user?.block || "",
+                    unit: user?.unit || "",
+                    email: user?.email || "",
+                    phone: user?.phone || "",
+                    email_verified: !!user?.email,
+                    phone_verified: !!user?.phone,
+                  });
+                  setError("");
+                }
+                setIsEditing(!isEditing);
+              }}
+            >
               <Text className="text-indigo-600 font-bold">
                 {isEditing ? "Cancel" : "Edit"}
               </Text>
@@ -325,7 +345,7 @@ export default function ResidentSettings() {
                 className="w-full flex-row justify-end mb-2"
                 onPress={() => handleRequestOtp(profile.email, "email")}
               >
-                {otpLoading && verifyingField === "phone" ? (
+                {otpLoading && verifyingField === "email" ? (
                   <ActivityIndicator size="small" color="#4f46e5" />
                 ) : (
                   <Text className="bg-indigo-600 font-bold text-sm m-2 rounded-sm p-2 text-white">
@@ -349,8 +369,9 @@ export default function ResidentSettings() {
               )}
             </View>
             <PhoneInput
+              key={isEditing ? "editing" : "viewing"}
               ref={phoneInputRef}
-              defaultValue={profile.phone}
+              defaultValue={profile.phone?.replace("+234", "")}
               defaultCode="NG"
               disabled={!isEditing}
               onChangeFormattedText={handlePhoneChange}
@@ -420,6 +441,19 @@ export default function ResidentSettings() {
           </TouchableOpacity>
         )}
       </View>
+    ),
+    [profile, isEditing, otpLoading, verifyingField, showOtpInput, saving],
+  ); // Add dependencies here
+
+  return (
+    <View className="flex-1 bg-slate-50">
+      <FlatList
+        data={[]}
+        renderItem={null}
+        ListHeaderComponent={memoizedHeader} // Pass the memoized variable
+        keyboardShouldPersistTaps="handled"
+        removeClippedSubviews={false}
+      />
 
       <Modal visible={showOtpInput} animationType="fade" transparent={true}>
         <View className="flex-1 justify-center items-center bg-black/60 px-6">
@@ -469,6 +503,6 @@ export default function ResidentSettings() {
           </View>
         </View>
       </Modal>
-    </KeyboardAwareScrollView>
+    </View>
   );
 }
