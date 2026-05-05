@@ -14,6 +14,7 @@ import {
   Alert,
   Image,
   Modal,
+  Platform,
   Text,
   TextInput,
   TouchableOpacity,
@@ -105,7 +106,14 @@ export default function PostDetailModal({
 
   return (
     <Modal visible={isVisible} animationType="slide">
-      <SafeAreaView className="flex-1 bg-white">
+      <SafeAreaView
+        className="flex-1 bg-white"
+        edges={
+          Platform.OS === "ios"
+            ? ["top", "left", "right"]
+            : ["top", "left", "right", "bottom"]
+        }
+      >
         {/* 1. FIXED HEADER */}
         <View className="flex-row items-center justify-between p-4 border-b border-gray-100">
           <Text className="text-xl font-bold text-gray-900">Discussion</Text>
@@ -256,36 +264,38 @@ export default function PostDetailModal({
         </View>
 
         {/* 3. THE INPUT BOX - Inside the scroll view but at the bottom */}
-        {activeTab === "comments" && <View>
-          <KeyboardAwareScrollView
-            className=" bg-gray-50"
-            keyboardShouldPersistTaps="handled"
-            bottomOffset={0}
-          >
-            <View className="p-4 border-t border-gray-100 bg-white">
-              <View className="flex-row items-center px-4 h-12">
-                <TextInput
-                  className="flex-1 text-sm text-gray-900 bg-gray-100 rounded-2xl "
-                  placeholder="Write a comment..."
-                  placeholderTextColor="#9ca3af"
-                  value={newComment}
-                  onChangeText={setNewComment}
-                />
-                <TouchableOpacity
-                  onPress={onAddComment}
-                  disabled={uploadingComment}
-                  className="ml-2 bg-indigo-600 rounded-full p-2"
-                >
-                  {uploadingComment ? (
-                    <ActivityIndicator size="small" color="white" />
-                  ) : (
-                    <Send size={16} color="white" />
-                  )}
-                </TouchableOpacity>
+        {activeTab === "comments" && (
+          <View>
+            <KeyboardAwareScrollView
+              className=" bg-gray-50"
+              keyboardShouldPersistTaps="handled"
+              bottomOffset={0}
+            >
+              <View className="p-4 border-t border-gray-100 bg-white">
+                <View className="flex-row items-center px-4 h-12">
+                  <TextInput
+                    className="flex-1 text-sm text-gray-900 bg-gray-100 rounded-2xl "
+                    placeholder="Write a comment..."
+                    placeholderTextColor="#9ca3af"
+                    value={newComment}
+                    onChangeText={setNewComment}
+                  />
+                  <TouchableOpacity
+                    onPress={onAddComment}
+                    disabled={uploadingComment}
+                    className="ml-2 bg-indigo-600 rounded-full p-2"
+                  >
+                    {uploadingComment ? (
+                      <ActivityIndicator size="small" color="white" />
+                    ) : (
+                      <Send size={16} color="white" />
+                    )}
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-          </KeyboardAwareScrollView>
-        </View>}
+            </KeyboardAwareScrollView>
+          </View>
+        )}
         <Modal
           visible={isImageModalVisible}
           transparent={true}

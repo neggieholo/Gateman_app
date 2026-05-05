@@ -28,6 +28,7 @@ import {
   View,
 } from "react-native";
 import { useUser } from "../../UserContext";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const CATEGORIES = ["Alerts", "General", "Marketplace"];
 
@@ -303,7 +304,7 @@ export default function Community() {
   }
 
   return (
-    <View className="flex-1 bg-gray-50">
+    <SafeAreaView className="flex-1 bg-gray-50" edges={['top', 'left', 'right']}>
       <View className="h-16 px-4 py-2 flex-row items-center">
         {CATEGORIES.map((cat) => (
           <TouchableOpacity
@@ -479,6 +480,6 @@ export default function Community() {
         uploadingComment={upLoadingNewComment}
         handleDelete={handleDeleteComment}
       />
-    </View>
+    </SafeAreaView>
   );
 }

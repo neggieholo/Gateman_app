@@ -13,6 +13,7 @@ import {
   Alert,
   FlatList,
   Modal,
+  Platform,
   Text,
   TextInput,
   TouchableOpacity,
@@ -382,6 +383,7 @@ export default function ResidentSettings() {
                 backgroundColor: isEditing ? "#FFFFFF" : "#F8FAFC",
                 borderWidth: isEditing ? 2 : 1,
                 borderColor: isEditing ? "#4F46E5" : "#F1F5F9",
+                paddingTop: Platform.OS === 'android' ? 2 : 0,
               }}
               textContainerStyle={{
                 backgroundColor: "transparent",

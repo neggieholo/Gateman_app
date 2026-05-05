@@ -116,7 +116,7 @@ export default function EstateServicesScreen() {
 
         {/* SUPPORT & HELP - Amber/Orange */}
         <ServiceListItem
-          title="Resolution Center"
+          title="Suggestions and Complaints"
           subtitle="Report your concerns"
           icon={ShieldCheck} // Changed icon slightly for variety
           color="#f59e0b" // Amber 500

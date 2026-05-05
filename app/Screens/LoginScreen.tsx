@@ -51,14 +51,14 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     setLoading(true);
     setError("");
-    console.log("Login details:", email, password);
+    // console.log("Login details:", email, password);
     try {
       await CookieManager.clearAll();
       console.log("🧹 Cookie Jar Wiped!");
       const response = await postLogin(email, password);
       if (response.success) {
         const cookies = await CookieManager.get(BASE_URL);
-        console.log("🍪 Captured Cookies:", cookies);
+        // console.log("🍪 Captured Cookies:", cookies);
 
         if (cookies["gateman.sid"]) {
           console.log("✅ gateman.sid found in Cookie Jar!");
@@ -71,7 +71,7 @@ export default function LoginScreen() {
         try {
           const pushTokenResponse = await registerForPushNotificationsAsync();
           if (pushTokenResponse) {
-            console.log("📱 Push token obtained:", pushTokenResponse);
+            // console.log("📱 Push token obtained:", pushTokenResponse);
             setPushToken(pushTokenResponse);
             await updatePushTokenApi(pushTokenResponse, response.user.id);
           }
@@ -79,7 +79,7 @@ export default function LoginScreen() {
           console.warn("Push token failed, continuing login:", pushErr);
         }
 
-        console.log("Login successful, session ID:", response.sessionId);
+        // console.log("Login successful, session ID:", response.sessionId);
         setSessionId?.(response.sessionId);
         router.replace("/dashboard");
       } else {

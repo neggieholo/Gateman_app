@@ -1,12 +1,13 @@
-import { ExternalLink, Info, Landmark, UploadCloud } from "lucide-react-native";
+import { ExternalLink, Info, Landmark } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Linking,
-    ScrollView,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Linking,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { getEstatePaymentSettings } from "./services/api";
 import { PaymentMode, UtilityPaymentInfo } from "./services/interfaces";
@@ -42,6 +43,30 @@ export default function UtilityPaymentRouter() {
     fetchPaymentInfo();
   }, []);
 
+  const handleOpenURL = async (url: string) => {
+    if (!url) return;
+
+    // Ensure protocol exists
+    const finalUrl = url.toLowerCase().startsWith("http")
+      ? url
+      : `https://${url}`;
+
+    try {
+      const supported = await Linking.canOpenURL(finalUrl);
+      if (supported) {
+        await Linking.openURL(finalUrl);
+      } else {
+        Alert.alert(
+          "Invalid Link",
+          "The estate portal link is not properly formatted.",
+        );
+      }
+    } catch (err) {
+      console.error("GateMan Linking Error:", err);
+      Alert.alert("Error", "Could not open the portal at this time.");
+    }
+  };
+
   const isApiReady =
     config?.payment_type === "api" && !!config.details?.external_api_url;
 
@@ -73,7 +98,7 @@ export default function UtilityPaymentRouter() {
                 </Text>
                 <TouchableOpacity
                   onPress={() =>
-                    Linking.openURL(config.details.external_api_url!)
+                    handleOpenURL(config.details.external_api_url!)
                   }
                   className="bg-blue-600 w-full p-5 rounded-3xl items-center mt-8"
                 >

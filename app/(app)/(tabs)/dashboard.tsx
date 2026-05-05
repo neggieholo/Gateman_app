@@ -175,19 +175,19 @@ export default function Dashboard() {
               title="Electricity"
               icon={Zap}
               color="bg-amber-500"
-              onPress={() => console.log("Electricity")}
+              onPress={() => router.push({ pathname: "/PurchasePage", params: { type: "electricity" } })}
             />
             <ServiceButton
               title="Airtime"
               icon={Smartphone}
               color="bg-blue-500"
-              onPress={() => console.log("Airtime")}
+              onPress={() => router.push({ pathname: "/PurchasePage", params: { type: "airtime" } })}
             />
             <ServiceButton
               title="Data"
               icon={Wifi}
               color="bg-purple-500"
-              onPress={() => console.log("Data")}
+              onPress={() => router.push({ pathname: "/PurchasePage", params: { type: "data" } })}
             />
           </View>
         </View>

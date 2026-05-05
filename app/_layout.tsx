@@ -145,6 +145,14 @@ export default function RootLayout() {
                     headerShown: true,
                   }}
                 />
+
+                <Stack.Screen
+                  name="PurchasePage"
+                  options={{
+                    title: "Purchase",
+                    headerShown: true,
+                  }}
+                />
                 
               </Stack>
             </UserProvider>

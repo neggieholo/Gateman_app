@@ -72,7 +72,7 @@ const PaymentHistory = () => {
       setLoading(true);
       try {
         const res = await getPaymentHistory();
-        console.log("Fetched history:", res);
+        // console.log("Fetched history:", res);
         if (res.success) setHistory(res.history);
       } finally {
         setLoading(false);
