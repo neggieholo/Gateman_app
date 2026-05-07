@@ -15,7 +15,7 @@ import {
   Clock,
   FileText,
   History,
-  Users
+  Users,
 } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
@@ -207,13 +207,16 @@ export default function CreateEventScreen() {
 
   if (!user?.estate_id) {
     return (
-      <View className="flex-1 justify-center items-center p-6 bg-gray-50">
+      <View className="flex-1 justify-center items-center p-6 bg-slate-50">
+        <Text className="text-slate-400 mb-4 text-center">
+          You haven&apos;t joined an estate yet.
+        </Text>
         <TouchableOpacity
-          className="bg-indigo-600 py-3 px-6 rounded-xl"
+          className="bg-indigo-600 py-4 px-8 rounded-2xl"
           onPress={() => router.push("/JoinRequest")}
         >
-          <Text className="text-white font-bold text-lg text-center">
-            Join an Esatate
+          <Text className="text-white font-black text-center">
+            Join an Estate
           </Text>
         </TouchableOpacity>
       </View>

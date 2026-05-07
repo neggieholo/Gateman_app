@@ -69,13 +69,16 @@ export default function Dashboard() {
 
   if (!user?.estate_id) {
     return (
-      <View className="flex-1 justify-center items-center p-6 bg-gray-50">
+      <View className="flex-1 justify-center items-center p-6 bg-slate-50">
+        <Text className="text-slate-400 mb-4 text-center">
+          You haven&apos;t joined an estate yet.
+        </Text>
         <TouchableOpacity
-          className="bg-indigo-600 py-3 px-6 rounded-xl"
+          className="bg-indigo-600 py-4 px-8 rounded-2xl"
           onPress={() => router.push("/JoinRequest")}
         >
-          <Text className="text-white font-bold text-lg text-center">
-            Join an Esatate
+          <Text className="text-white font-black text-center">
+            Join an Estate
           </Text>
         </TouchableOpacity>
       </View>
@@ -175,19 +178,34 @@ export default function Dashboard() {
               title="Electricity"
               icon={Zap}
               color="bg-amber-500"
-              onPress={() => router.push({ pathname: "/PurchasePage", params: { type: "electricity" } })}
+              onPress={() =>
+                router.push({
+                  pathname: "/PurchasePage",
+                  params: { type: "electricity" },
+                })
+              }
             />
             <ServiceButton
               title="Airtime"
               icon={Smartphone}
               color="bg-blue-500"
-              onPress={() => router.push({ pathname: "/PurchasePage", params: { type: "airtime" } })}
+              onPress={() =>
+                router.push({
+                  pathname: "/PurchasePage",
+                  params: { type: "airtime" },
+                })
+              }
             />
             <ServiceButton
               title="Data"
               icon={Wifi}
               color="bg-purple-500"
-              onPress={() => router.push({ pathname: "/PurchasePage", params: { type: "data" } })}
+              onPress={() =>
+                router.push({
+                  pathname: "/PurchasePage",
+                  params: { type: "data" },
+                })
+              }
             />
           </View>
         </View>

@@ -27,8 +27,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useUser } from "../../UserContext";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useUser } from "../../UserContext";
 
 const CATEGORIES = ["Alerts", "General", "Marketplace"];
 
@@ -206,7 +206,7 @@ export default function Community() {
       id: Date.now(),
       post_id: Number(postId),
       user_id: user?.id || "",
-      user_type: 'admin',
+      user_type: "admin",
       author_name: "ADMIN",
       content: commentText,
       created_at: new Date().toISOString(),
@@ -241,7 +241,7 @@ export default function Community() {
       console.error("GateMan Comment Error:", error);
       Alert.alert("Failed to add comment.");
       loadPosts();
-    } 
+    }
   };
 
   // 3. Function to handle comment submission from inside the modal
@@ -287,16 +287,18 @@ export default function Community() {
     );
   };
 
-  // --- If user has no estate, show only Join button ---
   if (!user?.estate_id) {
     return (
-      <View className="flex-1 justify-center items-center p-6 bg-gray-50">
+      <View className="flex-1 justify-center items-center p-6 bg-slate-50">
+        <Text className="text-slate-400 mb-4 text-center">
+          You haven&apos;t joined an estate yet.
+        </Text>
         <TouchableOpacity
-          className="bg-indigo-600 py-3 px-6 rounded-xl"
+          className="bg-indigo-600 py-4 px-8 rounded-2xl"
           onPress={() => router.push("/JoinRequest")}
         >
-          <Text className="text-white font-bold text-lg text-center">
-            Join an Esatate
+          <Text className="text-white font-black text-center">
+            Join an Estate
           </Text>
         </TouchableOpacity>
       </View>
@@ -304,7 +306,10 @@ export default function Community() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50" edges={['top', 'left', 'right']}>
+    <SafeAreaView
+      className="flex-1 bg-gray-50"
+      edges={["top", "left", "right"]}
+    >
       <View className="h-16 px-4 py-2 flex-row items-center">
         {CATEGORIES.map((cat) => (
           <TouchableOpacity
