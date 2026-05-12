@@ -1,105 +1,93 @@
-import { Camera, Clock } from "lucide-react-native";
 import React from "react";
-import { Image, Text, View } from "react-native";
+import { View, Text, Image } from "react-native";
 import ViewShot from "react-native-view-shot";
+import QRCode from "react-native-qrcode-svg";
+import { ShieldCheck } from "lucide-react-native";
 
 interface CardProps {
   viewShotRef: any;
   guestName: string;
   guestImage: string | null;
+  inviterName: string;
   accessCode: string;
-  startDate: string;
+  inviteType: string;  
+  startDate?: string;
   endDate?: string;
   startTime: string;
   endTime: string;
-  inviteType: string;
 }
+
 
 export const InvitationCard = ({
   viewShotRef,
-  guestName,
-  guestImage,
+  inviterName,
   accessCode,
-  startDate,
-  endDate,
-  startTime,
-  endTime,
   inviteType,
 }: CardProps) => {
   return (
+    /* We keep it off-screen for the capture */
     <View style={{ position: "absolute", left: -1000, top: -1000 }}>
       <ViewShot ref={viewShotRef} options={{ format: "png", quality: 1 }}>
-        <View
-          className="bg-white p-6 rounded-2xl border-4 border-indigo-600"
-          style={{ width: 350 }}
+        <View 
+          className="bg-white p-8 rounded-[50px] border-[6px] border-[#D4AF37]" 
+          style={{ width: 400, minHeight: 600 }}
         >
-          <Text className="text-2xl font-black text-indigo-900 text-center mb-5 tracking-tight">
-            GATE MAN ACCESS PASS
-          </Text>
-
-          <View className="flex-row items-center gap-4 mb-5 border-b-2 border-dashed border-gray-200 pb-5">
-            {guestImage ? (
-              <Image
-                source={{ uri: guestImage }}
-                className="w-24 h-24 rounded-xl"
-              />
-            ) : (
-              <View className="w-24 h-24 rounded-xl bg-gray-100 items-center justify-center border border-dashed border-gray-300">
-                <Camera size={32} color="#9CA3AF" />
-                <Text className="text-gray-400 text-xs mt-1 text-center">
-                  CHECK ID
-                </Text>
-              </View>
-            )}
-            <View className="flex-1">
-              <Text className="text-gray-500 text-sm font-medium">
-                GUEST NAME:
-              </Text>
-              <Text
-                className="text-xl font-bold text-gray-900 capitalize"
-                numberOfLines={2}
-              >
-                {guestName || "Guest"}
-              </Text>
+          {/* 1. TOP SHIELD SECTION */}
+          <View className="items-center -mt-14 mb-8">
+            <View className="bg-[#0A1F44] p-4 rounded-3xl border-4 border-[#D4AF37] shadow-xl">
+              <ShieldCheck size={48} color="#D4AF37" strokeWidth={2.5} />
             </View>
           </View>
 
-          <View className="flex-row justify-between gap-3 mb-4">
-            <View className="flex-1 bg-indigo-50 p-4 rounded-xl items-center">
-              <Text className="text-gray-500 text-sm font-medium">
-                ACCESS CODE:
-              </Text>
-              <Text className="text-4xl font-black text-indigo-700 tracking-wider">
+          {/* 2. INVITATION HEADER */}
+          <View className="items-center mb-10">
+            <Text className="text-[#1C1C1E] text-3xl font-black text-center leading-tight">
+              You have been invited{"\n"}
+              <Text className="text-[#0A1F44]">by {inviterName || "Resident"}</Text>
+            </Text>
+            
+            <Text className="text-slate-500 font-bold text-center mt-6 px-4">
+              Please show this QR code or OTP to the Gate Man for entry.
+            </Text>
+          </View>
+
+          {/* 3. QR CODE SECTION */}
+          <View className="items-center justify-center mb-10">
+            <View className="p-5 bg-white border-2 border-slate-100 rounded-[32px] shadow-sm">
+              <QRCode
+                value={accessCode || "000000"}
+                size={180}
+                color="#1C1C1E"
+                backgroundColor="white"
+              />
+            </View>
+            <Text className="text-slate-300 font-black mt-4 tracking-[10px]">—— OR ——</Text>
+          </View>
+
+          {/* 4. OTP / ACCESS CODE BADGE */}
+          <View className="items-center mb-12">
+            <View className="bg-[#0A1F44] px-10 py-4 rounded-2xl border-b-4 border-[#D4AF37] items-center">
+              <Text className="text-[#D4AF37] text-5xl font-black tracking-[8px]">
                 {accessCode}
               </Text>
-            </View>
-            <View className="w-32 bg-gray-50 p-4 rounded-xl items-center">
-              <Text className="text-gray-500 text-sm font-medium">DATE:</Text>
-              <Text className="text-xl font-bold text-gray-800">
-                {!endDate || startDate === endDate
-                  ? startDate
-                  : `${startDate.split("/")[0]}/${startDate.split("/")[1]} - ${endDate.split("/")[0]}/${endDate.split("/")[1]}`}
+              <Text className="text-[#D4AF37] text-[10px] font-bold uppercase tracking-[3px] mt-1">
+                GateMan OTP
               </Text>
             </View>
           </View>
 
-          <View className="flex-row items-center justify-center gap-3 bg-gray-100 p-3 rounded-lg">
-            <Clock size={20} color="#6B7280" />
-            <Text className="text-gray-600 font-semibold text-lg uppercase">
-              {startTime} - {endTime}
+          {/* 5. FOOTER SECTION */}
+          <View className="items-center border-t border-slate-100 pt-8">
+            <Text className="text-[#0A1F44] text-xl font-black uppercase tracking-[4px]">
+              GATE MAN SECURE PASS
+            </Text>
+            <Text className="text-[#D4AF37] font-bold text-sm mt-1">
+              Your Security, Our Mission
             </Text>
           </View>
 
-          <View className="mt-6 border-t border-gray-200 pt-4">
-            <Text className="text-[8px] text-indigo-600 font-bold">
-              {inviteType === "multi_entry" ? "MULTI-ENTRY" : "ONE-TIME"}
-            </Text>
-          </View>
-
-          <Text className="text-center text-gray-400 text-[10px] italic mt-5 leading-4">
-            This is a secure access pass for the GateMan network. Please present
-            this at the gate for verification.
-          </Text>
+          {/* Background Decorative Arches (GM Style) */}
+          <View className="absolute bottom-0 left-0 right-0 h-24 bg-[#D4AF37]/10 -z-10 rounded-b-[40px]" />
         </View>
       </ViewShot>
     </View>

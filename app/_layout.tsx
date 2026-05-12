@@ -1,17 +1,27 @@
 import { ActionSheetProvider } from "@expo/react-native-action-sheet";
 import { Stack } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { useColorScheme } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { UserProvider } from "./UserContext";
 
 export default function RootLayout() {
+  const colorScheme = useColorScheme();
+
   return (
     <SafeAreaProvider>
       <KeyboardProvider>
         <GestureHandlerRootView style={{ flex: 1 }}>
           <ActionSheetProvider>
             <UserProvider>
+              <StatusBar
+                key={`global-status-${colorScheme}`}
+                style={colorScheme === "dark" ? "light" : "dark"}
+                backgroundColor="transparent"
+                translucent={true}
+              />
               <Stack
                 screenOptions={{
                   headerStyle: {
@@ -153,7 +163,6 @@ export default function RootLayout() {
                     headerShown: true,
                   }}
                 />
-                
               </Stack>
             </UserProvider>
           </ActionSheetProvider>

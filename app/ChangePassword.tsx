@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import * as SecureStore from "expo-secure-store";
 import {
   ActivityIndicator,
   Alert,
@@ -41,6 +42,7 @@ export default function ChangePasswordScreen() {
       );
 
       if (data.success) {
+        await SecureStore.setItemAsync("user_password", form.newPassword);
         Alert.alert("Success", "Password updated successfully");
         setForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
       } else {

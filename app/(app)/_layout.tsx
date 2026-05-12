@@ -1,6 +1,7 @@
 import CookieManager from "@react-native-cookies/cookies";
 import auth from "@react-native-firebase/auth";
 import { DrawerContentScrollView, DrawerItem } from "@react-navigation/drawer";
+import { StatusBar } from 'expo-status-bar';
 import { DrawerActions } from "@react-navigation/native";
 import { router, usePathname, useRouter } from "expo-router";
 import { Drawer } from "expo-router/drawer";
@@ -110,7 +111,7 @@ export default function AppLayout() {
   const isDashboard = pathname.includes("dashboard");
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1 }}>      
       <Drawer
         drawerContent={(props) => <CustomDrawerContent {...props} />}
         screenOptions={{

@@ -1,6 +1,9 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import CookieManager from "@react-native-cookies/cookies";
+import * as LocalAuthentication from "expo-local-authentication";
 import { useRouter } from "expo-router";
-import React, { useContext, useRef, useState } from "react";
+import * as SecureStore from "expo-secure-store";
+import React, { useContext, useEffect, useState } from "react";
 import {
   Alert,
   Image,
@@ -15,6 +18,7 @@ import {
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 // import PhoneInput from "react-native-phone-number-input";
+import { Fingerprint, ScanFace } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "../components/Button";
 import { FormInput } from "../components/FormInput";
@@ -43,19 +47,47 @@ export default function LoginScreen() {
   const [otp, setOtp] = useState<string[]>(["", "", "", "", "", ""]);
   const [metadata, setMetadata] = useState("");
   const [showOtpInput, setShowOtpInput] = useState(false);
+  const [showBiometricBtn, setShowBiometricBtn] = useState(false);
   // const phoneInputRef = useRef<PhoneInput>(null);
   const inputRefs = Array(6)
     .fill(0)
     .map(() => React.createRef<TextInput>());
 
-  const handleLogin = async () => {
+  useEffect(() => {
+    const checkPref = async () => {
+      const active = await AsyncStorage.getItem("biometrics_active");
+      if (active === "true") {
+        setShowBiometricBtn(true);
+      }
+    };
+    checkPref();
+  }, []);
+
+  const handleLogin = async (
+    userEmail = email,
+    userPassword = password,
+    biometric_login = false,
+  ) => {
     setLoading(true);
     setError("");
     // console.log("Login details:", email, password);
     try {
       await CookieManager.clearAll();
       console.log("🧹 Cookie Jar Wiped!");
-      const response = await postLogin(email, password);
+      const response = await postLogin(
+        userEmail,
+        userPassword,
+        biometric_login,
+      );
+      if (!response.success && response.message === "PASSWORD_CHANGED") {
+        await AsyncStorage.setItem("biometrics_active", "false");
+        setShowBiometricBtn(false);
+        Alert.alert(
+          "Re-authentication Required",
+          "Your password was changed. Please log in manually. You can then continue using Biometric Login as usual.",
+          [{ text: "OK" }],
+        );
+      }
       if (response.success) {
         const cookies = await CookieManager.get(BASE_URL);
         // console.log("🍪 Captured Cookies:", cookies);
@@ -66,6 +98,17 @@ export default function LoginScreen() {
           console.warn(
             "⚠️ Login success but gateman.sid missing from manager.",
           );
+        }
+        if (!biometric_login) {
+          Promise.all([
+            SecureStore.setItemAsync("user_email", email),
+            SecureStore.setItemAsync("user_password", password),
+          ]).catch((err) => console.error("Vault sync failed", err));
+        }
+
+        if (response.user.biometric_login) {
+          await AsyncStorage.setItem("biometrics_active", "true");
+          setShowBiometricBtn(true);
         }
         setUser(response.user);
         try {
@@ -83,12 +126,38 @@ export default function LoginScreen() {
         setSessionId?.(response.sessionId);
         router.replace("/dashboard");
       } else {
-        setError(response.message || "Login failed");
+        setError(
+          response.message === "PASSWORD_CHANGED"
+            ? "Please Log in Manually "
+            : response.message || "Login failed",
+        );
       }
     } catch (err) {
       setError("Network error");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleBiometricLogin = async () => {
+    const savedEmail = await SecureStore.getItemAsync("user_email");
+    const savedPass = await SecureStore.getItemAsync("user_password");
+
+    if (!savedEmail || !savedPass) {
+      return Alert.alert(
+        "Manual Login Required",
+        "Please log in manually once.",
+      );
+    }
+
+    const result = await LocalAuthentication.authenticateAsync({
+      promptMessage: "Login to GateMan Security",
+    });
+
+    if (result.success) {
+      handleLogin(savedEmail, savedPass, true);
+    } else {
+      Alert.alert("Not Recognised");
     }
   };
 
@@ -291,7 +360,7 @@ export default function LoginScreen() {
 
                   <Button
                     title={loading ? "Logging in..." : "Login"}
-                    onPress={handleLogin}
+                    onPress={() => handleLogin}
                     disabled={loading}
                   />
 
@@ -446,6 +515,21 @@ export default function LoginScreen() {
                     </TouchableOpacity>
                   </View>
                 </View>
+              </View>
+            )}
+
+            {showBiometricBtn && isLogin && !isForgot && (
+              <View className="items-center mt-8">
+                <TouchableOpacity
+                  onPress={handleBiometricLogin}
+                  className="bg-black/70 p-4 rounded-full border border-white/40"
+                >
+                  {Platform.OS === "ios" ? (
+                    <ScanFace size={32} color="white" />
+                  ) : (
+                    <Fingerprint size={32} color="white" />
+                  )}
+                </TouchableOpacity>
               </View>
             )}
 

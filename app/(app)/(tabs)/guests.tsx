@@ -463,6 +463,7 @@ const InviteGuestForm = () => {
         <InvitationCard
           viewShotRef={viewShotRef}
           guestName={guestName}
+          inviterName={"Katerina"}
           guestImage={guestImage}
           accessCode={generatedCode}
           startDate={formatDate(startDate)}

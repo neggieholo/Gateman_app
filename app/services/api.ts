@@ -20,14 +20,14 @@ import {
 
 const BASE_URL = `${process.env.EXPO_PUBLIC_BASE_URL}/api`;
 
-export const postLogin = async (email: string, password: string) => {
+export const postLogin = async (email: string, password: string, biometric_login: boolean) => {
   try {
     const res = await fetch(`${BASE_URL}/auth/login/tenant`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, biometric_login }),
       credentials: "include", // IMPORTANT for session cookies
     });
 

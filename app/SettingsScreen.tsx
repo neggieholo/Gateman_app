@@ -1,7 +1,11 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as LocalAuthentication from "expo-local-authentication";
 import { router } from "expo-router";
+import * as SecureStore from "expo-secure-store";
 import {
   Building,
   ChevronRight,
+  Landmark,
   Lock,
   Phone,
   ShieldCheck,
@@ -14,6 +18,7 @@ import {
   FlatList,
   Modal,
   Platform,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -48,10 +53,12 @@ export default function ResidentSettings() {
 
   const [profile, setProfile] = useState({
     name: user?.name || "",
+    estate: user?.estate_name || "",
     block: user?.block || "",
     unit: user?.unit || "",
     email: user?.email || "",
     phone: user?.phone || "",
+    biometric_login: user?.biometric_login || false,
     email_verified: !!user?.email,
     phone_verified: !!user?.phone,
   });
@@ -60,10 +67,12 @@ export default function ResidentSettings() {
     if (user) {
       setProfile({
         name: user.name || "",
+        estate: user?.estate_name || "",
         block: user.block || "",
         unit: user.unit || "",
         email: user.email || "",
         phone: user.phone || "",
+        biometric_login: user?.biometric_login || false,
         email_verified: !!user.email,
         phone_verified: !!user.phone,
       });
@@ -201,6 +210,49 @@ export default function ResidentSettings() {
     setShowOtpInput(false);
   };
 
+  const toggleBiometrics = async (newValue: boolean) => {
+    if (newValue === true) {
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+
+      if (!hasHardware || !isEnrolled) {
+        return Alert.alert(
+          "Not Supported",
+          "Please enable biometrics in your phone settings first.",
+        );
+      }
+
+      // Scan to verify the user is the owner of the device
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: "Confirm identity to enable Biometric Login",
+      });
+
+      if (result.success) {
+        await AsyncStorage.setItem("biometrics_active", "true");
+        setProfile((prev) => ({
+          ...prev,
+          biometric_login: true,
+        }));
+      } else {
+        Alert.alert(
+          "Unrecognized",
+          "Biometric authentication failed. Please try again.",
+        );
+        setProfile((prev) => ({
+          ...prev,
+          biometric_login: false,
+        }));
+        await AsyncStorage.setItem("biometrics_active", "false");
+      }
+    } else {
+      setProfile((prev) => ({
+        ...prev,
+        biometric_login: false,
+      }));
+      await AsyncStorage.setItem("biometrics_active", "false");
+    }
+  };
+
   const handleSaveConfig = async () => {
     if (
       (profile.email !== user?.email && !profile.email_verified) ||
@@ -221,11 +273,15 @@ export default function ResidentSettings() {
         body: JSON.stringify({
           email: profile.email,
           phone: profile.phone,
+          biometric_login: profile.biometric_login,
         }),
       });
 
       const data = await res.json();
       if (data.success) {
+        if (profile.email !== user?.email) {
+          await SecureStore.setItemAsync("user_email", profile.email);
+        }
         Alert.alert("Success", "Profile updated successfully");
         setIsEditing(false);
       } else {
@@ -240,7 +296,8 @@ export default function ResidentSettings() {
 
   const hasChanges =
     profile.email.trim() !== (user?.email || "") ||
-    profile.phone.trim() !== (user?.phone || "");
+    profile.phone.trim() !== (user?.phone || "") ||
+    profile.biometric_login !== (user?.biometric_login || false);
 
   const memoizedHeader = useMemo(
     () => (
@@ -264,32 +321,47 @@ export default function ResidentSettings() {
               value: profile.name,
               icon: <User size={16} color="#94a3b8" />,
             },
-            {
-              label: "Block",
-              value: profile.block,
-              icon: <Building size={16} color="#94a3b8" />,
-            },
-            {
-              label: "Unit Number",
-              value: profile.unit,
-              icon: <ShieldCheck size={16} color="#94a3b8" />,
-            },
-          ].map((item, index) => (
-            <View key={index} className="mb-4">
-              <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
-                {item.label}
-              </Text>
-              <View className="flex-row items-center bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                {item.icon}
-                <Text className="ml-3 font-bold text-slate-500">
-                  {item.value}
+            profile.estate
+              ? {
+                  label: "Estate",
+                  value: profile.estate,
+                  icon: <Landmark size={16} color="#94a3b8" />,
+                }
+              : null,
+            profile.block
+              ? {
+                  label: "Block",
+                  value: profile.block,
+                  icon: <Building size={16} color="#94a3b8" />,
+                }
+              : null,
+            ,
+            profile.unit
+              ? {
+                  label: "Unit Number",
+                  value: profile.unit,
+                  icon: <ShieldCheck size={16} color="#94a3b8" />,
+                }
+              : null,
+            ,
+          ]
+            .filter(Boolean)
+            .map((item, index) => (
+              <View key={index} className="mb-4">
+                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                  {item!.label}
                 </Text>
-                <View className="ml-auto">
-                  <Lock size={14} color="#cbd5e1" />
+                <View className="flex-row items-center bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                  {item!.icon}
+                  <Text className="ml-3 font-bold text-slate-500">
+                    {item!.value}
+                  </Text>
+                  <View className="ml-auto">
+                    <Lock size={14} color="#cbd5e1" />
+                  </View>
                 </View>
               </View>
-            </View>
-          ))}
+            ))}
         </View>
 
         <View className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm mb-6">
@@ -305,10 +377,12 @@ export default function ResidentSettings() {
                 if (isEditing) {
                   setProfile({
                     name: user?.name || "",
+                    estate: user?.estate_name || "",
                     block: user?.block || "",
                     unit: user?.unit || "",
                     email: user?.email || "",
                     phone: user?.phone || "",
+                    biometric_login: user?.biometric_login || false,
                     email_verified: !!user?.email,
                     phone_verified: !!user?.phone,
                   });
@@ -383,7 +457,11 @@ export default function ResidentSettings() {
                 backgroundColor: isEditing ? "#FFFFFF" : "#F8FAFC",
                 borderWidth: isEditing ? 2 : 1,
                 borderColor: isEditing ? "#4F46E5" : "#F1F5F9",
-                paddingTop: Platform.OS === 'android' ? 2 : 0,
+                paddingTop: Platform.OS === "android" ? 2 : 0,
+              }}
+              textInputProps={{
+                placeholderTextColor: "#94a3b8", // For the number side
+                maxLength: 10, // Optional: common for Nigerian numbers after +234
               }}
               textContainerStyle={{
                 backgroundColor: "transparent",
@@ -409,6 +487,38 @@ export default function ResidentSettings() {
                 )}
               </TouchableOpacity>
             )}
+          </View>
+          <View className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm mt-6">
+            <View className="flex-row items-center justify-between">
+              <View className="flex-row items-center flex-1">
+                <View className="bg-indigo-50 p-2 rounded-xl">
+                  {/* Using a Lock or Scan icon for biometrics */}
+                  <User size={20} color="#4f46e5" />
+                </View>
+                <View className="ml-4 flex-1">
+                  <Text className="font-bold text-slate-900 text-lg">
+                    Biometric Login
+                  </Text>
+                  <Text className="text-slate-500 text-xs">
+                    Use fingerprint or face ID to secure your account
+                  </Text>
+                </View>
+              </View>
+
+              <Switch
+                value={profile.biometric_login}
+                disabled={!isEditing}
+                onValueChange={(value) => toggleBiometrics(value)}
+                trackColor={{ false: "#cbd5e1", true: "#4f46e5" }}
+                thumbColor={
+                  Platform.OS === "ios"
+                    ? "#fff"
+                    : profile.biometric_login
+                      ? "#fff"
+                      : "#f4f3f4"
+                }
+              />
+            </View>
           </View>
         </View>
 

@@ -27,6 +27,8 @@ export interface User {
   password?: string;
   isTemp: boolean;
   created_at: string | null;
+  biometric_login: boolean;
+  password_changed: boolean;
 
   // Fields for Temp Tenants
   rejection_message?: {
