@@ -360,7 +360,7 @@ export default function LoginScreen() {
 
                   <Button
                     title={loading ? "Logging in..." : "Login"}
-                    onPress={() => handleLogin}
+                    onPress={() => handleLogin()}
                     disabled={loading}
                   />
 
@@ -522,6 +522,7 @@ export default function LoginScreen() {
               <View className="items-center mt-8">
                 <TouchableOpacity
                   onPress={handleBiometricLogin}
+                  disabled={loading}
                   className="bg-black/70 p-4 rounded-full border border-white/40"
                 >
                   {Platform.OS === "ios" ? (

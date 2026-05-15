@@ -29,7 +29,7 @@ import { invitationApi } from "../services/api";
 import { Invitation } from "../services/interfaces";
 import { useUser } from "../UserContext";
 import { EditInvitationModal } from "./EditInvitationModal";
-import { InvitationCard } from "./InvitationCard";
+import { TrackInvitationCard } from "./TrackInvitationCard";
 
 const TrackGuestView = ({ onInvitePress }: { onInvitePress: () => void }) => {
   const [invitations, setInvitations] = useState<Invitation[]>([]);
@@ -637,7 +637,7 @@ const TrackGuestView = ({ onInvitePress }: { onInvitePress: () => void }) => {
           </ScrollView>
         </>
       )}
-      <InvitationCard
+      <TrackInvitationCard
         viewShotRef={viewShotRef}
         guestName={selectedInvitation?.guest_name || ""}
         guestImage={selectedInvitation?.guest_image_url || null}

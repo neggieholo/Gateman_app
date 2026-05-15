@@ -1,14 +1,32 @@
 import { ActionSheetProvider } from "@expo/react-native-action-sheet";
-import { Stack } from "expo-router";
+import { SplashScreen, Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useColorScheme } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { UserProvider } from "./UserContext";
+import { useEffect } from "react";
+import { useFonts } from "expo-font";
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const [loaded, error] = useFonts({
+    "Montserrat-Bold": require("../assets/fonts/Montserrat-Bold.ttf"),
+    "Montserrat-ExtraBold": require("../assets/fonts/Montserrat-ExtraBold.ttf"),
+    "Oswald-SemiBold": require("../assets/fonts/Oswald-SemiBold.ttf"),
+    "Roboto-Regular": require("../assets/fonts/Roboto-Regular.ttf"),
+  });
+
+  useEffect(() => {
+    if (loaded || error) {
+      SplashScreen.hideAsync();
+    }
+  }, [loaded, error]);
+
+  if (!loaded && !error) {
+    return null;
+  }
 
   return (
     <SafeAreaProvider>

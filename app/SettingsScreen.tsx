@@ -488,7 +488,7 @@ export default function ResidentSettings() {
               </TouchableOpacity>
             )}
           </View>
-          <View className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm mt-6">
+          {user?.estate_id && <View className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm mt-6">
             <View className="flex-row items-center justify-between">
               <View className="flex-row items-center flex-1">
                 <View className="bg-indigo-50 p-2 rounded-xl">
@@ -519,7 +519,7 @@ export default function ResidentSettings() {
                 }
               />
             </View>
-          </View>
+          </View>}
         </View>
 
         {/* Change Password & Save Button */}

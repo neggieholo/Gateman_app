@@ -1,8 +1,7 @@
 import React from "react";
-import { View, Text, Image } from "react-native";
-import ViewShot from "react-native-view-shot";
+import { Image, Text, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
-import { ShieldCheck } from "lucide-react-native";
+import ViewShot from "react-native-view-shot";
 
 interface CardProps {
   viewShotRef: any;
@@ -10,13 +9,12 @@ interface CardProps {
   guestImage: string | null;
   inviterName: string;
   accessCode: string;
-  inviteType: string;  
+  inviteType: string;
   startDate?: string;
   endDate?: string;
   startTime: string;
   endTime: string;
 }
-
 
 export const InvitationCard = ({
   viewShotRef,
@@ -28,14 +26,23 @@ export const InvitationCard = ({
     /* We keep it off-screen for the capture */
     <View style={{ position: "absolute", left: -1000, top: -1000 }}>
       <ViewShot ref={viewShotRef} options={{ format: "png", quality: 1 }}>
-        <View 
-          className="bg-white p-8 rounded-[50px] border-[6px] border-[#D4AF37]" 
+        <View
+          className="bg-white p-8 rounded-[50px] border-[6px] border-[#D4AF37]"
           style={{ width: 400, minHeight: 600 }}
         >
           {/* 1. TOP SHIELD SECTION */}
-          <View className="items-center -mt-14 mb-8">
-            <View className="bg-[#0A1F44] p-4 rounded-3xl border-4 border-[#D4AF37] shadow-xl">
-              <ShieldCheck size={48} color="#D4AF37" strokeWidth={2.5} />
+          <View className="w-full flex-row justify-center items-center mt-16 mb-8">
+            <View className="bg-white/90 p-4 rounded-[30px] border-2 border-[#D4AF37] shadow-xl">
+              <Image
+                source={{
+                  uri: "../../assets/images/splash-icon",
+                }}
+                style={{
+                  width: 120,
+                  height: 120,
+                }}
+                resizeMode="contain"
+              />
             </View>
           </View>
 
@@ -43,9 +50,11 @@ export const InvitationCard = ({
           <View className="items-center mb-10">
             <Text className="text-[#1C1C1E] text-3xl font-black text-center leading-tight">
               You have been invited{"\n"}
-              <Text className="text-[#0A1F44]">by {inviterName || "Resident"}</Text>
+              <Text className="text-[#0A1F44]">
+                by {inviterName || "Resident"}
+              </Text>
             </Text>
-            
+
             <Text className="text-slate-500 font-bold text-center mt-6 px-4">
               Please show this QR code or OTP to the Gate Man for entry.
             </Text>
@@ -61,7 +70,9 @@ export const InvitationCard = ({
                 backgroundColor="white"
               />
             </View>
-            <Text className="text-slate-300 font-black mt-4 tracking-[10px]">—— OR ——</Text>
+            <Text className="text-slate-300 font-black mt-4 tracking-[10px]">
+              —— OR ——
+            </Text>
           </View>
 
           {/* 4. OTP / ACCESS CODE BADGE */}
