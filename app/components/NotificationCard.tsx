@@ -1,21 +1,36 @@
-import React from "react";
-import { View, Text } from "react-native";
-import { 
-  Bell, 
-  Info, 
-  ShieldAlert, 
-  CheckCircle, 
-  Megaphone, 
-  Clock 
+import {
+  Bell,
+  CheckCircle,
+  Clock,
+  Info,
+  MapPin,
+  Megaphone,
+  ShieldAlert,
 } from "lucide-react-native";
+import React from "react";
+import { Text, View } from "react-native";
 import { notification } from "../services/interfaces";
+import { useUser } from "../UserContext";
 
 interface Props {
   item: notification;
 }
 
 export default function NotificationCard({ item }: Props) {
-  
+  const { user } = useUser();
+
+  // 📍 Dynamically resolve the estate name by matching layout ids safely
+  const resolvedEstateName = React.useMemo(() => {
+    if (!user?.estates || !item.estate_id) return null;
+    
+    // Using string serialization conversion to handle structural type variants safely
+    const matchedEstate = user.estates.find(
+      (e) => e.id?.toString() === item.estate_id.toString()
+    );
+    
+    return matchedEstate ? matchedEstate.name : null;
+  }, [user?.estates, item.estate_id]);
+
   // Dynamic theme based on notification type
   const getTheme = () => {
     const type = item.type?.toLowerCase();
@@ -38,18 +53,18 @@ export default function NotificationCard({ item }: Props) {
   // Format date (e.g., "Today at 2:30 PM")
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
   return (
-    <View 
-      className="bg-white mx-4 my-2 p-5 rounded-3xl shadow-sm border-l-8" 
+    <View
+      className="bg-white mx-4 my-2 p-5 rounded-3xl shadow-sm border-l-8"
       style={{ borderLeftColor: theme.color }}
     >
       <View className="flex-row justify-between items-center mb-2">
         <View className="flex-row items-center">
-          <View 
-            className="p-2 rounded-full mr-3" 
+          <View
+            className="p-2 rounded-full mr-3"
             style={{ backgroundColor: `${theme.color}20` }}
           >
             <theme.icon size={20} color={theme.color} />
@@ -58,19 +73,35 @@ export default function NotificationCard({ item }: Props) {
             {theme.label}
           </Text>
         </View>
-        
+
         <View className="flex-row items-center">
           <Clock size={12} color="#94a3b8" style={{ marginRight: 4 }} />
-          <Text className="text-gray-400 text-[10px]">{formatDate(item.created_at)}</Text>
+          <Text className="text-gray-400 text-[10px]">
+            {formatDate(item.created_at)}
+          </Text>
         </View>
       </View>
+
+      {/* 📍 Condition: Only display the location badge context if layout resolves perfectly */}
+      {resolvedEstateName && (
+        <View className="flex-row items-center mt-1 mb-2 bg-slate-50 border border-slate-100 self-start px-2.5 py-1 rounded-md">
+          <MapPin size={11} color="#4f46e5" />
+          <Text className="text-indigo-900 font-black tracking-wide uppercase text-[9px] ml-1">
+            {resolvedEstateName}
+          </Text>
+        </View>
+      )}
 
       <Text className="text-lg font-bold text-gray-800 mb-1 leading-6">
         {item.title}
       </Text>
 
       <View className="mt-2 p-3 rounded-xl flex-row items-start bg-gray-50">
-        <Info size={16} color="#94a3b8" style={{ marginTop: 2, marginRight: 8 }} />
+        <Info
+          size={16}
+          color="#94a3b8"
+          style={{ marginTop: 2, marginRight: 8 }}
+        />
         <Text className="text-gray-600 text-sm flex-1 leading-5">
           {item.message}
         </Text>

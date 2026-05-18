@@ -19,6 +19,20 @@ export interface Apartment {
   walletBalance: number;
 }
 
+export interface EstateProfile {
+  id: string;
+  name: string;
+  address: string;
+  state: string;
+  lga: string;
+  town: string;
+}
+
+export interface LocationPair {
+  block: string;
+  unit: string[]; // Dynamic string array for multi-unit selection
+}
+
 export interface User {
   id: string;
   name: string;
@@ -29,18 +43,22 @@ export interface User {
   created_at: string | null;
   biometric_login: boolean;
   password_changed: boolean;
+  role: "TENANT" | "SECURITY" | "ADMIN" | "SUPER_ADMIN";
 
-  // Fields for Temp Tenants
   rejection_message?: {
     type: "decline" | "block";
     estate: string;
     message: string;
   } | null;
 
-  // Fields for Permanent Tenants
-  estate_id?: string;
-  unit?: string;
-  block?: string;
+  estate_ids: string[]; 
+
+  locations: {
+    [estateId: string]: LocationPair[];
+  };
+
+  estates: EstateProfile[]; 
+
   wallet_balance?: string | number;
   avatar?: string | null;
   id_type?: string;
@@ -48,7 +66,6 @@ export interface User {
   id_back_url?: string;
   utility_bill_url?: string;
   showWelcome?: boolean;
-  estate_name?: string;
   chatToken?: string;
   push_token?: string;
   last_notification_read_at: string;
@@ -193,6 +210,7 @@ export interface SubmitReportPayload {
   subject: string;
   payment_id?: string;
   description: string;
+  estate_id: string;
 }
 
 export interface Guard {
@@ -232,17 +250,16 @@ export interface UtilityPaymentInfo {
 export interface PaymentLog {
   id: string;
   amount: number;
-  category: string;             // Payment For (Electricity, etc.)
+  category: string; // Payment For (Electricity, etc.)
   transaction_reference: string; // The Bank's Session ID / Ref
-  receipt_url: string; 
-  payment_date: string;   
-  payment_type: string;       
-  notes?: string;                
-  status: 'pending' | 'verified' | 'rejected';
+  receipt_url: string;
+  payment_date: string;
+  payment_type: string;
+  notes?: string;
+  status: "pending" | "verified" | "rejected";
   created_at: string;
-  resident_name: string;        
+  resident_name: string;
 }
-
 
 export interface EmergencyContact {
   id: number;
@@ -259,24 +276,24 @@ export interface EstateEvent {
   organizer_id: string | null;
   title: string;
   description: string | null;
-  
+
   // Date and Time (Postgres formats)
   start_date: string; // ISO Date string (YYYY-MM-DD)
   end_date: string;
   start_time: string; // HH:mm:ss
   end_time: string;
-  
+
   venue_detail: string | null;
   registered_guests: number;
   expected_guests: number;
   banner_url: string | null;
-  
+
   // Financial & Security
   is_paid: boolean;
   ticket_price: string; // Decimal comes as string from Postgres
   subaccount_id: string | null;
   ref_code: string;
-  
+
   is_approved: boolean;
   is_rejected: boolean;
 
@@ -292,7 +309,7 @@ export interface EventRegistration {
   guest_name: string;
   guest_email: string | null;
   guest_code: string; // The "GUEST-XXXX" code for the gate guard
-  status: 'registered' | 'checked_in';
+  status: "registered" | "checked_in";
   checked_in_at: string | null;
   created_at: string;
 }
@@ -313,9 +330,9 @@ export interface CreateEventRequest {
   registered_guests?: number;
   is_paid: boolean;
   ticket_price?: number;
-  bank_code:string;
-  bank_name?: string;     // Temporary fields used for subaccount creation
-  account_number?: string; 
+  bank_code: string;
+  bank_name?: string; // Temporary fields used for subaccount creation
+  account_number?: string;
 }
 
 /**
@@ -332,6 +349,45 @@ export interface RSVPRequest {
  */
 export interface RSVPResponse {
   message: string;
-  guest_code?: string;      // Returned immediately if FREE
-  paymentLink?: string;     // Returned if PAID (Paystack checkout)
+  guest_code?: string; // Returned immediately if FREE
+  paymentLink?: string; // Returned if PAID (Paystack checkout)
+}
+
+export interface ResidentDashboardResponse {
+  success: boolean;
+  stats: {
+    invitations: {
+      total_expected: number;
+      checked_in: number;
+      checked_out: number;
+      overstayed: number;
+    };
+    events: {
+      title: string;
+      start_date: string; // YYYY-MM-DD
+    }[];
+    feed: {
+      unread_posts: number;
+      likes_on_my_posts: number;
+      comments_on_my_posts: number;
+    };
+  };
+}
+
+export interface DashboardStats {
+  invitations: {
+    total_expected: number;
+    checked_in: number;
+    checked_out: number;
+    overstayed: number;
+  };
+  events: {
+    title: string;
+    start_date: string;
+  }[];
+  feed: {
+    unread_posts: number;
+    likes_on_my_posts: number;
+    comments_on_my_posts: number;
+  };
 }

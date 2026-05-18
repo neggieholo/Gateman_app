@@ -1,7 +1,7 @@
 import AllEventsScreen from "@/app/AllEvents";
 import { createEvent, getCloudinaryUrl } from "@/app/services/api";
 import { useUser } from "@/app/UserContext";
-import DateTimePicker from "@react-native-community/datetimepicker"; // Ensure this is installed
+import DateTimePicker from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 
@@ -15,9 +15,11 @@ import {
   Clock,
   FileText,
   History,
+  MapPin,
+  ShieldCheck,
   Users,
 } from "lucide-react-native";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -34,7 +36,7 @@ import {
 } from "react-native";
 
 export default function CreateEventScreen() {
-  const { user } = useUser();
+  const { user, isDarkMode, theme } = useUser();
   const [activeTab, setActiveTab] = useState<"CREATE EVENT" | "ALL EVENTS">(
     "CREATE EVENT",
   );
@@ -44,13 +46,19 @@ export default function CreateEventScreen() {
   >(null);
   const [banks, setBanks] = useState<{ name: string; code: string }[]>([]);
   const [showBankModal, setShowBankModal] = useState(false);
+  const [showEstateModal, setShowEstateModal] = useState(false);
   const [isResolving, setIsResolving] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [accountName, setAccountName] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [estateSearchQuery, setEstateSearchQuery] = useState("");
+
+
+  const hasNoEstates = !user?.estate_ids || user.estate_ids.length === 0;
   const BASE_URL = `${process.env.EXPO_PUBLIC_BASE_URL}/api`;
 
   const [form, setForm] = useState({
+    estate_id: "",
     title: "",
     banner_url: "",
     description: "",
@@ -67,6 +75,25 @@ export default function CreateEventScreen() {
     account_number: "",
   });
 
+  // Automatically pre-select or default estate configs on initialization
+  useEffect(() => {
+    if (user?.estate_ids && user.estate_ids.length > 0) {
+      setForm((prev) => ({
+        ...prev,
+        estate_id: user.estate_ids![0].toString(),
+      }));
+    }
+  }, [user]);
+
+  // Resolve active targeted text matching local payload form variable state context
+  const selectedEstateName = useMemo(() => {
+    if (!user?.estates || !form.estate_id) return "Select Target Estate";
+    const found = user.estates.find(
+      (e) => e.id.toString() === form.estate_id.toString(),
+    );
+    return found ? found.name : "Select Target Estate";
+  }, [form.estate_id, user?.estates]);
+
   useEffect(() => {
     const fetchBanks = async () => {
       try {
@@ -81,22 +108,18 @@ export default function CreateEventScreen() {
         console.error("Failed to fetch banks");
       }
     };
-    fetchBanks();
+    if (form.is_paid) fetchBanks();
   }, [form.is_paid]);
 
   useEffect(() => {
     const resolve = async () => {
-      console.log("Fetching acct details");
       if (form.account_number.length === 10 && form.bank_code) {
-        console.log("Fetching acct details with complete creds");
         setIsResolving(true);
         try {
-          // Pointing to your existing backend KYC bridge
           const res = await fetch(
             `${BASE_URL}/kyc/resolve-bank?accountNumber=${form.account_number}&bankCode=${form.bank_code}`,
           );
           const data = await res.json();
-          console.log("Fetched Acct Details:", data);
           setAccountName(
             data.status ? data.data.account_name : "Invalid Account",
           );
@@ -110,23 +133,20 @@ export default function CreateEventScreen() {
       }
     };
     resolve();
-  }, [form.account_number, form.bank_code]);
+  }, [form.account_number, form.bank_code, BASE_URL]);
 
   const handleDateChange = (event: any, selectedDate?: Date) => {
     if (event.type === "dismissed" || !selectedDate) {
       setShowPicker(null);
       return;
     }
-
     const field = showPicker;
-    setShowPicker(null); // Close immediately for Android flow
+    setShowPicker(null);
 
     if (field === "start_date" || field === "end_date") {
-      // Format: YYYY-MM-DD
       const dateString = selectedDate.toISOString().split("T")[0];
       setForm((prev) => ({ ...prev, [field]: dateString }));
     } else if (field === "start_time" || field === "end_time") {
-      // Format: HH:mm:ss
       const timeString = selectedDate.toTimeString().split(" ")[0];
       setForm((prev) => ({ ...prev, [field]: timeString }));
     }
@@ -154,14 +174,20 @@ export default function CreateEventScreen() {
   };
 
   const handleSubmit = async () => {
+    if (!form.estate_id)
+      return Alert.alert(
+        "Missing Target",
+        "Please link an estate to this post.",
+      );
+    if (!form.title) return Alert.alert("Missing Info", "Set event title.");
+    if (!form.start_date || !form.start_time)
+      return Alert.alert("Missing Info", "Set event date/time.");
+    if (form.is_paid && (!accountName || accountName === "Invalid Account")) {
+      return Alert.alert("KYC Error", "Please verify bank details first.");
+    }
+
     setIsSaving(true);
     try {
-      if (!form.start_date || !form.start_time)
-        return Alert.alert("Missing Info", "Set event date/time.");
-      if (form.is_paid && (!accountName || accountName === "Invalid Account")) {
-        return Alert.alert("KYC Error", "Please verify bank details first.");
-      }
-
       const payload = {
         ...form,
         expected_guests: parseInt(form.expected_guests || "0", 10),
@@ -179,7 +205,6 @@ export default function CreateEventScreen() {
     }
   };
 
-  // Helper to get current display value for the picker
   const getDisplayValue = (field: string, placeholder: string) => {
     return form[field as keyof typeof form] || placeholder;
   };
@@ -187,7 +212,8 @@ export default function CreateEventScreen() {
   const resetEvent = () => {
     setIsResolving(false);
     setAccountName("");
-    setForm((prev) => ({
+    setForm({
+      estate_id: user?.estate_ids?.[0]?.toString() || "",
       title: "",
       banner_url: "",
       description: "",
@@ -202,23 +228,35 @@ export default function CreateEventScreen() {
       bank_code: "",
       bank_name: "",
       account_number: "",
-    }));
+    });
   };
 
-  if (!user?.estate_id) {
+  if (hasNoEstates) {
     return (
-      <View className="flex-1 justify-center items-center p-6 bg-slate-50">
-        <Text className="text-slate-400 mb-4 text-center">
-          You haven&apos;t joined an estate yet.
-        </Text>
-        <TouchableOpacity
-          className="bg-indigo-600 py-4 px-8 rounded-2xl"
-          onPress={() => router.push("/JoinRequest")}
+      <View
+        className={`${isDarkMode ? "bg-gm-navy/20" : "bg-gray-50"} flex-1 justify-center items-center p-6`}
+      >
+        <View
+          className={`${isDarkMode ? "bg-gm-navy" : "bg-white"} p-8 rounded-3xl shadow-sm items-center border ${isDarkMode ? "border-slate-800" : "border-gray-100"}`}
         >
-          <Text className="text-white font-black text-center">
-            Join an Estate
+          <ShieldCheck size={60} color="#4f46e5" />
+          <Text
+            className={`text-xl font-bold ${isDarkMode ? "text-white" : "text-gm-navy"} mt-4 text-center`}
+          >
+            Security Access Restricted
           </Text>
-        </TouchableOpacity>
+          <Text
+            className={`text-sm ${isDarkMode ? "text-slate-400" : "text-gray-500"} mt-2 text-center px-4 max-w-[280px]`}
+          >
+            You are currently not attached to any active estates on GateMan.
+          </Text>
+          <TouchableOpacity
+            className={`${isDarkMode ? "bg-gm-charcoal" : "bg-gm-navy"} py-4 px-10 rounded-2xl shadow-md mt-6`}
+            onPress={() => router.push("/JoinRequest" as any)}
+          >
+            <Text className="text-white font-bold text-lg">Join an Estate</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
@@ -277,6 +315,25 @@ export default function CreateEventScreen() {
               </Text>
             </View>
           </View>
+
+          {/* 📍 Target Property Assignment Selector Layer (Hides if count === 1) */}
+          {user?.estate_ids && user.estate_ids.length > 1 && (
+            <View className="mb-6">
+              <SectionHeader title="Target Hosting Property" />
+              <TouchableOpacity
+                onPress={() => setShowEstateModal(true)}
+                className="bg-slate-50 p-5 rounded-2xl border border-slate-100 flex-row justify-between items-center"
+              >
+                <View className="flex-row items-center">
+                  <MapPin size={18} color="#4f46e5" />
+                  <Text className="ml-3 font-bold text-slate-800">
+                    {selectedEstateName}
+                  </Text>
+                </View>
+                <ChevronDown size={18} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* Banner Upload */}
           <TouchableOpacity
@@ -384,108 +441,101 @@ export default function CreateEventScreen() {
 
           {/* Payment Section */}
           <View className="bg-indigo-50/50 p-6 rounded-[2.5rem] border border-indigo-100 mb-10">
-            <View className="bg-indigo-50/50 p-6 rounded-[2.5rem] border border-indigo-100 mb-10">
-              <View className="flex-row justify-between items-center mb-4">
-                <View className="flex-row items-center">
-                  <Banknote size={20} color="#4f46e5" />
-                  <Text className="ml-2 font-black text-indigo-900 text-xs uppercase tracking-widest">
-                    Paid Event
-                  </Text>
-                </View>
-                <Switch
-                  value={form.is_paid}
-                  onValueChange={(val) => setForm({ ...form, is_paid: val })}
-                  trackColor={{ false: "#d1d5db", true: "#4f46e5" }}
-                />
+            <View className="flex-row justify-between items-center mb-4">
+              <View className="flex-row items-center">
+                <Banknote size={20} color="#4f46e5" />
+                <Text className="ml-2 font-black text-indigo-900 text-xs uppercase tracking-widest">
+                  Paid Event
+                </Text>
               </View>
-
-              {form.is_paid && (
-                <View>
-                  <TextInput
-                    placeholderTextColor="#cbd5e1"
-                    placeholder="Ticket Price (₦)"
-                    keyboardType="numeric"
-                    className="bg-white p-4 rounded-xl font-black text-indigo-900 border border-indigo-100 mb-3"
-                    onChangeText={(t) => setForm({ ...form, ticket_price: t })}
-                  />
-
-                  {/* Custom Mobile Bank Picker */}
-                  <TouchableOpacity
-                    onPress={() => setShowBankModal(true)}
-                    className="bg-white p-4 rounded-xl border border-indigo-100 mb-3 flex-row justify-between items-center"
-                  >
-                    <Text
-                      className={`font-bold ${form.bank_name ? "text-slate-900" : "text-slate-400"}`}
-                    >
-                      {form.bank_name || "Select Bank"}
-                    </Text>
-                    <ChevronDown size={20} color="#4f46e5" />
-                  </TouchableOpacity>
-
-                  <TextInput
-                    placeholder="Account Number"
-                    placeholderTextColor="#cbd5e1"
-                    keyboardType="numeric"
-                    maxLength={10}
-                    className="bg-white p-4 rounded-xl font-bold border text-indigo-900 border-indigo-100 mb-2"
-                    onChangeText={(t) =>
-                      setForm({ ...form, account_number: t })
-                    }
-                  />
-
-                  {/* Account Name Resolution Feedback */}
-                  {(isResolving || accountName) && (
-                    <View
-                      className={`flex-row items-center p-3 rounded-xl ${accountName === "Invalid Account" ? "bg-red-50" : "bg-emerald-50"}`}
-                    >
-                      {isResolving ? (
-                        <ActivityIndicator size="small" color="#10b981" />
-                      ) : (
-                        <CheckCircle2
-                          size={16}
-                          color={
-                            accountName === "Invalid Account"
-                              ? "#ef4444"
-                              : "#10b981"
-                          }
-                        />
-                      )}
-                      <Text
-                        className={`ml-2 text-[10px] font-black uppercase tracking-widest ${accountName === "Invalid Account" ? "text-red-600" : "text-emerald-700"}`}
-                      >
-                        {isResolving ? "Verifying..." : accountName}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              )}
+              <Switch
+                value={form.is_paid}
+                onValueChange={(val) => setForm({ ...form, is_paid: val })}
+                trackColor={{ false: "#d1d5db", true: "#4f46e5" }}
+              />
             </View>
+
+            {form.is_paid && (
+              <View>
+                <TextInput
+                  placeholderTextColor="#cbd5e1"
+                  placeholder="Ticket Price (₦)"
+                  keyboardType="numeric"
+                  className="bg-white p-4 rounded-xl font-black text-indigo-900 border border-indigo-100 mb-3"
+                  onChangeText={(t) => setForm({ ...form, ticket_price: t })}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowBankModal(true)}
+                  className="bg-white p-4 rounded-xl border border-indigo-100 mb-3 flex-row justify-between items-center"
+                >
+                  <Text
+                    className={`font-bold ${form.bank_name ? "text-slate-900" : "text-slate-400"}`}
+                  >
+                    {form.bank_name || "Select Bank"}
+                  </Text>
+                  <ChevronDown size={20} color="#4f46e5" />
+                </TouchableOpacity>
+
+                <TextInput
+                  placeholder="Account Number"
+                  placeholderTextColor="#cbd5e1"
+                  keyboardType="numeric"
+                  maxLength={10}
+                  className="bg-white p-4 rounded-xl font-bold border text-indigo-900 border-indigo-100 mb-2"
+                  onChangeText={(t) => setForm({ ...form, account_number: t })}
+                />
+
+                {(isResolving || accountName) && (
+                  <View
+                    className={`flex-row items-center p-3 rounded-xl ${accountName === "Invalid Account" ? "bg-red-50" : "bg-emerald-50"}`}
+                  >
+                    {isResolving ? (
+                      <ActivityIndicator size="small" color="#10b981" />
+                    ) : (
+                      <CheckCircle2
+                        size={16}
+                        color={
+                          accountName === "Invalid Account"
+                            ? "#ef4444"
+                            : "#10b981"
+                        }
+                      />
+                    )}
+                    <Text
+                      className={`ml-2 text-[10px] font-black uppercase tracking-widest ${accountName === "Invalid Account" ? "text-red-600" : "text-emerald-700"}`}
+                    >
+                      {isResolving ? "Verifying..." : accountName}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
           </View>
 
-          <View className="flex-row gap-2 items-center px-3 justify-between">
+          <View className="flex-row gap-2 items-center px-3 justify-between mb-12">
             <TouchableOpacity
               onPress={handleSubmit}
-              className="bg-indigo-600 p-3 rounded-3xl items-center mb-12 shadow-2xl shadow-indigo-300"
+              className="flex-1 bg-indigo-600 p-4 rounded-2xl items-center shadow-md"
             >
               {isSaving ? (
-                <ActivityIndicator size="small" color="#10b981" />
+                <ActivityIndicator size="small" color="#fff" />
               ) : (
                 <Text className="text-white font-black uppercase">Submit</Text>
               )}
             </TouchableOpacity>
             <TouchableOpacity
               onPress={resetEvent}
-              className="bg-red-100 p-3 rounded-3xl items-center mb-12 shadow-2xl"
+              className="bg-red-50 p-4 rounded-2xl items-center border border-red-100"
             >
-              <Text className="text-red-500 font-black uppercase">Reset</Text>
+              <Text className="text-red-500 font-bold uppercase">Reset</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
       ) : (
+        /* 📍 Pass down the state hook parameters to feed dynamic updates straight into screen layer */
         <AllEventsScreen />
       )}
 
-      {/* Actual Picker Component */}
       {showPicker && (
         <DateTimePicker
           value={new Date()}
@@ -496,10 +546,59 @@ export default function CreateEventScreen() {
         />
       )}
 
+      {/* 📍 Modal Picker View for multi-estate selection */}
+      <Modal visible={showEstateModal} animationType="slide" transparent={true}>
+        <View className="flex-1 bg-black/50 justify-end">
+          <View className="bg-white h-[60%] rounded-t-[3rem] p-6">
+            <View className="flex-row justify-between items-center mb-4 px-2">
+              <Text className="font-black text-xl text-slate-900">
+                Assign Estate Destination
+              </Text>
+              <TouchableOpacity onPress={() => setShowEstateModal(false)}>
+                <Text className="text-indigo-600 font-bold">Close</Text>
+              </TouchableOpacity>
+            </View>
+            <View className="bg-slate-100 flex-row items-center px-4 py-3 rounded-2xl mb-4 border border-slate-200">
+              <TextInput
+                placeholder="Search connected properties..."
+                className="flex-1 font-bold text-slate-700"
+                placeholderTextColor="#94a3b8"
+                onChangeText={(text) => setEstateSearchQuery(text)}
+              />
+            </View>
+            <FlatList
+              data={(user?.estates || []).filter((e) =>
+                e.name.toLowerCase().includes(estateSearchQuery.toLowerCase()),
+              )}
+              keyExtractor={(item) => item.id.toString()}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  className="p-5 border-b border-slate-50 flex-row items-center justify-between"
+                  onPress={() => {
+                    setForm({ ...form, estate_id: item.id.toString() });
+                    setEstateSearchQuery("");
+                    setShowEstateModal(false);
+                  }}
+                >
+                  <Text
+                    className={`font-bold text-base ${form.estate_id === item.id.toString() ? "text-indigo-600" : "text-slate-700"}`}
+                  >
+                    {item.name}
+                  </Text>
+                  {form.estate_id === item.id.toString() && (
+                    <View className="w-2 h-2 rounded-full bg-indigo-600" />
+                  )}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* Bank Modal */}
       <Modal visible={showBankModal} animationType="slide" transparent={true}>
         <View className="flex-1 bg-black/50 justify-end">
           <View className="bg-white h-[80%] rounded-t-[3rem] p-6">
-            {/* Header */}
             <View className="flex-row justify-between items-center mb-4 px-2">
               <Text className="font-black text-xl text-slate-900">
                 Select Bank
@@ -508,33 +607,20 @@ export default function CreateEventScreen() {
                 <Text className="text-indigo-600 font-bold">Close</Text>
               </TouchableOpacity>
             </View>
-
-            {/* Search Input */}
             <View className="bg-slate-100 flex-row items-center px-4 py-3 rounded-2xl mb-4 border border-slate-200">
               <TextInput
                 placeholder="Search bank name..."
                 className="flex-1 font-bold text-slate-700"
                 placeholderTextColor="#94a3b8"
-                autoFocus={false}
-                onChangeText={(text) => {
-                  // Local state to handle filtering
-                  setSearchQuery(text);
-                }}
+                onChangeText={(text) => setSearchQuery(text)}
               />
             </View>
-
             <FlatList
-              // Filter the banks array based on the searchQuery state
               data={banks.filter((b) =>
                 b.name.toLowerCase().includes(searchQuery.toLowerCase()),
               )}
               keyExtractor={(item, index) => `${item.code}-${index}`}
               showsVerticalScrollIndicator={false}
-              ListEmptyComponent={
-                <Text className="text-center text-slate-400 mt-10 font-medium">
-                  No banks found matching &quot;{searchQuery}&quot;
-                </Text>
-              }
               renderItem={({ item }) => (
                 <TouchableOpacity
                   className="p-5 border-b border-slate-50 flex-row items-center justify-between"
@@ -544,7 +630,7 @@ export default function CreateEventScreen() {
                       bank_name: item.name,
                       bank_code: item.code,
                     });
-                    setSearchQuery(""); // Clear search for next time
+                    setSearchQuery("");
                     setShowBankModal(false);
                   }}
                 >

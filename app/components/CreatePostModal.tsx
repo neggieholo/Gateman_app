@@ -92,7 +92,7 @@ export default function CreatePostModal({
       >
         <View className="bg-white rounded-t-3xl p-6 h-3/4">
           <View className="flex-row justify-between items-center mb-6">
-            <Text className="text-xl font-bold">{`New ${category} Post`}</Text>
+            <Text className="text-xl font-bold">{`New Post`}</Text>
             <TouchableOpacity onPress={onClose} disabled={isUploading}>
               <Text className="text-gray-500 font-bold">Cancel</Text>
             </TouchableOpacity>

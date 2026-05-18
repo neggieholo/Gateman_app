@@ -11,9 +11,7 @@ export default function AuthLayout() {
         key={`status-bar-${colorScheme}`}
         style={
           Platform.OS === "android"
-            ? colorScheme === "dark"
-              ? "light"
-              : "dark"
+            ? "light"
             : "dark"
         }
         backgroundColor={

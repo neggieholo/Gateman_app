@@ -1,37 +1,42 @@
 import * as Sharing from "expo-sharing";
 import {
-    Calendar,
-    ChevronLeft,
-    Clock,
-    MapPin,
-    Search,
-    Share2,
-    Ticket,
-    Trash2,
+  Calendar,
+  ChevronLeft,
+  Clock,
+  MapPin,
+  Search,
+  Share2,
+  Ticket,
+  Trash2,
+  SlidersHorizontal, // For a clean filter icon
 } from "lucide-react-native";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Image,
-    Modal,
-    ScrollView,
-    Share,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  Modal,
+  ScrollView,
+  Share,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { captureRef } from "react-native-view-shot";
+import { useUser } from "@/app/UserContext"; // Import context directly
 import { deleteEvent, getOrganizerEvents } from "./services/api";
 import { EstateEvent } from "./services/interfaces";
 
 export default function AllEventsScreen() {
+  const { user } = useUser(); // Access connected estates locally
   const [events, setEvents] = useState<EstateEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSharing, setIsSharing] = useState(false);
   const [search, setSearch] = useState("");
+  const [selectedEstateId, setSelectedEstateId] = useState<string | null>(null); // null = "All Estates"
+  const [showEstateFilterModal, setShowEstateFilterModal] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<EstateEvent | null>(null);
   const flyerRef = useRef<View>(null);
 
@@ -50,12 +55,29 @@ export default function AllEventsScreen() {
     fetchEvents();
   }, []);
 
+  // Dynamically resolve name for active filter UI label
+  const activeEstateFilterName = useMemo(() => {
+    if (!selectedEstateId) return "All Estates";
+    const found = user?.estates?.find((e) => e.id.toString() === selectedEstateId.toString());
+    return found ? found.name : "All Estates";
+  }, [selectedEstateId, user?.estates]);
+
+  // Combined client-side filtering logic: filter by Search Text AND selected Estate ID
+  const filteredEvents = useMemo(() => {
+    return events.filter((e) => {
+      const matchesSearch = e.title.toLowerCase().includes(search.toLowerCase());
+      const matchesEstate = selectedEstateId 
+        ? e.estate_id?.toString() === selectedEstateId.toString()
+        : true;
+      return matchesSearch && matchesEstate;
+    });
+  }, [events, search, selectedEstateId]);
+
   const formatEventDate = () => {
     if (selectedEvent) {
       const start = selectedEvent.start_date.split("T")[0];
       const end = selectedEvent.end_date?.split("T")[0];
 
-      // If there's an end date and it's different from the start date
       if (end && end !== start) {
         return `${start}\nto\n${end}`;
       }
@@ -102,7 +124,6 @@ export default function AllEventsScreen() {
           UTI: "public.png",
         });
       } else {
-        // Fallback for devices without advanced sharing
         await Share.share({ title: selectedEvent?.title, url: imageUri });
       }
     } catch (err) {
@@ -113,29 +134,56 @@ export default function AllEventsScreen() {
     }
   };
 
-  const filteredEvents = events.filter((e) =>
-    e.title.toLowerCase().includes(search.toLowerCase()),
-  );
-
   if (loading) return <ActivityIndicator className="flex-1" color="#6366f1" />;
 
   return (
     <View className="flex-1 bg-white p-6">
-      {/* Search Bar */}
-      <View className="flex-row items-center bg-slate-100 rounded-2xl px-4 py-2 mb-6 border border-slate-200">
-        <Search size={20} color="#94a3b8" />
-        <TextInput
-          placeholder="Search your events..."
-          placeholderTextColor="#cbd5e1"
-          className="flex-1 ml-3 font-bold text-slate-700"
-          value={search}
-          onChangeText={setSearch}
-        />
+      
+      {/* Search & Filter Bar Group */}
+      <View className="flex-row items-center gap-2 mb-4">
+        <View className="flex-1 flex-row items-center bg-slate-100 rounded-2xl px-4 py-2 border border-slate-200">
+          <Search size={20} color="#94a3b8" />
+          <TextInput
+            placeholder="Search your events..."
+            placeholderTextColor="#cbd5e1"
+            className="flex-1 ml-3 font-bold text-slate-700"
+            value={search}
+            onChangeText={setSearch}
+          />
+        </View>
+        
+        {/* Only show the filter trigger button if user has multiple estates */}
+        {user?.estate_ids && user.estate_ids.length > 1 && (
+          <TouchableOpacity 
+            onPress={() => setShowEstateFilterModal(true)}
+            className={`p-3.5 rounded-2xl border ${selectedEstateId ? 'bg-indigo-50 border-indigo-200' : 'bg-slate-100 border-slate-200'}`}
+          >
+            <SlidersHorizontal size={18} color={selectedEstateId ? '#4f46e5' : '#64748b'} />
+          </TouchableOpacity>
+        )}
       </View>
+
+      {/* Mini Active Filter Indicator Pill */}
+      {selectedEstateId && (
+        <View className="flex-row items-center self-start bg-indigo-50/60 border border-indigo-100 px-3 py-1.5 rounded-full mb-4">
+          <MapPin size={12} color="#4f46e5" />
+          <Text className="text-[11px] font-black text-indigo-950 ml-1 mr-2 uppercase tracking-wide">
+            {activeEstateFilterName}
+          </Text>
+          <TouchableOpacity onPress={() => setSelectedEstateId(null)}>
+            <Text className="text-indigo-400 font-bold text-xs px-1">✕</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <FlatList
         data={filteredEvents}
         keyExtractor={(item) => item.id.toString()}
+        ListEmptyComponent={
+          <View className="items-center mt-12">
+            <Text className="text-slate-400 font-bold text-sm">No events found matching criteria</Text>
+          </View>
+        }
         renderItem={({ item }) => (
           <TouchableOpacity
             onPress={() => setSelectedEvent(item)}
@@ -168,6 +216,54 @@ export default function AllEventsScreen() {
         )}
       />
 
+      {/* Dedicated Estate Scope Filter Selector Modal */}
+      <Modal visible={showEstateFilterModal} animationType="slide" transparent>
+        <View className="flex-1 bg-black/50 justify-end">
+          <View className="bg-white h-[50%] rounded-t-[3rem] p-6">
+            <View className="flex-row justify-between items-center mb-6 px-2">
+              <Text className="font-black text-xl text-slate-900">Filter by Property Scope</Text>
+              <TouchableOpacity onPress={() => setShowEstateFilterModal(false)}>
+                <Text className="text-indigo-600 font-bold">Close</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* Option 1: View Everything across all estates */}
+              <TouchableOpacity
+                className="p-5 border-b border-slate-50 flex-row items-center justify-between"
+                onPress={() => {
+                  setSelectedEstateId(null);
+                  setShowEstateFilterModal(false);
+                }}
+              >
+                <Text className={`font-bold text-base ${selectedEstateId === null ? "text-indigo-600" : "text-slate-700"}`}>
+                  All Estates (Unified Feed)
+                </Text>
+                {selectedEstateId === null && <View className="w-2 h-2 rounded-full bg-indigo-600" />}
+              </TouchableOpacity>
+
+              {/* Connected Estates List mapped from state content context */}
+              {(user?.estates || []).map((estate) => (
+                <TouchableOpacity
+                  key={estate.id}
+                  className="p-5 border-b border-slate-50 flex-row items-center justify-between"
+                  onPress={() => {
+                    setSelectedEstateId(estate.id.toString());
+                    setShowEstateFilterModal(false);
+                  }}
+                >
+                  <Text className={`font-bold text-base ${selectedEstateId === estate.id.toString() ? "text-indigo-600" : "text-slate-700"}`}>
+                    {estate.name}
+                  </Text>
+                  {selectedEstateId === estate.id.toString() && <View className="w-2 h-2 rounded-full bg-indigo-600" />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Flyout Pass/Flyer Detailed Record View Modal */}
       <Modal visible={!!selectedEvent} animationType="slide" transparent>
         {selectedEvent && (
           <View className="flex-1 bg-black/90">
@@ -181,7 +277,6 @@ export default function AllEventsScreen() {
             </View>
 
             <ScrollView className="px-6" showsVerticalScrollIndicator={false}>
-              {/* EVERYTHING INSIDE THIS VIEW GETS TURNED INTO AN IMAGE */}
               <View
                 ref={flyerRef}
                 collapsable={false}
@@ -290,13 +385,11 @@ interface InfoBoxProps {
 function InfoBox({ icon, label, value }: InfoBoxProps) {
   return (
     <View className="w-1/2 flex-row items-start mb-4">
-      {/* Changed items-center to items-start so icon stays at top */}
       <View className="bg-indigo-50 p-3 rounded-2xl">{icon}</View>
       <View className="ml-3 flex-1">
         <Text className="text-slate-400 font-black text-[9px] uppercase tracking-tighter">
           {label}
         </Text>
-        {/* REMOVED numberOfLines={1} here */}
         <Text className="text-slate-800 font-bold text-xs leading-4">
           {value || "N/A"}
         </Text>

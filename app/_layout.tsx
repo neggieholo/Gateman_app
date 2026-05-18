@@ -1,13 +1,13 @@
 import { ActionSheetProvider } from "@expo/react-native-action-sheet";
+import { useFonts } from "expo-font";
 import { SplashScreen, Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useColorScheme } from "react-native";
+import { useEffect } from "react";
+import { Platform, useColorScheme } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { UserProvider } from "./UserContext";
-import { useEffect } from "react";
-import { useFonts } from "expo-font";
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -36,20 +36,16 @@ export default function RootLayout() {
             <UserProvider>
               <StatusBar
                 key={`global-status-${colorScheme}`}
-                style={colorScheme === "dark" ? "light" : "dark"}
-                backgroundColor="transparent"
+                style={Platform.OS === "android" ? "light" : "dark"}
                 translucent={true}
               />
               <Stack
                 screenOptions={{
                   headerStyle: {
-                    backgroundColor: "#2563eb",
+                    backgroundColor: "#0A1F44",
                   },
-                  headerTintColor: "#ffffff",
-                  headerTitleStyle: {
-                    color: "#ffffff",
-                    fontWeight: "bold",
-                  },
+                  headerTintColor: "#D4AF37",
+                  headerTitleStyle: { fontFamily: "Montserrat-ExtraBold" },
                   headerTitleAlign: "center",
                 }}
               >
@@ -178,6 +174,14 @@ export default function RootLayout() {
                   name="PurchasePage"
                   options={{
                     title: "Purchase",
+                    headerShown: true,
+                  }}
+                />
+
+                <Stack.Screen
+                  name="ChangePassword"
+                  options={{
+                    title: "Password Change",
                     headerShown: true,
                   }}
                 />

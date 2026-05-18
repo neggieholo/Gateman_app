@@ -28,7 +28,7 @@ import { EstateReport } from "./services/interfaces";
 
 type StatusType = "ALL" | "PENDING" | "REVIEWED" | "RESOLVED";
 
-export default function PaymentReportsHistory() {
+export default function PaymentReportsHistory({estate_id}:{estate_id:string}) {
   const [reports, setReports] = useState<EstateReport[]>([]);
   const [fetching, setFetching] = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusType>("ALL");
@@ -40,7 +40,7 @@ export default function PaymentReportsHistory() {
   const loadData = useCallback(async () => {
     setFetching(true);
     try {
-      const reportRes = await getMyReports();
+      const reportRes = await getMyReports(estate_id);
 
       if (reportRes.success) {
         setReports(

@@ -92,7 +92,8 @@
           },
           "android": {
             "enableProguardInReleaseBuilds": true,
-            "extraProguardRules": "-keep class **.zego.** { *; }"
+            "extraProguardRules": "-keep class **.zego.** { *; }",
+            "extraMavenRepos": ["https://maven.zego.im", "https://www.jitpack.io"]
           }
         }
       ],

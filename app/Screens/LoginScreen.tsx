@@ -3,11 +3,11 @@ import CookieManager from "@react-native-cookies/cookies";
 import * as LocalAuthentication from "expo-local-authentication";
 import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Image,
-  ImageBackground,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -18,7 +18,8 @@ import {
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 // import PhoneInput from "react-native-phone-number-input";
-import { Fingerprint, ScanFace } from "lucide-react-native";
+import { Check, Fingerprint, ScanFace } from "lucide-react-native";
+import PhoneInput from "react-native-phone-number-input";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "../components/Button";
 import { FormInput } from "../components/FormInput";
@@ -47,8 +48,17 @@ export default function LoginScreen() {
   const [otp, setOtp] = useState<string[]>(["", "", "", "", "", ""]);
   const [metadata, setMetadata] = useState("");
   const [showOtpInput, setShowOtpInput] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [verifyingOtp, setverifyingOtp] = useState(false);
   const [showBiometricBtn, setShowBiometricBtn] = useState(false);
-  // const phoneInputRef = useRef<PhoneInput>(null);
+  const phoneInputRef = useRef<PhoneInput>(null);
+  const [verifyingField, setVerifyingField] = useState<
+    "email" | "phone" | null
+  >(null);
+  const [emailVerified, setEmailVerified] = useState<boolean>(false);
+  const [phone, setPhone] = useState<string>("");
+  const [phoneVerified, setPhoneVerified] = useState<boolean>(false);
+  const [formattedPhone, setFormattedPhone] = useState<string>("");
   const inputRefs = Array(6)
     .fill(0)
     .map(() => React.createRef<TextInput>());
@@ -151,7 +161,7 @@ export default function LoginScreen() {
     }
 
     const result = await LocalAuthentication.authenticateAsync({
-      promptMessage: "Login to GateMan Security",
+      promptMessage: "Login to GateMan",
     });
 
     if (result.success) {
@@ -171,61 +181,96 @@ export default function LoginScreen() {
     return false;
   };
 
-  const handleRequestOtp = async () => {
-    const trimmedEmail = email.trim();
-    if (!validateEmail(trimmedEmail)) {
-      Alert.alert("Invalid Email", "Check your email format.");
-      return;
+  const handleRequestOtp = async (target: string, type: "email" | "phone") => {
+    let actualTarget = "";
+
+    if (type === "email") {
+      actualTarget = email.trim();
+      if (!validateEmail(actualTarget)) {
+        Alert.alert("Invalid Email", "Check your email format.");
+        return;
+      }
+    } else {
+      const checkValid = phoneInputRef.current?.isValidNumber(phone);
+
+      if (!phone || !checkValid) {
+        Alert.alert(
+          "Invalid Phone Number",
+          "The phone number provided is incorrect for the selected country.",
+        );
+        return;
+      }
+
+      actualTarget = formattedPhone;
+      if (!actualTarget || actualTarget.length < 10) {
+        Alert.alert("Invalid Phone", "Please enter a complete phone number.");
+        return;
+      }
     }
 
-    // const checkValid = phoneInputRef.current?.isValidNumber(phone);
-
-    // if (!phone || !checkValid) {
-    //   Alert.alert(
-    //     "Invalid Phone Number",
-    //     "The phone number provided is incorrect for the selected country.",
-    //   );
-    //   return;
-    // }
-
-    setLoading(true);
-    setError("");
+    setVerifyingField(type);
+    setOtpLoading(true);
 
     try {
-      const otpRes = await sendOtpApi(trimmedEmail);
+      const otpRes = await sendOtpApi(actualTarget, type);
       if (otpRes.success) {
         setMetadata(otpRes.metadata);
         setShowOtpInput(true);
       } else {
-        setError(otpRes.message || "Failed to send OTP");
+        Alert.alert("Request Failed", otpRes.message);
       }
     } catch (err) {
-      setError("Network error");
+      Alert.alert("Error", "Check your internet connection.");
     } finally {
-      setLoading(false);
+      setOtpLoading(false);
     }
   };
 
   const handleOtpChange = (value: string, index: number) => {
-    // Clean the input to only allow numbers
-    const cleanValue = value.replace(/[^0-9]/g, "");
-
+    const cleanValue = value.replace(/[^0-9]/g, "").slice(-1);
     const newOtp = [...otp];
     newOtp[index] = cleanValue;
-
-    // 1. Update STATE so the user SEES the number in the box
     setOtp(newOtp);
 
-    // 2. Move Focus
     if (cleanValue && index < 5) {
       inputRefs[index + 1].current?.focus();
     }
 
-    // 3. Logic: Use the local variable to avoid the 'async state' delay
-    const finalOtpString = newOtp.join("");
+    if (newOtp.join("").length === 6) {
+      handleOtpVerify(newOtp.join(""));
+    }
+  };
 
-    if (finalOtpString.length === 6) {
-      handleRegister(finalOtpString);
+  const handleOtpVerify = async (finalOtp: string) => {
+    setverifyingOtp(true);
+    try {
+      const targetValue =
+        verifyingField === "phone" ? formattedPhone : email.trim();
+      const res = await fetch(`${BASE_URL}/admin/verify-otp-only`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          otp: finalOtp,
+          metadata: metadata,
+          target: targetValue,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        if (verifyingField === "phone") {
+          setPhoneVerified(true);
+        } else setEmailVerified(true);
+        setShowOtpInput(false);
+        setOtp(["", "", "", "", "", ""]);
+        setVerifyingField(null);
+      } else {
+        setError(data.message || "Invalid Code");
+      }
+    } catch (err) {
+      setError("Verification failed");
+    } finally {
+      setverifyingOtp(false);
     }
   };
 
@@ -236,13 +281,13 @@ export default function LoginScreen() {
     setShowOtpInput(false); // Close the modal
   };
 
-  const handleRegister = async (newOtp: string) => {
+  const handleRegister = async () => {
     const trimmedEmail = email.trim();
 
-    if (newOtp.length !== 6) {
+    if (!phoneVerified || !emailVerified) {
       Alert.alert(
-        "Invalid Code",
-        "Please enter the 6-digit code sent to your email.",
+        "Unverifed Credentials",
+        "Please verify your email and phone number.",
       );
       return;
     }
@@ -253,9 +298,7 @@ export default function LoginScreen() {
         name,
         trimmedEmail,
         password,
-        // formattedPhone,
-        newOtp,
-        metadata,
+        formattedPhone,
       );
       if (response.success) {
         setUser(response.user);
@@ -267,6 +310,20 @@ export default function LoginScreen() {
       setError("Network error");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleEmailChange = (text: string) => {
+    setEmail(text);
+    if (emailVerified) {
+      setEmailVerified(false);
+    }
+  };
+
+  const handlePhoneChange = (text: string) => {
+    setPhone(text);
+    if (phoneVerified) {
+      setPhoneVerified(false);
     }
   };
 
@@ -302,299 +359,362 @@ export default function LoginScreen() {
       className="flex-1"
       contentContainerStyle={{ flexGrow: 1 }}
     >
-      <SafeAreaView className="flex-1">
-        <ImageBackground
-          source={require("../../assets/images/gateman_bgimage.png")}
-          className="flex-1"
-          resizeMode="cover"
+      <SafeAreaView className="flex-1 bg-gm-navy">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          className={`flex-1 px-6 flex ${!showBiometricBtn ? "" : "gap-5"}`}
         >
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            className="flex-1 px-6"
-          >
-            <View className="w-full flex-row justify-center items-center mt-12 px-4 rounded-lg">
-              <Image
-                source={require("../../assets/images/gateman_w_nobg_cropped.png")}
-                style={{
-                  width: "100%",
-                  height: 120,
-                }}
-                resizeMode="contain"
-              />
+          <View className="w-full flex justify-center items-center mt-8">
+            <Image
+              source={require("../../assets/images/login_nobg.png")}
+              style={{
+                width: "80%",
+                height: 160,
+              }}
+              resizeMode="contain"
+            />
+
+            <View className="mt-2 mb-6 items-center">
+              <Text className="text-gm-gold font-montserrat text-sm uppercase tracking-[4px]">
+                Always watching. Always ready
+              </Text>
+              {/* Decorative line to give it that "Elite" feel */}
+              <View className="h-[1px] w-12 bg-gm-gold/40 mt-2" />
             </View>
+          </View>
 
-            {isLogin && !isForgot && (
-              <View className="flex-1 justify-center">
-                <View className="bg-white/70 rounded-md p-6">
-                  <Text className="text-3xl font-bold mb-6 text-center text-black">
-                    Login
+          {isLogin && !isForgot && (
+            <View
+              className={`justify-center ${!showBiometricBtn ? "flex-1" : ""}`}
+            >
+              <View className="bg-gm-gold rounded-md p-6">
+                <Text className="text-3xl font-montserrat-bold mb-6 text-center text-black">
+                  Login
+                </Text>
+
+                <FormInput
+                  placeholder="Email"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                />
+                <FormInput
+                  placeholder="Password"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry
+                />
+
+                <TouchableOpacity
+                  onPress={() => {
+                    setIsForgot(true);
+                    setError(""); // Clear any login errors
+                  }}
+                >
+                  <Text className="text-md font-oswald-semibold text-gm-navy m-3">
+                    Forgot Password?
                   </Text>
+                </TouchableOpacity>
 
-                  <FormInput
-                    placeholder="Email"
-                    value={email}
-                    onChangeText={setEmail}
-                    keyboardType="email-address"
-                  />
-                  <FormInput
-                    placeholder="Password"
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry
-                  />
+                {error ? (
+                  <Text className="text-red-500 mb-2 font-roboto-regular">
+                    {error}
+                  </Text>
+                ) : null}
 
+                <Button
+                  title={loading ? "Logging in..." : "Login"}
+                  onPress={() => handleLogin()}
+                  disabled={loading}
+                />
+
+                <View className="flex-row justify-center items-center mt-4">
+                  <Text className="font-roboto-regular">Don&apos;t have an account? </Text>
                   <TouchableOpacity
                     onPress={() => {
-                      setIsForgot(true);
-                      setError(""); // Clear any login errors
+                      setIsLogin(false);
+                      setError("");
+                      setName("");
+                      setEmail("");
+                      setPassword("");
                     }}
                   >
-                    <Text className="text-md font-bold text-blue-500 m-2">
-                      Forgot Password?
-                    </Text>
+                    <Text className="text-red-800 font-oswald-semibold">Sign Up</Text>
                   </TouchableOpacity>
-
-                  {error ? (
-                    <Text className="text-red-500 mb-2">{error}</Text>
-                  ) : null}
-
-                  <Button
-                    title={loading ? "Logging in..." : "Login"}
-                    onPress={() => handleLogin()}
-                    disabled={loading}
-                  />
-
-                  <View className="flex-row justify-center mt-4">
-                    <Text>Don&apos;t have an account? </Text>
-                    <TouchableOpacity
-                      onPress={() => {
-                        setIsLogin(false);
-                        setError("");
-                        setName("");
-                        setEmail("");
-                        setPassword("");
-                      }}
-                    >
-                      <Text className="text-blue-500 font-bold">Sign Up</Text>
-                    </TouchableOpacity>
-                  </View>
                 </View>
               </View>
-            )}
+            </View>
+          )}
 
-            {!isLogin && !isForgot && (
-              <View className="flex-1 justify-center">
-                <View className="bg-white/70 rounded-md p-6">
-                  <Text className="text-3xl font-bold mb-6 text-center text-black">
-                    Register
-                  </Text>
+          {!isLogin && !isForgot && (
+            <View
+              className={`justify-center ${!showBiometricBtn ? "flex-1" : ""}`}
+            >
+              <View className="bg-gm-gold  rounded-md p-6">
+                <Text className="text-3xl font-bold mb-6 text-center text-black">
+                  Register
+                </Text>
 
-                  <FormInput
-                    placeholder="Full Name"
-                    value={name}
-                    onChangeText={setName}
-                  />
+                <FormInput
+                  placeholder="Full Name"
+                  value={name}
+                  onChangeText={setName}
+                />
+                <View>
                   <FormInput
                     placeholder="Email"
                     value={email}
-                    onChangeText={setEmail}
+                    marginBottom="mb-0"
+                    onChangeText={handleEmailChange}
                     keyboardType="email-address"
                     autoCapitalize="none"
                     autoCorrect={false}
                     autoComplete="email"
                   />
-                  {/* <View className="mb-4">
-                    <PhoneInput
-                      ref={phoneInputRef}
-                      defaultValue={phone}
-                      defaultCode="NG"
-                      layout="first"
-                      onChangeText={setPhone}
-                      onChangeFormattedText={setFormattedPhone}
-                      placeholder="Phone Number"
-                      containerStyle={{
-                        width: "100%",
-                        height: 40,
-                        borderRadius: 5,
-                        backgroundColor: "rgba(0,0,0,0.7)",
-                        borderWidth: 1,
-                        borderColor: "#4B5563",
-                        overflow: "hidden",
-                      }}
-                      textContainerStyle={{
-                        backgroundColor: "transparent",
-                        paddingVertical: 0,
-                      }}
-                      textInputStyle={{
-                        color: "#FFFFFF",
-                        fontSize: 16,
-                        height: 55,
-                      }}
-                      codeTextStyle={{
-                        color: "#FFFFFF",
-                        fontSize: 16,
-                      }}
-                      textInputProps={{
-                        placeholderTextColor: "rgba(255,255,255,0.6)",
-                      }}
-                      withDarkTheme
-                    />
-                  </View> */}
-                  <FormInput
-                    placeholder="Password"
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry
-                  />
-
-                  {error ? (
-                    <Text className="text-red-500 mb-2">{error}</Text>
-                  ) : null}
-
-                  <Button
-                    title={loading ? "Registering..." : "Register"}
-                    onPress={handleRequestOtp}
-                    disabled={loading}
-                  />
-
-                  <View className="flex-row justify-center mt-4">
-                    <Text>Already have an account? </Text>
+                  {!showOtpInput && (
                     <TouchableOpacity
-                      onPress={() => {
-                        setIsLogin(true);
-                        setError("");
-                        setName("");
-                        setEmail("");
-                        setPassword("");
-                      }}
+                      className="w-full flex-row justify-end h-8 mt-1 mb-3"
+                      onPress={() => handleRequestOtp(email, "email")}
                     >
-                      <Text className="text-blue-500 font-bold">Login</Text>
+                      {otpLoading && verifyingField === "email" ? (
+                        <ActivityIndicator size="small" color="#4f46e5" />
+                      ) : (
+                        <View
+                          className={`rounded-md flex-row p-1 items-center ${emailVerified ? "bg-emerald-500" : "bg-gm-navy"}`}
+                        >
+                          {emailVerified && (
+                            <Check
+                              size={10}
+                              color="white"
+                              style={{ marginRight: 4 }}
+                            />
+                          )}
+                          <Text className="text-white font-bold text-sm">
+                            {emailVerified ? "Verified" : "Verify"}
+                          </Text>
+                        </View>
+                      )}
                     </TouchableOpacity>
-                  </View>
+                  )}
                 </View>
-              </View>
-            )}
-
-            {isForgot && (
-              <View className="flex-1 justify-center">
-                <View className="bg-white/70 rounded-md p-6">
-                  <Text className="text-3xl font-bold mb-6 text-center text-black">
-                    Forgot Password
-                  </Text>
-
-                  <FormInput
-                    placeholder="Email"
-                    value={email}
-                    onChangeText={setEmail}
-                    keyboardType="email-address"
+                <View className="mb-4">
+                  <PhoneInput
+                    ref={phoneInputRef}
+                    defaultValue={phone}
+                    defaultCode="NG"
+                    layout="first"
+                    onChangeText={handlePhoneChange}
+                    onChangeFormattedText={setFormattedPhone}
+                    placeholder="Phone Number"
+                    containerStyle={{
+                      width: "100%",
+                      height: 40,
+                      borderRadius: 5,
+                      backgroundColor: "rgba(0,0,0,0.7)",
+                      borderWidth: 1,
+                      borderColor: "#4B5563",
+                      overflow: "hidden",
+                    }}
+                    textContainerStyle={{
+                      backgroundColor: "transparent",
+                      paddingVertical: 0,
+                    }}
+                    textInputStyle={{
+                      color: "#FFFFFF",
+                      fontSize: 16,
+                      height: 55,
+                    }}
+                    codeTextStyle={{
+                      color: "#FFFFFF",
+                      fontSize: 16,
+                    }}
+                    textInputProps={{
+                      placeholderTextColor: "rgba(255,255,255,0.6)",
+                    }}
+                    withDarkTheme
                   />
-                  {error ? (
-                    <Text className="text-red-500 mb-2">{error}</Text>
-                  ) : null}
-
-                  <Button
-                    title={loading ? "Sending..." : "Send Reset Link"}
-                    onPress={handleForgotPassword}
-                    disabled={loading}
-                  />
-
-                  <View className="flex-row justify-center mt-4">
+                  {!showOtpInput && (
                     <TouchableOpacity
-                      onPress={() => {
-                        setIsLogin(true);
-                        setIsForgot(false);
-                        setError("");
-                        setName("");
-                        setEmail("");
-                        setPassword("");
-                      }}
+                      className="w-full flex-row justify-end h-8 mt-1"
+                      onPress={() => handleRequestOtp(phone, "phone")}
                     >
-                      <Text className="text-blue-500 font-bold">
-                        Back to Login
-                      </Text>
+                      {otpLoading && verifyingField === "phone" ? (
+                        <ActivityIndicator size="small" color="#4f46e5" />
+                      ) : (
+                        <View
+                          className={`rounded-md flex-row p-1 items-center ${phoneVerified ? "bg-emerald-500" : "bg-gm-navy"}`}
+                        >
+                          {phoneVerified && (
+                            <Check
+                              size={10}
+                              color="white"
+                              style={{ marginRight: 4 }}
+                            />
+                          )}
+                          <Text className="text-white font-bold text-sm">
+                            {phoneVerified ? "Verified" : "Verify"}
+                          </Text>
+                        </View>
+                      )}
                     </TouchableOpacity>
-                  </View>
+                  )}
                 </View>
-              </View>
-            )}
+                <FormInput
+                  placeholder="Password"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry
+                />
 
-            {showBiometricBtn && isLogin && !isForgot && (
-              <View className="items-center mt-8">
-                <TouchableOpacity
-                  onPress={handleBiometricLogin}
+                {error ? (
+                  <Text className="text-red-500 mb-2">{error}</Text>
+                ) : null}
+
+                <Button
+                  title={loading ? "Registering..." : "Register"}
+                  onPress={() => handleRegister()}
                   disabled={loading}
-                  className="bg-black/70 p-4 rounded-full border border-white/40"
-                >
-                  {Platform.OS === "ios" ? (
-                    <ScanFace size={32} color="white" />
-                  ) : (
-                    <Fingerprint size={32} color="white" />
-                  )}
-                </TouchableOpacity>
-              </View>
-            )}
+                />
 
-            <Modal
-              visible={showOtpInput}
-              animationType="slide"
-              transparent={true}
-            >
-              <View className="flex-1 justify-center items-center bg-black/50 px-6">
-                <View className="bg-white w-full rounded-2xl p-8 items-center">
-                  <Text className="text-2xl font-bold text-gray-800 mb-2">
-                    Verify Email
-                  </Text>
-                  <Text className="text-gray-500 text-center mb-8">
-                    Enter the code sent to {"\n"}
-                    <Text className="font-bold">{email}</Text>
-                  </Text>
-
-                  {/* 6 Individual Boxes */}
-                  <View className="flex-row justify-between w-full mb-8">
-                    {otp.map((digit, index) => (
-                      <TextInput
-                        key={index}
-                        ref={inputRefs[index]}
-                        className="w-10 h-12 border-2 border-gray-300 rounded-lg text-center text-xl font-bold focus:border-blue-500"
-                        keyboardType="number-pad"
-                        maxLength={1}
-                        value={digit}
-                        onChangeText={(value) => handleOtpChange(value, index)}
-                        onKeyPress={({ nativeEvent }) => {
-                          if (nativeEvent.key === "Backspace") {
-                            if (!otp[index] && index > 0) {
-                              // 1. Move focus back
-                              inputRefs[index - 1].current?.focus();
-
-                              // 2. Clear the previous box's content
-                              const newOtp = [...otp];
-                              newOtp[index - 1] = "";
-                              setOtp(newOtp);
-                            }
-                          }
-                        }}
-                      />
-                    ))}
-                  </View>
-
-                  {loading ? (
-                    <Text className="text-blue-500 font-bold mb-4">
-                      Verifying...
-                    </Text>
-                  ) : (
-                    <TouchableOpacity onPress={handleCancelOtp}>
-                      <Text className="text-red-500 font-bold">Cancel</Text>
-                    </TouchableOpacity>
-                  )}
-
-                  {error ? (
-                    <Text className="text-red-500 mt-4">{error}</Text>
-                  ) : null}
+                <View className="flex-row justify-center items-center mt-4">
+                  <Text className="font-roboto-regular">Already have an account? </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setIsLogin(true);
+                      setError("");
+                      setName("");
+                      setEmail("");
+                      setPassword("");
+                    }}
+                  >
+                    <Text className="text-red-800 font-oswald-semibold">Login</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
-            </Modal>
-          </KeyboardAvoidingView>
-        </ImageBackground>
+            </View>
+          )}
+
+          {isForgot && (
+            <View
+              className={`justify-center ${!showBiometricBtn ? "flex-1" : ""}`}
+            >
+              <View className="bg-gm-gold rounded-md p-6">
+                <Text className="text-3xl font-bold mb-6 text-center text-black">
+                  Forgot Password
+                </Text>
+
+                <FormInput
+                  placeholder="Email"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                />
+                {error ? (
+                  <Text className="text-red-500 mb-2">{error}</Text>
+                ) : null}
+
+                <Button
+                  title={loading ? "Sending..." : "Send Reset Link"}
+                  onPress={handleForgotPassword}
+                  disabled={loading}
+                />
+
+                <View className="flex-row justify-center mt-4">
+                  <TouchableOpacity
+                    onPress={() => {
+                      setIsLogin(true);
+                      setIsForgot(false);
+                      setError("");
+                      setName("");
+                      setEmail("");
+                      setPassword("");
+                    }}
+                  >
+                    <Text className="text-red-800 font-oswald-semibold">
+                      Back to Login
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {showBiometricBtn && isLogin && !isForgot && (
+            <View className="items-center mt-8">
+              <TouchableOpacity
+                onPress={handleBiometricLogin}
+                disabled={loading}
+                className="bg-black/70 p-4 rounded-full border border-white/40"
+              >
+                {Platform.OS === "ios" ? (
+                  <ScanFace size={32} color="white" />
+                ) : (
+                  <Fingerprint size={32} color="white" />
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <Modal
+            visible={showOtpInput}
+            animationType="slide"
+            transparent={true}
+          >
+            <View className="flex-1 justify-center items-center bg-black/50 px-6">
+              <View className="bg-white w-full rounded-2xl p-8 items-center">
+                <Text className="text-2xl font-bold text-gray-800 mb-2">
+                  Verify Email
+                </Text>
+                <Text className="text-gray-500 text-center mb-8">
+                  Enter the code sent to {"\n"}
+                  <Text className="font-bold">{email}</Text>
+                </Text>
+
+                {/* 6 Individual Boxes */}
+                <View className="flex-row justify-between w-full mb-8">
+                  {otp.map((digit, index) => (
+                    <TextInput
+                      key={index}
+                      ref={inputRefs[index]}
+                      className="w-10 h-12 border-2 border-gray-300 rounded-lg text-center text-xl font-bold focus:border-blue-500"
+                      keyboardType="number-pad"
+                      maxLength={1}
+                      value={digit}
+                      onChangeText={(value) => handleOtpChange(value, index)}
+                      onKeyPress={({ nativeEvent }) => {
+                        if (nativeEvent.key === "Backspace") {
+                          if (!otp[index] && index > 0) {
+                            // 1. Move focus back
+                            inputRefs[index - 1].current?.focus();
+
+                            // 2. Clear the previous box's content
+                            const newOtp = [...otp];
+                            newOtp[index - 1] = "";
+                            setOtp(newOtp);
+                          }
+                        }
+                      }}
+                    />
+                  ))}
+                </View>
+
+                {loading ? (
+                  <Text className="text-blue-500 font-bold mb-4">
+                    Verifying...
+                  </Text>
+                ) : (
+                  <TouchableOpacity onPress={handleCancelOtp}>
+                    <Text className="text-red-500 font-bold">Cancel</Text>
+                  </TouchableOpacity>
+                )}
+
+                {error ? (
+                  <Text className="text-red-500 mt-4">{error}</Text>
+                ) : null}
+              </View>
+            </View>
+          </Modal>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </KeyboardAwareScrollView>
   );

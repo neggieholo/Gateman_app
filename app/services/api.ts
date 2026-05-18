@@ -6,14 +6,13 @@ import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import {
   CreateEventRequest,
+  DashboardStats,
   EmergencyContact,
   Estate,
   EstateEvent,
   FetchNotificationsResponse,
   Invitation,
   PaymentSettingsResponse,
-  RSVPRequest,
-  RSVPResponse,
   SubmitReportPayload,
   tempNotification,
 } from "./interfaces";
@@ -28,7 +27,7 @@ export const postLogin = async (email: string, password: string, biometric_login
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ email, password, biometric_login }),
-      credentials: "include", // IMPORTANT for session cookies
+      credentials: "include",
     });
 
     const data = await res.json();
@@ -62,17 +61,24 @@ export const updatePushTokenApi = async (token: string, userId: string) => {
   }
 };
 
-export const sendOtpApi = async (email: string) => {
+export const sendOtpApi = async (target: string, type: string) => {
   try {
-    const res = await fetch(`${BASE_URL}/auth/otp/send`, {
+    const res = await fetch(`${BASE_URL}/auth/app/send-otp`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ target, type, role:'TENANT' }),
     });
-    return await res.json();
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      return { success: false, message: data.message || "Server error" };
+    }
+
+    return data;
   } catch (err) {
-    console.log("OTP error:", err);
-    return { success: false, message: "Network error" };
+    console.error("OTP error:", err);
+    return { success: false, message: "Network connection failed" };
   }
 };
 
@@ -101,15 +107,13 @@ export const postRegister = async (
   name: string,
   email: string,
   password: string,
-  // phone: string,
-  otp: string,
-  metadata: string,
+  phone: string,
 ) => {
   try {
     const res = await fetch(`${BASE_URL}/auth/register/tenant`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, password, otp, metadata }),
+      body: JSON.stringify({ name, email, password, phone }),
       credentials: "include",
     });
 
@@ -740,10 +744,11 @@ export const getRelativeTime = (timestamp: string) => {
   }
 };
 
-export const getSecurityColleagues = async () => {
+export const getSecurityColleagues = async (estate_id: string) => {
   try {
-    const res = await fetch(`${BASE_URL}/security/all`, {
-      method: "GET",
+    const res = await fetch(`${BASE_URL}/security/tenant/all`, {
+      method: "POST",
+      body: JSON.stringify({ estate_id }),
       credentials: "include",
     });
     return await res.json();
@@ -766,10 +771,11 @@ export const submitEstateReport = async (payload: SubmitReportPayload) => {
   }
 };
 
-export const getMyReports = async () => {
+export const getMyReports = async (estate_id:string) => {
   try {
     const res = await fetch(`${BASE_URL}/security/my-reports`, {
-      method: "GET",
+      method: "POST",
+      body: JSON.stringify({ estate_id }),
     });
     return await res.json();
   } catch (error) {
@@ -785,11 +791,12 @@ export const deleteReport = async (id: string) => {
 };
 
 export const getEstatePaymentSettings =
-  async (): Promise<PaymentSettingsResponse> => {
+  async (id:string): Promise<PaymentSettingsResponse> => {
     try {
       const res = await fetch(`${BASE_URL}/admin/payment-settings`, {
-        method: "GET",
-        credentials: "include", // Essential for express-session
+        method: "POST",
+        body: JSON.stringify({ id }),
+        credentials: "include",
       });
 
       const data = await res.json();
@@ -830,6 +837,7 @@ export const uploadPaymentLog = async (payload: any) => {
 
 // GET: Fetch History with Date Filters
 export const getPaymentHistory = async (
+  id:string,
   startDate?: string,
   endDate?: string,
 ) => {
@@ -838,7 +846,8 @@ export const getPaymentHistory = async (
       startDate && endDate ? `?startDate=${startDate}&endDate=${endDate}` : "";
     console.log("History dates:", query);
     const res = await fetch(`${BASE_URL}/payment/history${query}`, {
-      method: "GET",
+      method: "POST",
+      body: JSON.stringify({ id }),
       credentials: "include",
     });
     return await res.json();
@@ -862,14 +871,15 @@ export const deletePaymentLog = async (id: string) => {
   }
 };
 
-export const getEmergencyContacts = async (): Promise<{
+export const getEmergencyContacts = async (estate_id: string): Promise<{
   success: boolean;
   contacts: EmergencyContact[];
   error?: string;
 }> => {
   try {
     const res = await fetch(`${BASE_URL}/admin/emergency-contacts`, {
-      method: "GET",
+      method: "POST",
+      body: JSON.stringify({ estate_id }),
       credentials: "include",
     });
     return res.json();
@@ -913,4 +923,59 @@ export const deleteEvent = async (eventId: string): Promise<void> => {
     method: 'DELETE',
   });
   await handleResponse(response);
+};
+
+export const getResidentDashboardStats = async (estate_id: string): Promise<{
+  success: boolean;
+  data?: DashboardStats;
+  message?: string;
+}> => {
+  try {
+    const res = await fetch(`${BASE_URL}/resident/dashboard-stats`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({estate_id}),
+      credentials: "include",
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      return {
+        success: false,
+        message: data.error || "Failed to fetch dashboard statistics",
+      };
+    }
+
+    return {
+      success: true,
+      data: data.stats,
+    };
+  } catch (error: any) {
+    console.error("Dashboard Service Error:", error);
+    return {
+      success: false,
+      message: error.message || "Network error occurred",
+    };
+  }
+};
+
+export const getEventDateLabel = (dateString: string): string => {
+  const todayStr = new Date().toISOString().split("T")[0];
+  if (dateString === todayStr) {
+    return "Today";
+  }
+
+  const todayDate = new Date(todayStr);
+  const targetDate = new Date(dateString);
+  
+  // Calculate difference in days cleanly
+  const diffTime = targetDate.getTime() - todayDate.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 1) return "1 day left";
+  if (diffDays > 1) return `${diffDays} days left`;
+  return dateString; // Fallback to raw string if it's somehow in the past
 };

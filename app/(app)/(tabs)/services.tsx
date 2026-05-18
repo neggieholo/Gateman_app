@@ -1,6 +1,13 @@
 import { useUser } from "@/app/UserContext";
 import { router } from "expo-router";
-import { ChevronRight, Clock, PhoneCall, Shield, ShieldCheck, Zap } from "lucide-react-native";
+import {
+  ChevronRight,
+  Clock,
+  PhoneCall,
+  Shield,
+  ShieldCheck,
+  Zap,
+} from "lucide-react-native";
 import React from "react";
 import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 
@@ -41,30 +48,36 @@ const ServiceListItem: React.FC<ServiceItemProps> = ({
 );
 
 export default function EstateServicesScreen() {
-  const { user } = useUser();
+  const { user, isDarkMode, theme } = useUser();
+  const hasNoEstates = !user?.estate_ids || user.estate_ids.length === 0;
 
-  // const handleExternalPayment = () => {
-  //     // if (user?.external_api_url) {
-  //     //     Linking.openURL(user.external_api_url);
-  //     // } else {
-  //     //     Alert.alert("Account Info", "Please pay into: \nBank: Zenith Bank\nAcct: 1012345678\nName: GateMan Estates");
-  //     // }
-  // };
-
-  if (!user?.estate_id) {
+  if (hasNoEstates) {
     return (
-      <View className="flex-1 justify-center items-center p-6 bg-slate-50">
-        <Text className="text-slate-400 mb-4 text-center">
-          You haven&apos;t joined an estate yet.
-        </Text>
-        <TouchableOpacity
-          className="bg-indigo-600 py-4 px-8 rounded-2xl"
-          onPress={() => router.push("/JoinRequest")}
+      <View
+        className={`${isDarkMode ? "bg-gm-navy/20" : "bg-gray-50"} flex-1 justify-center items-center p-6`}
+      >
+        <View
+          className={`${isDarkMode ? "bg-gm-navy" : "bg-white"} p-8 rounded-3xl shadow-sm items-center border ${isDarkMode ? "border-slate-800" : "border-gray-100"}`}
         >
-          <Text className="text-white font-black text-center">
-            Join an Estate
+          <ShieldCheck size={60} color="#4f46e5" />
+          <Text
+            className={`text-xl font-bold ${isDarkMode ? "text-white" : "text-gm-navy"} mt-4 text-center`}
+          >
+            Security Access Restricted
           </Text>
-        </TouchableOpacity>
+          <Text
+            className={`text-sm ${isDarkMode ? "text-slate-400" : "text-gray-500"} mt-2 text-center px-4 max-w-[280px]`}
+          >
+            You are currently not attached to any active estates on GateMan.
+          </Text>
+
+          <TouchableOpacity
+            className={`${isDarkMode ? "bg-gm-charcoal" : "bg-gm-navy"} py-4 px-10 rounded-2xl shadow-md mt-6`}
+            onPress={() => router.push("/JoinRequest" as any)}
+          >
+            <Text className="text-white font-bold text-lg">Join an Estate</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }

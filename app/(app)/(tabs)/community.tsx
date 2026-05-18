@@ -8,8 +8,14 @@ import {
   MessageSquare,
   Plus,
   RefreshCw,
+  Search,
+  ShieldCheck,
+  ShoppingBag,
   ThumbsUp,
   Trash,
+  X,
+  MapPin,
+  ChevronDown,
 } from "lucide-react-native";
 import React, {
   useCallback,
@@ -20,26 +26,33 @@ import React, {
 } from "react";
 import {
   Alert,
+  FlatList,
   Keyboard,
+  Modal,
   RefreshControl,
   ScrollView,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useUser } from "../../UserContext";
 
-const CATEGORIES = ["Alerts", "General", "Marketplace"];
+type MainTab = "communication" | "marketplace";
+type SubFilter = "all" | "my_posts";
 
 export default function Community() {
-  const { user } = useUser();
+  const { user, isDarkMode, theme } = useUser();
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
+  const [activeMainTab, setActiveMainTab] = useState<MainTab>("communication");
+  const [activeSubFilter, setActiveSubFilter] = useState<SubFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+
   const [posts, setPosts] = useState<Post[]>([]);
   const [newComment, setNewComment] = useState("");
-  const [activeCategory, setActiveCategory] = useState<string>("Alerts");
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isDetailVisible, setIsDetailVisible] = useState(false);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
@@ -53,25 +66,64 @@ export default function Community() {
   const [upLoadingNewComment, setUpLoadingNewComment] = useState(false);
   const [likes, setLikes] = useState<Like[]>([]);
 
+  // Multi-estate context integration
+  const [selectedEstateId, setSelectedEstateId] = useState<string | null>(null);
+  const [estatePickerVisible, setEstatePickerVisible] = useState(false);
+
+  // 1. Establish the baseline default estate context layout on initialization
+  useEffect(() => {
+    if (user?.estate_ids && user.estate_ids.length > 0) {
+      setSelectedEstateId(user.estate_ids[0]);
+    }
+  }, [user?.estate_ids]);
+
+  // 2. Resolve the currently active workspace object mapping references dynamically
+  const activeEstate = useMemo(() => {
+    if (!user?.estates || !selectedEstateId) return null;
+    return user.estates.find((e) => e.id === selectedEstateId) || null;
+  }, [selectedEstateId, user?.estates]);
+
+  // Updated query loader engine to leverage the local property selector context state
   const loadPosts = async () => {
+    if (!selectedEstateId) return;
     setLoading(true);
-    if (user && user.estate_id && user.id) {
-      const data = await communityApi.getPosts(user.estate_id);
-      // console.log("Posts:", data);
+    try {
+      const data = await communityApi.getPosts(selectedEstateId);
       setPosts(data);
+    } catch (err) {
+      console.error("Failed loading community posts:", err);
+    } finally {
       setLoading(false);
-    } else return;
+    }
   };
 
+  // Trigger reloading processes cleanly when user context mutations or properties shift
   useEffect(() => {
     setNewComment("");
     Keyboard.dismiss();
-    loadPosts();
-  }, []);
+    if (selectedEstateId) {
+      loadPosts();
+    }
+  }, [selectedEstateId]);
 
   const filteredPosts = useMemo(() => {
-    return posts.filter((p) => p.category === activeCategory);
-  }, [posts, activeCategory]);
+    let result = posts;
+
+    if (activeSubFilter === "my_posts") {
+      result = result.filter((p) => p.author_id === user?.id);
+    }
+
+    if (searchQuery.trim().length > 0) {
+      const query = searchQuery.toLowerCase().trim();
+      result = result.filter(
+        (p) =>
+          p.title?.toLowerCase().includes(query) ||
+          p.author_name?.toLowerCase().includes(query),
+      );
+    }
+
+    return result;
+  }, [posts, activeSubFilter, searchQuery, user?.id]);
 
   const handleLike = async (postId: string) => {
     if (user && user.id) {
@@ -94,26 +146,24 @@ export default function Community() {
   };
 
   const handleCreatePost = async () => {
-    if (!postTitle.trim() || !postContent.trim()) return;
+    if (!postTitle.trim() || !postContent.trim() || !selectedEstateId) return;
 
     const payload = {
+      estate_id: selectedEstateId,
       author_name: user!.name,
       author_role: "resident",
       title: postTitle,
       content: postContent,
       image_url: postImageUrl,
-      category: activeCategory,
+      category: "General",
     };
-
-    // console.log("Payload for post:", payload);
 
     await communityApi.createPost(payload);
 
-    // Cleanup
     setPostTitle("");
     setPostContent("");
     setIsModalVisible(false);
-    loadPosts(); // Refresh the list
+    loadPosts();
   };
 
   const handleRefresh = useCallback(
@@ -127,13 +177,13 @@ export default function Community() {
 
       setIsRefreshing(false);
     },
-    [activeCategory, user],
+    [selectedEstateId],
   );
 
   const handleOpenPost = async (post: Post) => {
     setSelectedPost(post);
     setComments([]);
-    setLikes([]); // Clear previous likes
+    setLikes([]); 
     setIsDetailVisible(true);
     setLoadingComments(true);
 
@@ -175,14 +225,12 @@ export default function Community() {
           style: "destructive",
           onPress: async () => {
             try {
-              // 1. Call the API
               const response = await communityApi.deletePost(postId.toString());
 
               if (response.success) {
                 setPosts((prevPosts) =>
                   prevPosts.filter((p) => p.id !== postId),
                 );
-
                 Alert.alert("Success", "Post deleted successfully.");
               }
             } catch (error: any) {
@@ -201,7 +249,6 @@ export default function Community() {
     const commentText = newComment;
     setNewComment("");
 
-    // 1. Create the Optimistic Comment object
     const optimisticComment: Comment = {
       id: Date.now(),
       post_id: Number(postId),
@@ -212,7 +259,6 @@ export default function Community() {
       created_at: new Date().toISOString(),
     };
 
-    // 2. Update UI states immediately
     setComments((prev) => [...prev, optimisticComment]);
 
     setPosts((prev) =>
@@ -244,14 +290,12 @@ export default function Community() {
     }
   };
 
-  // 3. Function to handle comment submission from inside the modal
   const handleModalCommentSubmit = async () => {
     if (!newComment.trim() || !selectedPost) return;
 
-    await handleAddComment(selectedPost.id); // Uses your existing logic
+    await handleAddComment(selectedPost.id);
     setNewComment("");
 
-    // Re-fetch comments to show the new one immediately
     const updatedComments = await communityApi.getComments(selectedPost.id);
     setComments(updatedComments);
   };
@@ -267,13 +311,11 @@ export default function Community() {
           style: "destructive",
           onPress: async () => {
             try {
-              // 1. Call the API we created in the backend
               const response = await communityApi.deleteComment(
                 commentId.toString(),
               );
 
               if (response.success) {
-                // 2. Remove the comment from the local modal state
                 setComments((prev) => prev.filter((c) => c.id !== commentId));
                 Alert.alert("Success", "Comment removed.");
               }
@@ -287,187 +329,307 @@ export default function Community() {
     );
   };
 
-  if (!user?.estate_id) {
+  const hasNoEstates = !user?.estate_ids || user.estate_ids.length === 0;
+
+  if (hasNoEstates) {
     return (
-      <View className="flex-1 justify-center items-center p-6 bg-slate-50">
-        <Text className="text-slate-400 mb-4 text-center">
-          You haven&apos;t joined an estate yet.
-        </Text>
-        <TouchableOpacity
-          className="bg-indigo-600 py-4 px-8 rounded-2xl"
-          onPress={() => router.push("/JoinRequest")}
+      <View
+        className={`${isDarkMode ? "bg-gm-navy/20" : "bg-gray-50"} flex-1 justify-center items-center p-6`}
+      >
+        <View
+          className={`${isDarkMode ? "bg-gm-navy" : "bg-white"} p-8 rounded-3xl shadow-sm items-center border ${isDarkMode ? "border-slate-800" : "border-gray-100"}`}
         >
-          <Text className="text-white font-black text-center">
-            Join an Estate
+          <ShieldCheck size={60} color="#4f46e5" />
+          <Text
+            className={`text-xl font-bold ${isDarkMode ? "text-white" : "text-gm-navy"} mt-4 text-center`}
+          >
+            Security Access Restricted
           </Text>
-        </TouchableOpacity>
+          <Text
+            className={`text-sm ${isDarkMode ? "text-slate-400" : "text-gray-500"} mt-2 text-center px-4 max-w-[280px]`}
+          >
+            You are currently not attached to any active estates on GateMan.
+          </Text>
+          
+          <TouchableOpacity
+            className={`${isDarkMode ? "bg-gm-charcoal" : "bg-gm-navy"} py-4 px-10 rounded-2xl shadow-md mt-6`}
+            onPress={() => router.push("/JoinRequest" as any)}
+          >
+            <Text className="text-white font-bold text-lg">Join an Estate</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
 
   return (
     <SafeAreaView
-      className="flex-1 bg-gray-50"
+      className={`${isDarkMode ? "bg-gm-navy/20" : "bg-gray-50 "} flex-1`}
       edges={["top", "left", "right"]}
     >
-      <View className="h-16 px-4 py-2 flex-row items-center">
-        {CATEGORIES.map((cat) => (
-          <TouchableOpacity
-            key={cat}
-            className={`flex-1 mx-1 px-4 py-2 rounded-full items-center justify-center ${
-              activeCategory === cat ? "bg-indigo-600" : "bg-white"
-            } shadow`}
-            onPress={() => setActiveCategory(cat)}
-          >
-            <Text
-              className={`font-bold ${activeCategory === cat ? "text-white" : "text-gray-700"}`}
-            >
-              {cat}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Posts */}
-      <ScrollView
-        key={activeCategory}
-        ref={scrollRef}
-        className="px-4 pb-24"
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={() => handleRefresh(false)}
-            colors={["#4f46e5"]}
-            tintColor="#4f46e5"
-          />
-        }
-      >
-        {filteredPosts.length === 0 && (
-          <View className="py-12 items-center">
-            <Text className="text-gray-400 text-lg">
-              {loading ? "Retrieving Posts ..." : "No posts yet"}
-            </Text>
-          </View>
-        )}
-        {filteredPosts.map((post) => (
-          <View
-            key={post.id}
-            className="bg-white p-4 rounded-2xl mb-4 shadow border border-gray-100"
-          >
-            <TouchableOpacity
-              className="items-start mb-2 w-full rounded-2xl p-2 border border-gray-100"
-              onPress={() => handleOpenPost(post)}
-            >
-              <View className="flex-row items-center gap-2">
-                <View
-                  className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-white ${post.author_role === "admin" || post.author_role === "superadmin" ? "bg-blue-600" : "bg-gray-400"}`}
-                >
-                  <Text className="text-white font-bold">
-                    {post.author_name
-                      ? post.author_name.charAt(0).toUpperCase()
-                      : "?"}
-                  </Text>
-                </View>
-                <View>
-                  <View className="flex items-start justify-center">
-                    <Text className="font-bold text-gray-900">
-                      {post.author_name}
-                    </Text>
-                  </View>
-                  <Text className="text-xs text-gray-400">
-                    {getRelativeTime(post.created_at)}
-                  </Text>
-                </View>
-              </View>
-              <View className="p-3">
-                <Text className="font-bold text-lg mb-1">{post.title}</Text>
-                <Text className="text-gray-600 mb-2">{post.content}</Text>
-              </View>
-            </TouchableOpacity>
-
-            <View className="flex-row items-center justify-between my-3">
-              <TouchableOpacity
-                className="flex-row items-center"
-                onPress={() => handleLike(post.id)}
-              >
-                <ThumbsUp
-                  size={18}
-                  color={post.has_liked ? "#2563eb" : "#9ca3af"}
-                />
-                <Text className="ml-1 font-bold text-sm">
-                  {post.likes_count}
-                </Text>
-              </TouchableOpacity>
-              <View className="flex-row items-center">
-                <MessageSquare size={18} color="#9ca3af" />
-                <Text className="ml-1 font-bold text-sm">
-                  {post.comments_count}
-                </Text>
-              </View>
-            </View>
-            <View className="flex-row items-center justify-between">
-              {/* 1. Show 'Image attached' badge only if URL exists */}
-              {post.image_url ? (
-                <View className="flex-row items-center mt-3 bg-indigo-50 self-start px-2 py-1 rounded-md">
-                  <ImageIcon size={14} color="#4f46e5" />
-                  <Text className="text-indigo-600 text-xs ml-1 font-bold">
-                    Image attached
-                  </Text>
-                </View>
-              ) : (
-                <View className="mt-3" /> // Keeps vertical alignment
-              )}
-
-              {/* 2. Show Trash icon ONLY if current user is the author */}
-              {user?.id === post.author_id && (
-                <TouchableOpacity
-                  onPress={() => handleDelete(post.id)}
-                  className="mt-3 p-1"
-                >
-                  <Trash size={20} color="#ef4444" />
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-        ))}
-      </ScrollView>
-
-      <View className="absolute bottom-10 right-6 items-center">
+      {/* 📍 CUSTOM DYNAMIC PROPERTY WORKSPACE CONTEXT PICKER BANNER */}
+      {user?.estate_ids && user.estate_ids.length > 1 && (
         <TouchableOpacity
-          onPress={() => {
-            handleRefresh(true);
-          }}
-          disabled={loading || isRefreshing}
-          className={`mb-4 w-16 h-16 rounded-full items-center justify-center shadow-lg border border-gray-100 ${
-            isRefreshing ? "bg-gray-100" : "bg-white"
+          onPress={() => setEstatePickerVisible(true)}
+          className={`mx-4 mt-2 flex-row items-center justify-between p-3.5 rounded-2xl border ${
+            isDarkMode ? "bg-gm-navy border-slate-800" : "bg-white border-slate-200"
+          } shadow-sm`}
+        >
+          <View className="flex-row items-center flex-1">
+            <MapPin size={16} color={isDarkMode ? "#D4AF37" : "#4f46e5"} />
+            <Text
+              className={`ml-2 text-xs font-black uppercase tracking-wider ${
+                isDarkMode ? "text-gm-gold" : "text-gm-navy"
+              } flex-1`}
+              numberOfLines={1}
+            >
+              Viewing Board: {activeEstate?.name || "Select Estate"}
+            </Text>
+          </View>
+          <ChevronDown size={16} color={isDarkMode ? "#D4AF37" : "#94a3b8"} />
+        </TouchableOpacity>
+      )}
+
+      <View className="flex-row mx-4 mt-3 p-1 bg-gray-200/70 rounded-2xl border border-gray-200">
+        <TouchableOpacity
+          onPress={() => setActiveMainTab("communication")}
+          className={`flex-1 py-3 rounded-xl items-center justify-center ${
+            activeMainTab === "communication" ? isDarkMode? "bg-gm-navy" : "bg-white" : ""
           }`}
         >
-          <RefreshCw
-            size={20}
-            color="#4f46e5"
-            className={isRefreshing ? "animate-spin" : ""}
-          />
+          <Text
+            className={`font-oswald-semibold tracking-wider text-md ${activeMainTab === "communication" ? isDarkMode ? "text-gm-gold" : "text-gm-navy" : "text-gray-500"}`}
+          >
+            Communication Board
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          onPress={() => setIsModalVisible(true)}
-          className="bg-indigo-600 w-16 h-16 rounded-full items-center justify-center shadow-xl"
+          onPress={() => setActiveMainTab("marketplace")}
+          className={`flex-1 py-3 rounded-xl items-center justify-center ${
+            activeMainTab === "marketplace" ? "bg-white" : ""
+          }`}
         >
-          <Plus size={28} color="white" />
+          <Text
+            className={`font-oswald-semibold tracking-wider text-md ${activeMainTab === "marketplace" ? "text-gm-navy" : "text-gray-500"}`}
+          >
+            Marketplace
+          </Text>
         </TouchableOpacity>
       </View>
+
+      {activeMainTab === "marketplace" ? (
+        /* MARKETPLACE PLACEHOLDER VIEW */
+        <View className="flex-1 justify-center items-center">
+          <View className="w-20 h-20 bg-indigo-50 rounded-full items-center justify-center mb-4">
+            <ShoppingBag size={36} color="#0A1F44" />
+          </View>
+          <Text className="text-xl font-oswald-semibold text-gray-900 mb-1">
+            Marketplace
+          </Text>
+          <Text className="text-sm text-gray-500 font-roboto-regular text-center px-8">
+            Trade and unlock estate listings with trusted neighbors. Coming
+            soon!
+          </Text>
+        </View>
+      ) : (
+        <View className="flex-1">
+          <View className="flex-row px-4 pt-3 gap-2">
+            <TouchableOpacity
+              onPress={() => setActiveSubFilter("all")}
+              className={`px-5 py-2 rounded-full border items-center justify-center ${
+                activeSubFilter === "all"
+                  ? isDarkMode ? "bg-gm-navy border-gm-gold" : "bg-gm-navy border-gray-200"
+                  : "border-gray-200"
+              }`}
+            >
+              <Text
+                className={`text-xs font-oswald-semibold ${activeSubFilter === "all" ? isDarkMode ?'text-gm-gold' : "text-white" : "text-gray-600"}`}
+              >
+                All Posts
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setActiveSubFilter("my_posts")}
+              className={`px-5 py-2 rounded-full border items-center justify-center ${
+                activeSubFilter === "my_posts"
+                  ? isDarkMode ? "bg-gm-navy border-gm-gold" : "bg-gm-navy border-gray-200"
+                  : "border-gray-200"
+              }`}
+            >
+              <Text
+                className={`text-xs font-oswald-semibold ${activeSubFilter === "my_posts" ? isDarkMode ?'text-gm-gold' : "text-white" : "text-gray-600"}`}
+              >
+                My Posts
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <View className={`${isDarkMode ? "bg-gm-navy border-gm-gold":"bg-white border border-gray-200"} mx-4 my-3 flex-row items-center rounded-lg px-4 py-1.5`}>
+            <Search size={18} color={isDarkMode ? '#D4AF37':'#9ca3af'} className="mr-2" />
+            <TextInput
+              className="flex-1 py-2 text-sm text-gray-900 font-roboto-regular"
+              placeholder={
+                activeSubFilter === "my_posts"
+                  ? "Search by title..."
+                  : "Search by title or poster name..."
+              }
+              placeholderTextColor={isDarkMode ? '#D4AF37':'#9ca3af'}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              returnKeyType="search"
+              clearButtonMode="while-editing" 
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity
+                onPress={() => setSearchQuery("")}
+                className="p-1"
+              >
+                <X size={16} color="#6b7280" />
+              </TouchableOpacity>
+            )}
+          </View>
+          
+          <ScrollView
+            ref={scrollRef}
+            className="px-4 pb-24"
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={() => handleRefresh(false)}
+                colors={["#4f46e5"]}
+                tintColor="#4f46e5"
+              />
+            }
+          >
+            {filteredPosts.length === 0 && (
+              <View className="py-12 items-center">
+                <Text className="text-gray-400 text-lg">
+                  {loading ? "Retrieving Posts ..." : "No posts yet"}
+                </Text>
+              </View>
+            )}
+            {filteredPosts.map((post) => (
+              <View
+                key={post.id}
+                className={`p-4 rounded-2xl mb-4 shadow border ${isDarkMode ? "bg-gm-navy border-gm-gold":"bg-white border border-gray-200"}`}
+              >
+                <TouchableOpacity
+                  className={`items-start mb-2 w-full rounded-2xl p-2 border ${isDarkMode ? "border-gm-gold":"border-gray-200"}`}
+                  onPress={() => handleOpenPost(post)}
+                >
+                  <View className="flex-row items-center gap-2">
+                    <View
+                      className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-white ${post.author_role === "admin" || post.author_role === "superadmin" ? "bg-gm-charcoal" : "bg-gray-400"}`}
+                    >
+                      <Text className={"text-white font-montserrat-bold"}>
+                        {post.author_name
+                          ? post.author_name.charAt(0).toUpperCase()
+                          : "?"}
+                      </Text>
+                    </View>
+                    <View>
+                      <View className="flex items-start justify-center">
+                        <Text className={`font-montserrat-bold ${isDarkMode ? "text-gm-gold":"text-gm-navy"}`}>
+                          {post.author_name}
+                        </Text>
+                      </View>
+                      <Text className="text-xs text-gray-400 font-roboto-regular">
+                        {getRelativeTime(post.created_at)}
+                      </Text>
+                    </View>
+                  </View>
+                  <View className="p-3">
+                    <Text className={`font-oswald-semibold ${isDarkMode ? "text-gm-gold":"text-gm-navy"} text-lg mb-1`}>{post.title}</Text>
+                    <Text className={`mb-2 ${isDarkMode ? "text-gray-300":"text-gray-600"}`}>{post.content}</Text>
+                  </View>
+                </TouchableOpacity>
+
+                <View className="flex-row items-center justify-between my-3">
+                  <TouchableOpacity
+                    className="flex-row items-center"
+                    onPress={() => handleLike(post.id)}
+                  >
+                    <ThumbsUp
+                      size={18}
+                      color={post.has_liked ? "#2563eb" : "#9ca3af"}
+                    />
+                  <Text className={`ml-1 font-roboto-regular ${isDarkMode ? "text-gm-gold":"text-gm-navy"} text-sm`}>
+                      {post.likes_count}
+                    </Text>
+                  </TouchableOpacity>
+                  <View className="flex-row items-center">
+                    <MessageSquare size={18} color="#9ca3af" />
+                    <Text className={`ml-1 font-roboto-regular ${isDarkMode ? "text-gm-gold":"text-gm-navy"} text-sm`}>
+                      {post.comments_count}
+                    </Text>
+                  </View>
+                </View>
+                <View className="flex-row items-center justify-between">
+                  {post.image_url ? (
+                    <View className={`flex-row items-center mt-3 ${isDarkMode ? "bg-gm-charcoal":"bg-indigo-50"} self-start px-2 py-1 rounded-md`}>
+                      <ImageIcon size={14} color="#4f46e5" />
+                      <Text className={`text-xs ml-1 font-roboto-regular ${isDarkMode ? "text-white":"text-gm-navy"}`}>
+                        Image attached
+                      </Text>
+                    </View>
+                  ) : (
+                    <View className="mt-3" />
+                  )}
+
+                  {user?.id === post.author_id && (
+                    <TouchableOpacity
+                      onPress={() => handleDelete(post.id)}
+                      className="mt-3 p-1"
+                    >
+                      <Trash size={20} color="#ef4444" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+            ))}
+          </ScrollView>
+
+          <View className="absolute bottom-10 right-6 items-center">
+            <TouchableOpacity
+              onPress={() => {
+                handleRefresh(true);
+              }}
+              disabled={loading || isRefreshing}
+              className={`mb-4 w-16 h-16 rounded-full items-center justify-center shadow-lg border border-gray-100 ${
+                isRefreshing ? "bg-gray-100" : isDarkMode ? "bg-gray-500":"bg-white"
+              }`}
+            >
+              <RefreshCw
+                size={20}
+                color={isDarkMode ? "#ffffff":"#4f46e5"}
+                className={isRefreshing ? "animate-spin" : ""}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setIsModalVisible(true)}
+              className={`${isDarkMode? "bg-gm-charcoal border border-white":"bg-gm-navy"} w-16 h-16 rounded-full items-center justify-center shadow-xl`}
+            >
+              <Plus size={28} color="white" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       <CreatePostModal
         isVisible={isModalVisible}
         onClose={() => setIsModalVisible(false)}
         onSubmit={handleCreatePost}
-        category={activeCategory}
+        category="General"
         title={postTitle}
         setTitle={setPostTitle}
         content={postContent}
         setContent={setPostContent}
         setImageUrl={setPostImageUrl}
       />
+      
       <PostDetailModal
         isVisible={isDetailVisible}
         onClose={() => {
@@ -485,6 +647,50 @@ export default function Community() {
         uploadingComment={upLoadingNewComment}
         handleDelete={handleDeleteComment}
       />
+
+      {/* Slide-Up Property Choice Sheets Workspace */}
+      <Modal visible={estatePickerVisible} animationType="slide" transparent={true}>
+        <View className="flex-1 justify-end bg-black/50">
+          <View className={`${isDarkMode ? "bg-slate-900" : "bg-white"} rounded-t-[2.5rem] p-6 max-h-[60%]`}>
+            <View className="w-12 h-1 bg-slate-300 rounded-full self-center mb-6 mx-auto" />
+            <Text className={`text-xl font-bold mb-4 ${isDarkMode ? "text-white" : "text-slate-900"}`}>
+              Select Active Property Context
+            </Text>
+            <FlatList
+              data={user?.estates || []}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  onPress={() => {
+                    setSelectedEstateId(item.id);
+                    setEstatePickerVisible(false);
+                  }}
+                  className={`p-4 rounded-2xl mb-3 border flex-row items-center ${
+                    selectedEstateId === item.id
+                      ? "border-indigo-500 bg-indigo-50/40"
+                      : isDarkMode ? "border-slate-800 bg-slate-800/40" : "border-slate-100 bg-slate-50"
+                  }`}
+                >
+                  <MapPin size={20} color={selectedEstateId === item.id ? "#4f46e5" : "#94a3b8"} />
+                  <View className="ml-3 flex-1">
+                    <Text className={`font-bold text-sm ${isDarkMode ? "text-white" : "text-slate-800"}`}>
+                      {item.name}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+            />
+            {selectedEstateId && (
+              <TouchableOpacity
+                onPress={() => setEstatePickerVisible(false)}
+                className="mt-2 p-4 bg-slate-200 rounded-2xl items-center"
+              >
+                <Text className="text-slate-700 font-bold">Cancel</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

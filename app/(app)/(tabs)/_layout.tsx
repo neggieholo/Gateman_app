@@ -7,10 +7,12 @@ export default function TenantTabsLayout() {
     <SafeAreaProvider>
       <Tabs
         screenOptions={{
-          tabBarActiveTintColor: "#2563EB",
           headerShown: false,
           headerStyle: { backgroundColor: "#f9fafb" },
           headerTitleAlign: "center",
+          tabBarStyle: { backgroundColor: "#0A1F44" },
+          tabBarActiveTintColor: "#BFDBFE",
+          tabBarInactiveTintColor: "#D4AF37",
         }}
       >
         {/* Dashboard is hidden */}

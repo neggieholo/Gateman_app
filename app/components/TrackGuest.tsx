@@ -31,7 +31,7 @@ import { useUser } from "../UserContext";
 import { EditInvitationModal } from "./EditInvitationModal";
 import { TrackInvitationCard } from "./TrackInvitationCard";
 
-const TrackGuestView = ({ onInvitePress }: { onInvitePress: () => void }) => {
+const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvitePress: () => void }) => {
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -44,10 +44,9 @@ const TrackGuestView = ({ onInvitePress }: { onInvitePress: () => void }) => {
     useState<Invitation | null>(null);
 
   const { user } = useUser();
-  const estateId = user?.estate_id || "";
 
   const fetchInvitations = async () => {
-    const data = await invitationApi.getInvitations(estateId);
+    const data = await invitationApi.getInvitations(estate_id);
     setInvitations(data);
     setIsLoading(false);
     setIsRefreshing(false);

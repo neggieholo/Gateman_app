@@ -1,8 +1,10 @@
-import React, { useState } from "react";
 import * as SecureStore from "expo-secure-store";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   Text,
   TextInput,
@@ -13,7 +15,7 @@ import { changePassword } from "./services/api";
 import { useUser } from "./UserContext";
 
 export default function ChangePasswordScreen() {
-  const { user } = useUser();
+  const { user, isDarkMode } = useUser();
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     currentPassword: "",
@@ -56,83 +58,89 @@ export default function ChangePasswordScreen() {
   };
 
   return (
-    <View className="flex-1 bg-white p-6">
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      className={`flex-1 bg-gray-50 ${isDarkMode ? "bg-gm-navy/20" : "bg-gray-50 "}`}
+    >
       <ScrollView
         contentContainerStyle={{ flexGrow: 1 }}
-        showsVerticalScrollIndicator={false}
+        className={`p-6 ${isDarkMode ? "bg-gm-navy/20" : "bg-gray-50 "}`}
       >
-        <View className="flex-1 justify-between pb-6">
-          {/* Input Section */}
-          <View className="flex-none">
-            {/* Current Password */}
-            <View className="mb-6">
-              <Text className="text-slate-900 text-sm font-black uppercase tracking-tight mb-3">
-                Current Password
-              </Text>
-              <TextInput
-                className="bg-slate-100 border border-slate-300 p-5 rounded-2xl text-slate-900 font-bold"
-                secureTextEntry
-                placeholder="Enter current password"
-                placeholderTextColor="#64748b" // slate-500 for darker visibility
-                value={form.currentPassword}
-                onChangeText={(txt) =>
-                  setForm({ ...form, currentPassword: txt })
-                }
-              />
-            </View>
-
-            {/* New Password */}
-            <View className="mb-6">
-              <Text className="text-slate-900 text-sm font-black uppercase tracking-tight mb-3">
-                New Password
-              </Text>
-              <TextInput
-                className="bg-slate-100 border border-slate-300 p-5 rounded-2xl text-slate-900 font-bold"
-                secureTextEntry
-                placeholder="New password (min 6 chars)"
-                placeholderTextColor="#64748b"
-                value={form.newPassword}
-                onChangeText={(txt) => setForm({ ...form, newPassword: txt })}
-              />
-            </View>
-
-            {/* Confirm Password */}
-            <View className="mb-6">
-              <Text className="text-slate-900 text-sm font-black uppercase tracking-tight mb-3">
-                Confirm New Password
-              </Text>
-              <TextInput
-                className="bg-slate-100 border border-slate-300 p-5 rounded-2xl text-slate-900 font-bold"
-                secureTextEntry
-                placeholder="Repeat new password"
-                placeholderTextColor="#64748b"
-                value={form.confirmPassword}
-                onChangeText={(txt) =>
-                  setForm({ ...form, confirmPassword: txt })
-                }
-              />
-            </View>
-          </View>
-
-          {/* Bottom Section */}
-          <View className="mb-8">
-            <TouchableOpacity
-              activeOpacity={0.8}
-              className={`h-20 rounded-[2.5rem] flex-row items-center justify-center shadow-2xl shadow-indigo-200 ${loading ? "bg-indigo-400" : "bg-indigo-600"}`}
-              onPress={handleUpdate}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text className="text-white font-black text-sm uppercase tracking-[0.25em]">
-                  Update Password
-                </Text>
-              )}
-            </TouchableOpacity>
-          </View>
+        <View className="mb-8">
+          <Text
+            className={`${isDarkMode ? "text-gm-charcoal" : "text-gray-500"} mt-1 font-oswald-semibold text-lg`}
+          >
+            Ensure your account stays secure
+          </Text>
         </View>
+
+        {/* Current Password */}
+        <View className="mb-5">
+          <Text
+            className={`text-sm font-oswald-semibold ${isDarkMode ? "text-gm-charcoal" : "text-gray-700"} mb-2`}
+          >
+            Current Password
+          </Text>
+          <TextInput
+            className={`${isDarkMode ? "bg-gm-navy border-gm-gold text-white" : "bg-white border border-gray-200 text-gray-900"} p-4 rounded-2xl font-roboto-regular shadow-sm`}
+            placeholder="Enter current password"
+            placeholderTextColor="#9ca3af"
+            secureTextEntry
+            value={form.currentPassword}
+            onChangeText={(txt) => setForm({ ...form, currentPassword: txt })}
+          />
+        </View>
+
+        {/* New Password */}
+        <View className="mb-5">
+          <Text
+            className={`text-sm font-oswald-semibold ${isDarkMode ? "text-gm-charcoal" : "text-gray-700"} mb-2`}
+          >
+            New Password
+          </Text>
+          <TextInput
+            className={`${isDarkMode ? "bg-gm-navy border-gm-gold text-white" : "bg-white border border-gray-200 text-gray-900"} p-4 rounded-2xl font-roboto-regular shadow-sm`}
+            placeholder="Minimum 6 characters"
+            placeholderTextColor="#9ca3af"
+            secureTextEntry
+            value={form.newPassword}
+            onChangeText={(txt) => setForm({ ...form, newPassword: txt })}
+          />
+        </View>
+
+        {/* Confirm Password */}
+        <View className="mb-8">
+          <Text
+            className={`text-sm font-oswald-semibold ${isDarkMode ? "text-gm-charcoal" : "text-gray-700"} mb-2`}
+          >
+            Confirm New Password
+          </Text>
+          <TextInput
+            className={`${isDarkMode ? "bg-gm-navy border-gm-gold text-white" : "bg-white border border-gray-200 text-gray-900"} p-4 rounded-2xl font-roboto-regular shadow-sm`}
+            placeholder="Repeat new password"
+            placeholderTextColor="#9ca3af"
+            secureTextEntry
+            value={form.confirmPassword}
+            onChangeText={(txt) => setForm({ ...form, confirmPassword: txt })}
+          />
+        </View>
+
+        {/* Action Button */}
+        <TouchableOpacity
+          activeOpacity={0.8}
+          className={`p-4 rounded-2xl items-center shadow-md ${isDarkMode ? "bg-gm-charcoal" : "bg-gm-navy"}`}
+          onPress={handleUpdate}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text className="text-white font-montserrat-bold text-lg">
+              Update Password
+            </Text>
+          )}
+        </TouchableOpacity>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }

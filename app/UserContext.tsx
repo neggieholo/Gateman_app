@@ -10,12 +10,16 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Alert, Platform, Vibration } from "react-native";
+import { Alert, Platform, useColorScheme, Vibration } from "react-native";
 // import RNCallKeep from "react-native-callkeep";
 import { io, Socket } from "socket.io-client";
 import { startEmergencyAlarm } from "./services/alarm";
 import { fetchNotifications, fetchRequests } from "./services/api";
 import { notification, tempNotification, User } from "./services/interfaces";
+import { Colors } from "@/constants/Colors";
+
+
+export type Theme = typeof Colors.light;
 
 interface UserContextType {
   user: Partial<User> | null;
@@ -40,6 +44,9 @@ interface UserContextType {
   groupUnread: number;
   totalUnread: number;
   loadingNotifications: boolean;
+  isDarkMode: boolean;
+  setIsDarkMode:  (value:boolean) => void;
+  theme: Theme;
 }
 
 export const UserContext = createContext<UserContextType>({
@@ -64,7 +71,10 @@ export const UserContext = createContext<UserContextType>({
   privateUnread: 0,
   groupUnread: 0,
   totalUnread: 0,
-  loadingNotifications: false,
+  loadingNotifications: false,  
+  isDarkMode: false,
+  setIsDarkMode:  () => {},
+  theme: Colors.light
 });
 
 export const UserProvider = ({ children }: { children: ReactNode }) => {
@@ -89,7 +99,14 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [groupUnread, setGroupUnread] = useState(0);
   const totalUnread = privateUnread + groupUnread;
   const BASE_URL = `${process.env.EXPO_PUBLIC_BASE_URL}`;
-  const navigation = useNavigation<any>();
+  const systemColorScheme = useColorScheme();
+  const [isDarkMode, setIsDarkMode] = useState(systemColorScheme === "dark");
+
+  useEffect(() => {
+    setIsDarkMode(systemColorScheme === "dark");
+  }, [systemColorScheme]);
+
+  const theme = isDarkMode ? Colors.dark : Colors.light;
 
   // useEffect(()=>{
   //   if(!user) {
@@ -488,6 +505,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         setGroupUnread,
         totalUnread,
         loadingNotifications,
+        isDarkMode,
+        setIsDarkMode,
+        theme
       }}
     >
       {children}

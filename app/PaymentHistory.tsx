@@ -3,9 +3,11 @@ import * as ImagePicker from "expo-image-picker";
 import {
   Calendar,
   CheckCircle,
+  ChevronDown,
   Clock,
   FileText,
   History,
+  MapPin,
   Search,
   ShieldAlert,
   Trash2,
@@ -13,10 +15,11 @@ import {
   UploadCloud,
   XCircle,
 } from "lucide-react-native";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   Image,
   KeyboardAvoidingView,
   Modal,
@@ -29,6 +32,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import PaymentReportsHistory from "./PaymentReportsHistory";
+import { useUser } from "./UserContext"; // Added User State Context hook
 import {
   deletePaymentLog,
   getCloudinaryUrl,
@@ -39,11 +43,19 @@ import {
 import { SubmitReportPayload } from "./services/interfaces";
 
 const PaymentHistory = () => {
-  const [activeTab, setActiveTab] = useState<"UPLOAD" | "HISTORY" | "REPORTS">("UPLOAD");
+  const { user, isDarkMode } = useUser(); // Access gate user preferences
+  const [activeTab, setActiveTab] = useState<"UPLOAD" | "HISTORY" | "REPORTS">(
+    "UPLOAD",
+  );
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadingRecord, setUploadingRecord] = useState(false);
+
+  // Estate Control States
+  const [selectedEstateId, setSelectedEstateId] = useState<string | null>(null);
+  const [estatePickerVisible, setEstatePickerVisible] = useState(false);
+
   const [showDatePicker, setShowDatePicker] = useState<
     "form" | "start" | "end" | null
   >(null);
@@ -67,12 +79,28 @@ const PaymentHistory = () => {
     payment_type: "bank_transfer",
   });
 
+  useEffect(() => {
+    if (!user?.estate_ids || user.estate_ids.length === 0) return;
+
+    if (user.estate_ids.length === 1) {
+      setSelectedEstateId(user.estate_ids[0]);
+    } else if (!selectedEstateId) {
+      setEstatePickerVisible(true);
+    }
+  }, [user?.estate_ids]);
+
+  const activeEstateName = useMemo(() => {
+    if (!user?.estates || !selectedEstateId) return "";
+    return user.estates.find((e) => e.id === selectedEstateId)?.name || "";
+  }, [selectedEstateId, user?.estates]);
+
   const fetchHistory = async () => {
+    if (!selectedEstateId) return;
+
     if (!dates.start && !dates.end) {
       setLoading(true);
       try {
-        const res = await getPaymentHistory();
-        // console.log("Fetched history:", res);
+        const res = await getPaymentHistory(selectedEstateId);
         if (res.success) setHistory(res.history);
       } finally {
         setLoading(false);
@@ -80,35 +108,29 @@ const PaymentHistory = () => {
       return;
     }
 
-    // VALIDATION LOGIC
     let start = dates.start;
     let end = dates.end;
 
-    // 1. If start exists but no end, make them the same (search specific day)
     if (start && !end) {
       end = start;
-    }
-    // 2. Prevent end date from being before start date
-    else if (start && end && end < start) {
+    } else if (start && end && end < start) {
       Alert.alert(
         "Invalid Range",
         "End date cannot be earlier than start date.",
       );
       return;
-    }
-    // 3. If end exists but no start, alert the user
-    else if (!start && end) {
+    } else if (!start && end) {
       Alert.alert("Missing Start", "Please select a start date first.");
       return;
     }
 
     setLoading(true);
-
     const startStr = start ? start.toISOString().split("T")[0] : "";
     const endStr = end ? end.toISOString().split("T")[0] : "";
 
     try {
-      const res = await getPaymentHistory(startStr, endStr);
+      // Pass estate context alongside dates
+      const res = await getPaymentHistory(selectedEstateId, startStr, endStr);
       if (res.success) {
         setHistory(res.history);
       }
@@ -120,12 +142,11 @@ const PaymentHistory = () => {
   };
 
   useEffect(() => {
-    if (activeTab === "HISTORY") {
+    if (activeTab === "HISTORY" && selectedEstateId) {
       fetchHistory();
     }
-  }, [activeTab]);
+  }, [activeTab, selectedEstateId]);
 
-  // Triggered when user clicks "Make a Report" on a history item
   const openReportModal = (payment: any) => {
     setSelectedPayment(payment);
     setReportSubject(`Dispute: ₦${payment.amount} - ${payment.category}`);
@@ -133,16 +154,12 @@ const PaymentHistory = () => {
   };
 
   const handleDateChange = (event: any, selectedDate?: Date) => {
-    // On Android, if the user taps "Cancel", we just close and return
     if (event.type === "dismissed") {
       setShowDatePicker(null);
       return;
     }
-
     if (selectedDate) {
-      // IMPORTANT: Update the specific state based on which picker was open
       if (showDatePicker === "form") {
-        console.log("form date:", selectedDate.toISOString());
         setForm((prev) => ({ ...prev, payment_date: selectedDate }));
       } else if (showDatePicker === "start") {
         setDates((prev) => ({ ...prev, start: selectedDate }));
@@ -150,14 +167,6 @@ const PaymentHistory = () => {
         setDates((prev) => ({ ...prev, end: selectedDate }));
       }
     }
-
-    // Close the picker AFTER handling the date on iOS (spinner mode)
-    // or immediately on Android (dialog mode)
-    if (Platform.OS === "android") {
-      setShowDatePicker(null);
-    }
-    // If iOS spinner, you might want to leave it open until they click away,
-    // but for your layout, closing it is usually cleaner.
     setShowDatePicker(null);
   };
 
@@ -184,14 +193,18 @@ const PaymentHistory = () => {
   };
 
   const handleSubmit = async () => {
-    // if (!form.amount || !form.receipt_url) {
-    //   return Alert.alert("Required", "Amount and Receipt are mandatory.");
-    // }
+    if (!selectedEstateId) {
+      return Alert.alert(
+        "Selection Required",
+        "Please select an estate before uploading log.",
+      );
+    }
 
     setUploadingRecord(true);
     try {
       const payload = {
         ...form,
+        estate_id: selectedEstateId, // Injected active estate target context here
         payment_date: form.payment_date.toISOString(),
       };
 
@@ -199,7 +212,6 @@ const PaymentHistory = () => {
 
       if (res && res.success) {
         Alert.alert("Success", "Payment submitted for verification");
-        // Reset Form
         setForm({
           amount: "",
           category: "",
@@ -237,6 +249,7 @@ const PaymentHistory = () => {
         subject: reportSubject.trim(),
         payment_id: selectedPayment.id,
         description: reportDescription.trim(),
+        estate_id: selectedEstateId!,
       };
 
       const res = await submitEstateReport(payload);
@@ -268,7 +281,6 @@ const PaymentHistory = () => {
         onPress: async () => {
           const res = await deletePaymentLog(id);
           if (res.success) {
-            // Refresh your list
             fetchHistory();
           } else {
             Alert.alert("Error", res.error);
@@ -278,18 +290,59 @@ const PaymentHistory = () => {
     ]);
   };
 
+  // Fallback view state condition if a multi-property user backs out of selecting an active scope context
+  if (!selectedEstateId && user?.estate_ids && user.estate_ids.length > 1) {
+    return (
+      <View
+        className={`flex-1 justify-center items-center p-6 ${isDarkMode ? "bg-slate-950" : "bg-slate-50"}`}
+      >
+        <TouchableOpacity
+          onPress={() => setEstatePickerVisible(true)}
+          className="bg-indigo-600 px-8 py-4 rounded-3xl shadow-sm"
+        >
+          <Text className="text-white font-black text-base">
+            Select An Estate to Continue
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
-    <SafeAreaView className="flex-1 bg-slate-50">
+    <SafeAreaView
+      className={`flex-1 ${isDarkMode ? "bg-slate-950" : "bg-slate-50"}`}
+    >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         className="flex-1"
       >
+        {/* 🔄 Dynamic Top Estate Context Banner Switcher (Only visible for users across multi estates) */}
+        {user?.estate_ids && user.estate_ids.length > 1 && (
+          <TouchableOpacity
+            onPress={() => setEstatePickerVisible(true)}
+            className={`mx-5 mb-4 flex-row items-center justify-between p-4 rounded-3xl border ${
+              isDarkMode
+                ? "bg-slate-900 border-slate-800"
+                : "bg-white border-slate-100"
+            } shadow-sm`}
+          >
+            <View className="flex-row items-center flex-1">
+              <MapPin size={16} color="#6366f1" />
+              <Text
+                className={`ml-2 text-xs font-black uppercase tracking-wider ${isDarkMode ? "text-slate-300" : "text-slate-700"} flex-1`}
+                numberOfLines={1}
+              >
+                Scope: {activeEstateName || "Switch Context"}
+              </Text>
+            </View>
+            <ChevronDown size={16} color="#94a3b8" />
+          </TouchableOpacity>
+        )}
+
         {/* Tab Switcher */}
         <View className="flex-row gap-3 px-5 mb-4">
           <TouchableOpacity
-            onPress={() => {
-              setActiveTab("UPLOAD");
-            }}
+            onPress={() => setActiveTab("UPLOAD")}
             className={`flex-1 p-4 rounded-3xl border-2 flex-row items-center justify-center ${
               activeTab === "UPLOAD"
                 ? "bg-indigo-600 border-indigo-600"
@@ -308,9 +361,7 @@ const PaymentHistory = () => {
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => {
-              setActiveTab("HISTORY");
-            }}
+            onPress={() => setActiveTab("HISTORY")}
             className={`flex-1 p-4 rounded-3xl border-2 flex-row items-center justify-center ${
               activeTab === "HISTORY"
                 ? "bg-indigo-600 border-indigo-600"
@@ -327,7 +378,7 @@ const PaymentHistory = () => {
               History
             </Text>
           </TouchableOpacity>
-          {/* Reports Tab Button */}
+
           <TouchableOpacity
             onPress={() => setActiveTab("REPORTS")}
             className={`flex-1 p-4 rounded-3xl border-2 flex-row items-center justify-center ${
@@ -351,13 +402,34 @@ const PaymentHistory = () => {
         <View className="flex-1">
           {activeTab === "REPORTS" ? (
             <View className="flex-1">
-              <PaymentReportsHistory />
+              {selectedEstateId ? (
+                <PaymentReportsHistory estate_id={selectedEstateId} />
+              ) : (
+                /* Fallback state displayed if no property context has been active or resolved yet */
+                <View className="flex-1 justify-center items-center p-6">
+                  <View className="items-center max-w-[280px]">
+                    <Text
+                      className={`text-base font-black text-center ${isDarkMode ? "text-slate-400" : "text-slate-600"}`}
+                    >
+                      No Property Selected
+                    </Text>
+                    <Text className="text-xs text-slate-400 text-center mt-2 font-medium">
+                      Please choose an active estate context from the menu above
+                      to review financial statement records.
+                    </Text>
+                  </View>
+                </View>
+              )}
             </View>
           ) : activeTab === "UPLOAD" ? (
             <ScrollView className="px-6" showsVerticalScrollIndicator={false}>
-              <Text className="text-xl font-black text-slate-900 mb-6">
+              <Text className="text-xl font-black text-slate-900 mb-2">
                 Upload Payment Info
               </Text>
+              <Text className="text-xs text-slate-400 font-bold mb-4">
+                Logging to: {activeEstateName}
+              </Text>
+
               <View className="bg-white p-6 rounded-[40px] border border-slate-100 mb-10">
                 <View className="space-y-4">
                   <InputField
@@ -379,11 +451,11 @@ const PaymentHistory = () => {
                       setForm({ ...form, category: v })
                     }
                   />
+
                   <View className="p-4 border border-slate-100">
                     <Text className="text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">
                       Select Payment Method
                     </Text>
-
                     <View className="flex-row gap-3">
                       {[
                         { id: "bank_transfer", label: "Bank Transfer" },
@@ -403,7 +475,6 @@ const PaymentHistory = () => {
                                 : "bg-white border-slate-100"
                             }`}
                           >
-                            {/* Custom Checkbox Circle */}
                             <View
                               className={`w-5 h-5 rounded-full border-2 items-center justify-center mr-3 ${
                                 isSelected
@@ -415,13 +486,8 @@ const PaymentHistory = () => {
                                 <View className="w-2 h-2 rounded-full bg-white" />
                               )}
                             </View>
-
                             <Text
-                              className={`font-bold text-xs ${
-                                isSelected
-                                  ? "text-indigo-900"
-                                  : "text-slate-500"
-                              }`}
+                              className={`font-bold text-xs ${isSelected ? "text-indigo-900" : "text-slate-500"}`}
                             >
                               {item.label}
                             </Text>
@@ -445,7 +511,6 @@ const PaymentHistory = () => {
                     }
                   />
 
-                  {/* Payment Date Trigger */}
                   <View className="p-4 border border-slate-100">
                     <Text className="text-[10px] font-black text-slate-400 uppercase mb-1">
                       Payment Date
@@ -460,7 +525,6 @@ const PaymentHistory = () => {
                     </TouchableOpacity>
                   </View>
 
-                  {/* Textarea for Notes */}
                   <InputField
                     label="Additional Notes"
                     placeholder="Write details here..."
@@ -473,7 +537,6 @@ const PaymentHistory = () => {
                     onChangeText={(v: string) => setForm({ ...form, notes: v })}
                   />
 
-                  {/* Image Selector Area */}
                   <TouchableOpacity
                     onPress={pickImage}
                     disabled={uploadingImage}
@@ -481,7 +544,9 @@ const PaymentHistory = () => {
                   >
                     {uploadingImage ? (
                       <ActivityIndicator color="#6366f1" size="large" />
-                    ) : form.receipt_url ? (
+                    ) : form.receipt_url &&
+                      form.receipt_url !== "string" &&
+                      form.receipt_url !== "" ? (
                       <Image
                         source={{ uri: form.receipt_url }}
                         className="w-full h-full"
@@ -497,7 +562,6 @@ const PaymentHistory = () => {
                     )}
                   </TouchableOpacity>
 
-                  {/* Submit Action */}
                   <TouchableOpacity
                     onPress={handleSubmit}
                     disabled={uploadingRecord || uploadingImage}
@@ -607,12 +671,14 @@ const PaymentHistory = () => {
                   ))
                 ) : (
                   <Text className="text-center text-slate-400 mt-10">
-                    No records found.
+                    No records found for this estate context.
                   </Text>
                 )}
               </ScrollView>
             </View>
           )}
+
+          {/* Dispute Handling Modal */}
           <Modal visible={reportModal} animationType="slide" transparent>
             <View className="flex-1 justify-end bg-black/50">
               <View className="bg-white rounded-t-[40px] p-8 h-[70%]">
@@ -624,14 +690,12 @@ const PaymentHistory = () => {
                     <XCircle size={24} color="#64748b" />
                   </TouchableOpacity>
                 </View>
-
                 <ScrollView showsVerticalScrollIndicator={false}>
                   <InputField
                     label="Subject"
                     value={reportSubject}
                     onChangeText={setReportSubject}
                   />
-
                   <InputField
                     label="Description"
                     placeholder="Explain the discrepancy..."
@@ -643,7 +707,6 @@ const PaymentHistory = () => {
                     value={reportDescription}
                     onChangeText={setReportDescription}
                   />
-
                   <TouchableOpacity
                     onPress={handleReportSubmit}
                     disabled={submittingReport}
@@ -663,7 +726,67 @@ const PaymentHistory = () => {
           </Modal>
         </View>
 
-        {/* Global Date Picker Component */}
+        {/* Dynamic Modal Selector for Context Switcher */}
+        <Modal
+          visible={estatePickerVisible}
+          animationType="slide"
+          transparent={true}
+        >
+          <View className="flex-1 justify-end bg-black/50">
+            <View
+              className={`${isDarkMode ? "bg-slate-900" : "bg-white"} rounded-t-[2.5rem] p-6 max-h-[60%]`}
+            >
+              <View className="w-12 h-1 bg-slate-300 rounded-full align-self-center mb-6 mx-auto" />
+              <Text
+                className={`text-xl font-bold mb-4 ${isDarkMode ? "text-white" : "text-slate-900"}`}
+              >
+                Select Active Property Context
+              </Text>
+              <FlatList
+                data={user?.estates || []}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setSelectedEstateId(item.id);
+                      setEstatePickerVisible(false);
+                    }}
+                    className={`p-4 rounded-2xl mb-3 border flex-row items-center ${
+                      selectedEstateId === item.id
+                        ? "border-indigo-500 bg-indigo-50/40"
+                        : isDarkMode
+                          ? "border-slate-800 bg-slate-800/40"
+                          : "border-slate-100 bg-slate-50"
+                    }`}
+                  >
+                    <MapPin
+                      size={20}
+                      color={
+                        selectedEstateId === item.id ? "#4f46e5" : "#94a3b8"
+                      }
+                    />
+                    <View className="ml-3 flex-1">
+                      <Text
+                        className={`font-bold text-sm ${isDarkMode ? "text-white" : "text-slate-800"}`}
+                      >
+                        {item.name}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+              />
+              {selectedEstateId && (
+                <TouchableOpacity
+                  onPress={() => setEstatePickerVisible(false)}
+                  className="mt-2 p-4 bg-slate-200 rounded-2xl items-center"
+                >
+                  <Text className="text-slate-700 font-bold">Cancel</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        </Modal>
+
         {showDatePicker && (
           <DateTimePicker
             value={
@@ -683,7 +806,7 @@ const PaymentHistory = () => {
   );
 };
 
-// Helper Components
+// Internal sub components remain stable
 const InputField = ({ label, ...props }: any) => (
   <View className="p-4 border border-slate-100">
     <Text className="text-[10px] font-black text-slate-400 uppercase mb-1">

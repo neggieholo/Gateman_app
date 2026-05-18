@@ -72,9 +72,10 @@ function CustomDrawerContent(props: any) {
       </View>
       <View className="flex items-center justify-start">
         <Image
-          source={require("../../assets/images/gateman_logo_cropped_copy.png")}
+          source={require("../../assets/images/splash-icon.png")}
           style={{ borderRadius: 10 }}
-          className="w-full h-16 mb-4 mt-5"
+          className="w-full h-28 mb-4 mt-5"
+          resizeMode="contain"
         />
       </View>
 
@@ -82,14 +83,14 @@ function CustomDrawerContent(props: any) {
 
       <DrawerItem
         label="Settings"
-        labelStyle={{ color: "white", fontSize: 16, fontWeight: "bold" }}
-        icon={() => <Settings size={30} color="white" />}
+        labelStyle={{ color: "#D4AF37", fontSize: 16, fontWeight: "bold" }}
+        icon={() => <Settings size={30} color="green" />}
         onPress={() => {router.push("/SettingsScreen" as any); props.navigation.dispatch(DrawerActions.closeDrawer())}}
       />
 
       <DrawerItem
         label={loggingOut ? "Logging Out..." : "Logout"}
-        labelStyle={{ color: "white", fontSize: 16, fontWeight: "bold" }}
+        labelStyle={{ color: "#D4AF37", fontSize: 16, fontWeight: "bold" }}
         icon={() => <LogOut size={30} color="#ef4444" />}
         onPress={handleLogout}
       />
@@ -116,16 +117,16 @@ export default function AppLayout() {
         drawerContent={(props) => <CustomDrawerContent {...props} />}
         screenOptions={{
           headerShown: true,
-          drawerStyle: { width: 260, backgroundColor: "#2563eb" },
+          drawerStyle: { width: 260, backgroundColor: "#0A1F44" },
           headerTitleAlign: "center",
           headerTitle: getHeaderTitle(),
           headerStyle: {
-            backgroundColor: "#2563eb",
+            backgroundColor: "#0A1F44",
           },
-          headerTintColor: "#ffffff",
+          headerTintColor: "#D4AF37",
           headerTitleStyle: {
-            color: "#ffffff",
-            fontWeight: "bold",
+            fontFamily: "Montserrat-ExtraBold",
+            color: "#D4AF37",
           },
           headerRight: () => {
             if (isDashboard) {
@@ -135,7 +136,7 @@ export default function AppLayout() {
                     onPress={() => router.push("/ChatScreen")} 
                     className="mr-10"
                   >
-                    <MessageSquare size={24} color="#ffffff" />
+                    <MessageSquare size={24} color="#D4AF37" />
                     {totalUnread > 0 && (
                       <View
                         className="absolute -top-1 -right-1 bg-red-500 rounded-full flex items-center justify-center border-2 border-[#2563eb]"
@@ -152,7 +153,7 @@ export default function AppLayout() {
                   <TouchableOpacity
                     onPress={() => router.push("/NotificationsPage")}
                   >
-                    <Bell size={24} color="#ffffff" />
+                    <Bell size={24} color="#D4AF37" />
                     {badgeCount > 0 && (
                       <View
                         className="absolute -top-1 -right-1 bg-red-500 rounded-full flex items-center justify-center border-2 border-[#2563eb]"

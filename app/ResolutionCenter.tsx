@@ -1,9 +1,11 @@
-import { FileText, History, Send } from "lucide-react-native";
-import React, { useState } from "react";
+import { FileText, History, MapPin, ChevronDown, Send } from "lucide-react-native";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   Text,
@@ -13,18 +15,40 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import ReportsHistory from "./components/ReportsHistory";
+import { useUser } from "./UserContext"; // Added User Context hook
 import { submitEstateReport } from "./services/api";
 import { SubmitReportPayload } from "./services/interfaces";
 
 export default function ResolutionCenter() {
+  const { user, isDarkMode } = useUser(); // Pull user details and theme state
   const [activeTab, setActiveTab] = useState<"REPORT" | "HISTORY">("REPORT");
   const [loading, setLoading] = useState(false);
+
+  // Estate Selection States
+  const [selectedEstateId, setSelectedEstateId] = useState<string | null>(null);
+  const [estatePickerVisible, setEstatePickerVisible] = useState(false);
 
   // Form State
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
 
+  // Set initial fallback estate context on mount
+  useEffect(() => {
+    if (user?.estate_ids && user.estate_ids.length > 0) {
+      setSelectedEstateId(user.estate_ids[0]);
+    }
+  }, [user?.estate_ids]);
+
+  const activeEstateName = useMemo(() => {
+    if (!user?.estates || !selectedEstateId) return "";
+    return user.estates.find((e) => e.id === selectedEstateId)?.name || "";
+  }, [selectedEstateId, user?.estates]);
+
   const handleSubmit = async () => {
+    if (!selectedEstateId) {
+      Alert.alert("Context Missing", "Please select a property context first.");
+      return;
+    }
     if (!subject.trim() || !description.trim()) {
       Alert.alert("Missing Info", "Please fill in all fields.");
       return;
@@ -32,8 +56,9 @@ export default function ResolutionCenter() {
 
     setLoading(true);
     const payload: SubmitReportPayload = {
-      type: "GENERAL" , 
-      category: "COMPLAINT" ,
+      estate_id: selectedEstateId,
+      type: "GENERAL",
+      category: "COMPLAINT",
       subject: subject.trim(),
       description: description.trim(),
     };
@@ -44,18 +69,41 @@ export default function ResolutionCenter() {
     if (res.success) {
       Alert.alert("Submitted", "Thank you. Your concern has been recorded.");
       setSubject("");
-      setDescription(""); 
+      setDescription("");
     } else {
       Alert.alert("Error", res.error || "Something went wrong.");
     }
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50">
+    <SafeAreaView className={`flex-1 ${isDarkMode ? "bg-gm-navy/20" : "bg-slate-50"}`}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         className="flex-1"
       >
+        {/* 🔄 Dynamic Estate Context Selector for multi-property configurations */}
+        {user?.estate_ids && user.estate_ids.length > 1 && (
+          <TouchableOpacity
+            onPress={() => setEstatePickerVisible(true)}
+            className={`mx-5 mb-4 flex-row items-center justify-between p-4 rounded-2xl border ${
+              isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100"
+            }`}
+          >
+            <View className="flex-row items-center flex-1">
+              <MapPin size={14} color="#6366f1" />
+              <Text
+                className={`ml-2 text-xs font-black uppercase tracking-wider ${
+                  isDarkMode ? "text-slate-300" : "text-slate-600"
+                } flex-1`}
+                numberOfLines={1}
+              >
+                Acting For: {activeEstateName || "Select Property"}
+              </Text>
+            </View>
+            <ChevronDown size={16} color="#94a3b8" />
+          </TouchableOpacity>
+        )}
+
         {/* Tab Switcher */}
         <View className="flex-row gap-3 px-5 mb-4">
           <TouchableOpacity
@@ -63,7 +111,7 @@ export default function ResolutionCenter() {
             className={`flex-1 p-4 rounded-3xl border-2 flex-row items-center justify-center ${
               activeTab === "REPORT"
                 ? "bg-indigo-600 border-indigo-600"
-                : "bg-white border-slate-100"
+                : isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100"
             }`}
           >
             <FileText
@@ -82,7 +130,7 @@ export default function ResolutionCenter() {
             className={`flex-1 p-4 rounded-3xl border-2 flex-row items-center justify-center ${
               activeTab === "HISTORY"
                 ? "bg-indigo-600 border-indigo-600"
-                : "bg-white border-slate-100"
+                : isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100"
             }`}
           >
             <History
@@ -99,10 +147,11 @@ export default function ResolutionCenter() {
 
         {activeTab === "REPORT" ? (
           <ScrollView showsVerticalScrollIndicator={false} className="px-5">
-            <View className="bg-indigo-50/50 p-4 rounded-2xl mb-6 border border-indigo-100">
+            <View className={`p-4 rounded-2xl mb-6 border ${
+              isDarkMode ? "bg-indigo-950/40 border-indigo-900/50" : "bg-indigo-50/50 border-indigo-100"
+            }`}>
               <Text className="text-indigo-600 text-xs font-bold leading-5 text-center">
-                Suggest improvements or report infrastructure issues within the
-                estate.
+                Suggest improvements or report infrastructure issues within the estate.
               </Text>
             </View>
 
@@ -115,8 +164,10 @@ export default function ResolutionCenter() {
                   value={subject}
                   onChangeText={setSubject}
                   placeholder="e.g., Street light out, Broken pipe..."
-                  placeholderTextColor="#cbd5e1"
-                  className="bg-white p-5 rounded-2xl border border-slate-200 text-slate-800 font-bold"
+                  placeholderTextColor={isDarkMode ? "#475569" : "#cbd5e1"}
+                  className={`p-5 rounded-2xl border text-slate-800 font-bold ${
+                    isDarkMode ? "bg-slate-900 border-slate-800 text-white" : "bg-white border-slate-200"
+                  }`}
                 />
               </View>
 
@@ -128,11 +179,13 @@ export default function ResolutionCenter() {
                   value={description}
                   onChangeText={setDescription}
                   placeholder="Tell management exactly what is wrong..."
-                  placeholderTextColor="#cbd5e1"
+                  placeholderTextColor={isDarkMode ? "#475569" : "#cbd5e1"}
                   multiline
                   numberOfLines={6}
                   textAlignVertical="top"
-                  className="bg-white p-5 rounded-[30px] border border-slate-200 text-slate-800 min-h-[180px] font-medium"
+                  className={`p-5 rounded-[30px] border text-slate-800 min-h-[180px] font-medium ${
+                    isDarkMode ? "bg-slate-900 border-slate-800 text-white" : "bg-white border-slate-200"
+                  }`}
                 />
               </View>
 
@@ -160,11 +213,62 @@ export default function ResolutionCenter() {
             </View>
           </ScrollView>
         ) : (
-          <View className="flex-1">
-            <ReportsHistory />
-          </View>
+          /* Guard check prevents loading history template queries matching null props */
+          selectedEstateId ? (
+            <View className="flex-1">
+              <ReportsHistory estate_id={selectedEstateId} />
+            </View>
+          ) : (
+            <View className="flex-1 items-center justify-center p-5">
+              <Text className="text-slate-400 font-bold">Please select an estate context</Text>
+            </View>
+          )
         )}
       </KeyboardAvoidingView>
+
+      {/* Slide-Up Estate Workspace Picker Sheet */}
+      <Modal visible={estatePickerVisible} animationType="slide" transparent={true}>
+        <View className="flex-1 justify-end bg-black/50">
+          <View className={`${isDarkMode ? "bg-slate-900" : "bg-white"} rounded-t-[2.5rem] p-6 max-h-[60%]`}>
+            <View className="w-12 h-1 bg-slate-300 rounded-full self-center mb-6 mx-auto" />
+            <Text className={`text-xl font-bold mb-4 ${isDarkMode ? "text-white" : "text-slate-900"}`}>
+              Select Active Property Context
+            </Text>
+            <FlatList
+              data={user?.estates || []}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  onPress={() => {
+                    setSelectedEstateId(item.id);
+                    setEstatePickerVisible(false);
+                  }}
+                  className={`p-4 rounded-2xl mb-3 border flex-row items-center ${
+                    selectedEstateId === item.id
+                      ? "border-indigo-500 bg-indigo-50/40"
+                      : isDarkMode ? "border-slate-800 bg-slate-800/40" : "border-slate-100 bg-slate-50"
+                  }`}
+                >
+                  <MapPin size={20} color={selectedEstateId === item.id ? "#4f46e5" : "#94a3b8"} />
+                  <View className="ml-3 flex-1">
+                    <Text className={`font-bold text-sm ${isDarkMode ? "text-white" : "text-slate-800"}`}>
+                      {item.name}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+            />
+            {selectedEstateId && (
+              <TouchableOpacity
+                onPress={() => setEstatePickerVisible(false)}
+                className="mt-2 p-4 bg-slate-200 rounded-2xl items-center"
+              >
+                <Text className="text-slate-700 font-bold">Cancel</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

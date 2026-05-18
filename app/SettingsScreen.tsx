@@ -4,11 +4,12 @@ import { router } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import {
   Building,
+  ChevronDown,
   ChevronRight,
   Landmark,
   Lock,
+  MapPin,
   Phone,
-  ShieldCheck,
   User,
 } from "lucide-react-native";
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -29,7 +30,7 @@ import { useUser } from "./UserContext";
 import { sendPofileChangeOtpApi } from "./services/api";
 
 export default function ResidentSettings() {
-  const { user } = useUser();
+  const { user, isDarkMode, theme } = useUser();
   const BASE_URL = `${process.env.EXPO_PUBLIC_BASE_URL}/api`;
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -45,6 +46,10 @@ export default function ResidentSettings() {
   const [otpLoading, setOtpLoading] = useState(false);
   const [verifyingOtp, setverifyingOtp] = useState(false);
 
+  // 🏛️ Multi-Estate State Management Workspace Variables
+  const [estateDropdownVisible, setEstateDropdownVisible] = useState(false);
+  const [selectedEstateId, setSelectedEstateId] = useState<string>("");
+
   const inputRefs = useRef(
     Array(6)
       .fill(0)
@@ -53,9 +58,6 @@ export default function ResidentSettings() {
 
   const [profile, setProfile] = useState({
     name: user?.name || "",
-    estate: user?.estate_name || "",
-    block: user?.block || "",
-    unit: user?.unit || "",
     email: user?.email || "",
     phone: user?.phone || "",
     biometric_login: user?.biometric_login || false,
@@ -63,13 +65,17 @@ export default function ResidentSettings() {
     phone_verified: !!user?.phone,
   });
 
+  // Automatically fall back to the first available estate by default on initialization
+  useEffect(() => {
+    if (user?.estates && user.estates.length > 0) {
+      setSelectedEstateId(user.estates[0].id);
+    }
+  }, [user?.estates]);
+
   useEffect(() => {
     if (user) {
       setProfile({
         name: user.name || "",
-        estate: user?.estate_name || "",
-        block: user.block || "",
-        unit: user.unit || "",
         email: user.email || "",
         phone: user.phone || "",
         biometric_login: user?.biometric_login || false,
@@ -78,6 +84,36 @@ export default function ResidentSettings() {
       });
     }
   }, [user]);
+
+  // Compute specific dynamic context details depending on chosen estate row
+  const activeEstateContext = useMemo(() => {
+    if (!user?.estates || !selectedEstateId) return null;
+    return (
+      user.estates.find((e) => e.id === selectedEstateId) || user.estates[0]
+    );
+  }, [selectedEstateId, user?.estates]);
+
+  const activeLocationContext = useMemo(() => {
+    if (!user?.locations || !selectedEstateId) return null;
+    const records = user.locations[selectedEstateId];
+
+    if (records && records.length > 0) {
+      const locationLines = records.map((rec) => {
+        const blockStr = rec.block ? `Block ${rec.block}` : "No Block";
+        const unitStr =
+          rec.unit && rec.unit.length > 0 ? `: ${rec.unit.join(", ")}` : "";
+
+        return `${blockStr}${unitStr}`;
+      });
+
+      return {
+        locationLines,
+        isMultiProperty: records.length > 1,
+      };
+    }
+
+    return { locationLines: ["N/A"], isMultiProperty: false };
+  }, [selectedEstateId, user?.locations]);
 
   const handleFieldChange = (field: "email", value: string) => {
     setProfile((prev) => ({
@@ -88,7 +124,6 @@ export default function ResidentSettings() {
   };
 
   const handlePhoneChange = (value: string) => {
-    console.log("Phone change:", value);
     const phoneValue = value || "";
     setProfile((prev) => ({
       ...prev,
@@ -100,11 +135,7 @@ export default function ResidentSettings() {
   const validateEmail = (text: string) => {
     const cleanedEmail = text.trim();
     const reg = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-    if (reg.test(cleanedEmail)) {
-      return true;
-    }
-    return false;
+    return reg.test(cleanedEmail);
   };
 
   const handleRequestOtp = async (target: string, type: "email" | "phone") => {
@@ -127,7 +158,6 @@ export default function ResidentSettings() {
       }
     }
     setVerifyingField(type);
-
     setOtpLoading(true);
     setError("");
 
@@ -137,7 +167,6 @@ export default function ResidentSettings() {
         type,
       );
       if (otpRes.success) {
-        console.log("Otp success Response:", otpRes);
         setMetadata(otpRes.metadata);
         setShowOtpInput(true);
       } else {
@@ -222,33 +251,23 @@ export default function ResidentSettings() {
         );
       }
 
-      // Scan to verify the user is the owner of the device
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage: "Confirm identity to enable Biometric Login",
       });
 
       if (result.success) {
         await AsyncStorage.setItem("biometrics_active", "true");
-        setProfile((prev) => ({
-          ...prev,
-          biometric_login: true,
-        }));
+        setProfile((prev) => ({ ...prev, biometric_login: true }));
       } else {
         Alert.alert(
           "Unrecognized",
           "Biometric authentication failed. Please try again.",
         );
-        setProfile((prev) => ({
-          ...prev,
-          biometric_login: false,
-        }));
+        setProfile((prev) => ({ ...prev, biometric_login: false }));
         await AsyncStorage.setItem("biometrics_active", "false");
       }
     } else {
-      setProfile((prev) => ({
-        ...prev,
-        biometric_login: false,
-      }));
+      setProfile((prev) => ({ ...prev, biometric_login: false }));
       await AsyncStorage.setItem("biometrics_active", "false");
     }
   };
@@ -301,74 +320,123 @@ export default function ResidentSettings() {
 
   const memoizedHeader = useMemo(
     () => (
-      <View className="p-6 pb-20">
-        <Text className="text-slate-500 font-medium mb-8">
+      <View
+        className={`${isDarkMode ? "bg-gm-navy/20" : "bg-gray-50 "} p-6 pb-20`}
+      >
+        <Text
+          className={`${isDarkMode ? "text-gm-charcoal" : "text-slate-500"} text-lg font-oswald-semibold mb-8`}
+        >
           Manage your contact and security info
         </Text>
 
-        {/* 1. Locked Identity Section */}
-        <View className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm mb-6">
-          <View className="flex-row items-center mb-4">
+        {/* 1. Residence Workspace Profiles Context Card */}
+        <View
+          className={`${isDarkMode ? "bg-gm-navy" : "bg-white"} p-6 rounded-3xl border border-slate-100 shadow-sm mb-6`}
+        >
+          <View className="flex-row items-center mb-6">
             <Building size={20} color="#4f46e5" />
-            <Text className="ml-2 font-bold text-slate-900 text-lg">
+            <Text
+              className={`ml-2 font-montserrat-bold ${isDarkMode ? "text-white" : "text-gm-navy"} text-lg`}
+            >
               Residence Info
             </Text>
           </View>
 
-          {[
-            {
-              label: "Full Name",
-              value: profile.name,
-              icon: <User size={16} color="#94a3b8" />,
-            },
-            profile.estate
-              ? {
-                  label: "Estate",
-                  value: profile.estate,
-                  icon: <Landmark size={16} color="#94a3b8" />,
-                }
-              : null,
-            profile.block
-              ? {
-                  label: "Block",
-                  value: profile.block,
-                  icon: <Building size={16} color="#94a3b8" />,
-                }
-              : null,
-            ,
-            profile.unit
-              ? {
-                  label: "Unit Number",
-                  value: profile.unit,
-                  icon: <ShieldCheck size={16} color="#94a3b8" />,
-                }
-              : null,
-            ,
-          ]
-            .filter(Boolean)
-            .map((item, index) => (
-              <View key={index} className="mb-4">
-                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
-                  {item!.label}
-                </Text>
-                <View className="flex-row items-center bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  {item!.icon}
-                  <Text className="ml-3 font-bold text-slate-500">
-                    {item!.value}
-                  </Text>
-                  <View className="ml-auto">
-                    <Lock size={14} color="#cbd5e1" />
-                  </View>
-                </View>
+          {/* User Personal Identity Flag Field */}
+          <View className="mb-4">
+            <Text
+              className={`text-[10px] font-oswald-semibold ${isDarkMode ? "text-gm-gold" : "text-slate-400 "} uppercase tracking-widest mb-1`}
+            >
+              Full Name
+            </Text>
+            <View
+              className={`flex-row items-center ${isDarkMode ? "bg-gm-navy border-gm-gold" : "bg-slate-50 border-slate-100"} p-4 rounded-2xl border`}
+            >
+              <User size={16} color="#94a3b8" />
+              <Text className="ml-3 font-roboto-regular font-bold text-slate-500">
+                {profile.name}
+              </Text>
+              <View className="ml-auto">
+                <Lock size={14} color="#cbd5e1" />
               </View>
-            ))}
+            </View>
+          </View>
+
+          {/* 🔄 MULTI-ESTATE WORKSPACE DROP-DOWN SELECTION BOX */}
+          {user?.estates && user.estates.length > 0 && (
+            <View className="mb-4">
+              <Text
+                className={`text-[10px] font-oswald-semibold ${isDarkMode ? "text-gm-gold" : "text-slate-400 "} uppercase tracking-widest mb-1`}
+              >
+                Select Estate Profile View
+              </Text>
+              <TouchableOpacity
+                onPress={() => setEstateDropdownVisible(true)}
+                className={`flex-row items-center ${isDarkMode ? "bg-gm-navy border-gm-gold" : "bg-slate-50 border-slate-100"} p-4 rounded-2xl border`}
+              >
+                <Landmark size={16} color="#4f46e5" />
+                <View className="ml-3 flex-1 pr-2">
+                  <Text
+                    className={`font-roboto-regular font-bold ${isDarkMode ? "text-white" : "text-slate-700"}`}
+                  >
+                    {activeEstateContext?.name || "Select Estate"}
+                  </Text>
+                  {activeEstateContext?.address && (
+                    <Text
+                      className="text-xs text-slate-400 font-roboto-regular mt-0.5"
+                      numberOfLines={1}
+                    >
+                      {activeEstateContext.address}, {activeEstateContext.town}
+                    </Text>
+                  )}
+                </View>
+                <ChevronDown size={18} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Dynamic Housing Context Fields */}
+          <View className="mb-4">
+            <Text
+              className={`text-[10px] font-oswald-semibold ${isDarkMode ? "text-gm-gold" : "text-slate-400 "} uppercase tracking-widest mb-1`}
+            >
+              {activeLocationContext?.isMultiProperty
+                ? "Assigned Residences"
+                : "Residence Location"}
+            </Text>
+            <View
+              className={`flex-row items-start ${isDarkMode ? "bg-gm-navy border-gm-gold" : "bg-slate-50 border-slate-100"} p-4 rounded-2xl border`}
+            >
+              <Building size={16} color="#94a3b8" style={{ marginTop: 2 }} />
+
+              <View className="ml-3 flex-1">
+                {activeLocationContext?.locationLines.map((line, index) => (
+                  <Text
+                    key={index}
+                    className={`font-roboto-regular font-bold text-slate-500 ${index > 0 ? "mt-2" : ""}`}
+                  >
+                    {line}
+                  </Text>
+                ))}
+              </View>
+
+              <View className="ml-auto">
+                <Lock size={14} color="#cbd5e1" />
+              </View>
+            </View>
+          </View>
         </View>
 
-        <View className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm mb-6">
+        {/* Contact Configuration Form Card Block */}
+        <View
+          className={`${isDarkMode ? "bg-gm-navy" : "bg-white"} p-6 rounded-3xl border border-slate-100 shadow-sm mb-6`}
+        >
           <View className="flex-row items-center justify-between mb-4">
             <View className="flex-row items-center">
               <Phone size={20} color="#10b981" />
-              <Text className="ml-2 font-bold text-slate-900 text-lg">
+              <Text
+                className={`ml-2 ${isDarkMode ? "text-white" : "text-gm-navy"} font-montserrat-bold text-lg`}
+              >
                 Contact Details
               </Text>
             </View>
@@ -377,9 +445,6 @@ export default function ResidentSettings() {
                 if (isEditing) {
                   setProfile({
                     name: user?.name || "",
-                    estate: user?.estate_name || "",
-                    block: user?.block || "",
-                    unit: user?.unit || "",
                     email: user?.email || "",
                     phone: user?.phone || "",
                     biometric_login: user?.biometric_login || false,
@@ -391,16 +456,18 @@ export default function ResidentSettings() {
                 setIsEditing(!isEditing);
               }}
             >
-              <Text className="text-indigo-600 font-bold">
+              <Text className="text-red-400 font-roboto-regular font-bold">
                 {isEditing ? "Cancel" : "Edit"}
               </Text>
             </TouchableOpacity>
           </View>
 
-          {/* Email */}
+          {/* Email Modification Wrapper */}
           <View className="mb-4 relative flex">
             <View className="flex-row justify-between mb-1">
-              <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+              <Text
+                className={`text-[10px] font-oswald-semibold ${isDarkMode ? "text-gm-gold" : "text-slate-400"} uppercase tracking-widest`}
+              >
                 Email Address
               </Text>
               {profile.email_verified && (
@@ -413,7 +480,15 @@ export default function ResidentSettings() {
               editable={isEditing}
               value={profile.email}
               onChangeText={(text) => handleFieldChange("email", text)}
-              className={`p-4 rounded-2xl font-bold ${isEditing ? "bg-white border-2 border-indigo-500 text-slate-900" : "bg-slate-50 text-slate-500"}`}
+              className={`p-4 rounded-2xl font-roboto-regular border ${
+                isEditing
+                  ? isDarkMode
+                    ? "bg-gm-navy border-white text-white"
+                    : "bg-white border-indigo-500 text-gm-navy"
+                  : isDarkMode
+                    ? "bg-gm-navy border-gm-gold text-slate-300"
+                    : "bg-slate-50 border-transparent text-slate-500"
+              }`}
             />
             {!profile.email_verified && isEditing && !showOtpInput && (
               <TouchableOpacity
@@ -431,10 +506,12 @@ export default function ResidentSettings() {
             )}
           </View>
 
-          {/* Phone */}
+          {/* Phone Integration Input Row */}
           <View className="mb-2 relative flex">
             <View className="flex-row justify-between mb-1">
-              <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+              <Text
+                className={`text-[10px] font-oswald-semibold ${isDarkMode ? "text-gm-gold" : "text-slate-400"} uppercase tracking-widest`}
+              >
                 Phone Number
               </Text>
               {profile.phone_verified && (
@@ -450,26 +527,54 @@ export default function ResidentSettings() {
               defaultCode="NG"
               disabled={!isEditing}
               onChangeFormattedText={handlePhoneChange}
+              countryPickerButtonStyle={{
+                backgroundColor: "transparent",
+                width: 40,
+              }}
+              codeTextStyle={{
+                color: isDarkMode ? "#FFFFFF" : "#0F172A",
+                fontFamily: "Roboto-Regular",
+                fontSize: 14,
+                marginLeft: -10,
+              }}
               containerStyle={{
                 width: "100%",
-                height: 64,
+                height: 50,
                 borderRadius: 16,
-                backgroundColor: isEditing ? "#FFFFFF" : "#F8FAFC",
                 borderWidth: isEditing ? 2 : 1,
-                borderColor: isEditing ? "#4F46E5" : "#F1F5F9",
+                backgroundColor: isEditing
+                  ? isDarkMode
+                    ? "#001F3F"
+                    : "#FFFFFF"
+                  : isDarkMode
+                    ? "#001F3F"
+                    : "#F8FAFC",
+                borderColor: isEditing
+                  ? isDarkMode
+                    ? "#FFFFFF"
+                    : "#4F46E5"
+                  : isDarkMode
+                    ? "#D4AF37"
+                    : "transparent",
                 paddingTop: Platform.OS === "android" ? 2 : 0,
               }}
               textInputProps={{
-                placeholderTextColor: "#94a3b8", // For the number side
-                maxLength: 10, // Optional: common for Nigerian numbers after +234
+                placeholderTextColor: "#94a3b8",
+                maxLength: 10,
               }}
               textContainerStyle={{
                 backgroundColor: "transparent",
                 paddingVertical: 0,
               }}
               textInputStyle={{
-                color: isEditing ? "#0F172A" : "#64748B",
-                fontWeight: "700",
+                color: isEditing
+                  ? isDarkMode
+                    ? "#FFFFFF"
+                    : "#0F172A"
+                  : isDarkMode
+                    ? "#cbd5e1"
+                    : "#64748B",
+                fontFamily: "Roboto-Regular",
                 fontSize: 14,
               }}
             />
@@ -488,58 +593,82 @@ export default function ResidentSettings() {
               </TouchableOpacity>
             )}
           </View>
-          {user?.estate_id && <View className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm mt-6">
-            <View className="flex-row items-center justify-between">
-              <View className="flex-row items-center flex-1">
-                <View className="bg-indigo-50 p-2 rounded-xl">
-                  {/* Using a Lock or Scan icon for biometrics */}
-                  <User size={20} color="#4f46e5" />
-                </View>
-                <View className="ml-4 flex-1">
-                  <Text className="font-bold text-slate-900 text-lg">
-                    Biometric Login
-                  </Text>
-                  <Text className="text-slate-500 text-xs">
-                    Use fingerprint or face ID to secure your account
-                  </Text>
-                </View>
-              </View>
 
-              <Switch
-                value={profile.biometric_login}
-                disabled={!isEditing}
-                onValueChange={(value) => toggleBiometrics(value)}
-                trackColor={{ false: "#cbd5e1", true: "#4f46e5" }}
-                thumbColor={
-                  Platform.OS === "ios"
-                    ? "#fff"
-                    : profile.biometric_login
+          {/* Secure Biometric Toggles */}
+          {user?.estate_ids && user.estate_ids.length > 0 && (
+            <View
+              className={`${isDarkMode ? "bg-gm-navy border-gm-gold" : "bg-white border-slate-100"} p-6 rounded-3xl border shadow-sm mt-6`}
+            >
+              <View className="flex-row items-center justify-between">
+                <View className="flex-row items-center flex-1">
+                  <View
+                    className={`${isDarkMode ? "bg-gm-gold" : "bg-indigo-50"} p-2 rounded-xl`}
+                  >
+                    <User size={20} color="#4f46e5" />
+                  </View>
+                  <View className="ml-4 flex-1">
+                    <Text
+                      className={`${isDarkMode ? "text-gm-gold" : "text-gm-navy"} font-montserrat-bold text-md`}
+                    >
+                      Biometric Login
+                    </Text>
+                    <Text
+                      className={`${isDarkMode ? "text-white" : "text-slate-500"} text-xs font-roboto-regular`}
+                    >
+                      Use fingerprint or face ID to secure your account
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={profile.biometric_login}
+                  disabled={!isEditing}
+                  onValueChange={(value) => toggleBiometrics(value)}
+                  trackColor={{
+                    false: "#cbd5e1",
+                    true: isDarkMode ? "#D4AF37" : "#4f46e5",
+                  }}
+                  thumbColor={
+                    Platform.OS === "ios"
                       ? "#fff"
-                      : "#f4f3f4"
-                }
-              />
+                      : profile.biometric_login
+                        ? "#fff"
+                        : "#f4f3f4"
+                  }
+                />
+              </View>
             </View>
-          </View>}
+          )}
         </View>
 
-        {/* Change Password & Save Button */}
-
+        {/* Change Password Link Actions */}
         <TouchableOpacity
-          className="bg-slate-900 p-5 rounded-3xl flex-row items-center justify-between shadow-lg"
+          className={`${isDarkMode ? "bg-gm-navy" : "bg-white"} p-5 rounded-3xl flex-row items-center justify-between shadow-lg`}
           onPress={() => router.push("/ChangePassword" as any)}
         >
           <View className="flex-row items-center">
             <View className="bg-white/10 p-2 rounded-xl">
-              <Lock size={20} color="#fff" />
+              <Lock size={20} color={theme.accent} />
             </View>
-            <Text className="ml-4 font-bold text-white">Change Password</Text>
+            <Text
+              className={`ml-4 font-montserrat-bold ${isDarkMode ? "text-gm-gold" : "text-gm-navy"}`}
+            >
+              Change Password
+            </Text>
           </View>
-          <ChevronRight size={20} color="#475569" />
+          <ChevronRight size={20} color={theme.accent} />
         </TouchableOpacity>
 
         {isEditing && (
           <TouchableOpacity
-            className={`mt-8 p-5 rounded-3xl items-center shadow-xl ${hasChanges ? "bg-indigo-600 shadow-indigo-200" : "bg-slate-200"}`}
+            className={`mt-8 p-5 rounded-3xl items-center shadow-xl ${
+              hasChanges
+                ? isDarkMode
+                  ? "bg-gm-charcoal shadow-black"
+                  : "bg-gm-navy shadow-indigo-200"
+                : isDarkMode
+                  ? "bg-slate-800 shadow-none"
+                  : "bg-slate-200 shadow-none"
+            }`}
             onPress={handleSaveConfig}
             disabled={!hasChanges || saving}
           >
@@ -554,19 +683,90 @@ export default function ResidentSettings() {
         )}
       </View>
     ),
-    [profile, isEditing, otpLoading, verifyingField, showOtpInput, saving],
-  ); // Add dependencies here
+    [
+      profile,
+      isEditing,
+      otpLoading,
+      verifyingField,
+      showOtpInput,
+      saving,
+      isDarkMode,
+      selectedEstateId,
+      user,
+    ],
+  );
 
   return (
     <View className="flex-1 bg-slate-50">
       <FlatList
         data={[]}
         renderItem={null}
-        ListHeaderComponent={memoizedHeader} // Pass the memoized variable
+        ListHeaderComponent={memoizedHeader}
         keyboardShouldPersistTaps="handled"
         removeClippedSubviews={false}
       />
 
+      {/* 🏛️ MULTI-ESTATE SELECTOR BOTTOM MODAL DIALOG CONTAINER */}
+      <Modal
+        visible={estateDropdownVisible}
+        animationType="slide"
+        transparent={true}
+      >
+        <View className="flex-1 justify-end bg-black/50">
+          <View
+            className={`${isDarkMode ? "bg-slate-900" : "bg-white"} rounded-t-[2.5rem] p-6 max-h-[70%]`}
+          >
+            <View className="w-12 h-1 bg-slate-300 rounded-full align-self-center mb-6 mx-auto" />
+            <Text
+              className={`text-xl font-montserrat-bold mb-4 ${isDarkMode ? "text-white" : "text-gm-navy"}`}
+            >
+              Switch Estate Context View
+            </Text>
+            <FlatList
+              data={user?.estates || []}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  onPress={() => {
+                    setSelectedEstateId(item.id);
+                    setEstateDropdownVisible(false);
+                  }}
+                  className={`p-4 rounded-2xl mb-3 border flex-row items-center ${
+                    selectedEstateId === item.id
+                      ? "border-indigo-500 bg-indigo-50/40"
+                      : isDarkMode
+                        ? "border-slate-800 bg-slate-800/40"
+                        : "border-slate-100 bg-slate-50"
+                  }`}
+                >
+                  <MapPin
+                    size={20}
+                    color={selectedEstateId === item.id ? "#4f46e5" : "#94a3b8"}
+                  />
+                  <View className="ml-3 flex-1">
+                    <Text
+                      className={`font-bold text-sm ${isDarkMode ? "text-white" : "text-slate-800"}`}
+                    >
+                      {item.name}
+                    </Text>
+                    <Text className="text-xs text-slate-400 font-roboto-regular mt-0.5">
+                      {item.address}, {item.town}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+            />
+            <TouchableOpacity
+              onPress={() => setEstateDropdownVisible(false)}
+              className="mt-4 p-4 bg-slate-200 rounded-2xl items-center"
+            >
+              <Text className="text-slate-700 font-bold">Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* OTP Verification Modal */}
       <Modal visible={showOtpInput} animationType="fade" transparent={true}>
         <View className="flex-1 justify-center items-center bg-black/60 px-6">
           <View className="bg-white w-full rounded-[2.5rem] p-8 items-center shadow-2xl">
@@ -587,16 +787,15 @@ export default function ResidentSettings() {
                   value={digit}
                   onChangeText={(v) => handleOtpChange(v, index)}
                   onKeyPress={({ nativeEvent }) => {
-                    if (nativeEvent.key === "Backspace") {
-                      if (!otp[index] && index > 0) {
-                        // 1. Move focus back
-                        inputRefs[index - 1].current?.focus();
-
-                        // 2. Clear the previous box's content
-                        const newOtp = [...otp];
-                        newOtp[index - 1] = "";
-                        setOtp(newOtp);
-                      }
+                    if (
+                      nativeEvent.key === "Backspace" &&
+                      !otp[index] &&
+                      index > 0
+                    ) {
+                      inputRefs[index - 1].current?.focus();
+                      const newOtp = [...otp];
+                      newOtp[index - 1] = "";
+                      setOtp(newOtp);
                     }
                   }}
                 />
