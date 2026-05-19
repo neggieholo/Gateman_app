@@ -1,11 +1,13 @@
 import * as Sharing from "expo-sharing";
 import {
+  Briefcase,
   ChevronDown,
   ChevronUp,
   Edit2,
   MapPin,
   Search,
   Share2,
+  SlidersHorizontal,
   Trash2,
   User,
   X,
@@ -16,6 +18,7 @@ import {
   Alert,
   Image,
   LayoutAnimation,
+  Modal,
   RefreshControl,
   ScrollView,
   Share,
@@ -29,32 +32,74 @@ import { invitationApi } from "../services/api";
 import { Invitation } from "../services/interfaces";
 import { useUser } from "../UserContext";
 import { EditInvitationModal } from "./EditInvitationModal";
+import { InvitationCard } from "./InvitationCard";
 import { TrackInvitationCard } from "./TrackInvitationCard";
 
-const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvitePress: () => void }) => {
+const TrackGuestView = ({
+  estate_id,
+  onInvitePress,
+}: {
+  estate_id: string;
+  onInvitePress: () => void;
+}) => {
+  const { user } = useUser();
+
+  // Initialize internal filter state with the prop passed from parent tabs
+  const [selectedEstateId, setSelectedEstateId] = useState<string>(estate_id);
+  const [showEstateFilterModal, setShowEstateFilterModal] = useState(false);
+
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editModalVisible, setEditModalVisible] = useState(false);
-  const viewShotRef = useRef<any>(null); // Add this ref
+  const viewShotRef = useRef<any>(null);
   const [isSharing, setIsSharing] = useState(false);
   const [selectedInvitation, setSelectedInvitation] =
     useState<Invitation | null>(null);
 
-  const { user } = useUser();
+  // Sync internal estate state if parent container passes a different estate down
+  useEffect(() => {
+    setSelectedEstateId(estate_id);
+  }, [estate_id]);
 
   const fetchInvitations = async () => {
-    const data = await invitationApi.getInvitations(estate_id);
-    setInvitations(data);
-    setIsLoading(false);
-    setIsRefreshing(false);
+    if (!selectedEstateId) return;
+    setIsLoading(true);
+    try {
+      const data = await invitationApi.getInvitations(selectedEstateId);
+      setInvitations(data);
+    } catch (err) {
+      console.error("Failed fetching invitations:", err);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
   };
 
+  // Re-fetch automatically whenever the internal selected estate filter switches
   useEffect(() => {
     fetchInvitations();
-  }, []);
+  }, [selectedEstateId]);
+
+  const activeEstateFilterName = useMemo(() => {
+    if (!selectedEstateId || !user?.estates) return "Select Estate";
+    const found = user.estates.find(
+      (e) => e.id.toString() === selectedEstateId.toString(),
+    );
+    return found ? found.name : "Select Estate";
+  }, [selectedEstateId, user?.estates]);
+
+  const activeEstate = useMemo(() => {
+    if (!user?.estates || !selectedEstateId) return null;
+    return user.estates.find((e) => e.id === selectedEstateId) || null;
+  }, [selectedEstateId, user?.estates]);
+
+  const activeLocations = useMemo(() => {
+    if (!user?.locations || !selectedEstateId) return [];
+    return user.locations[selectedEstateId] || [];
+  }, [selectedEstateId, user?.locations]);
 
   const filteredInvitations = useMemo(() => {
     const activeInvitations = invitations.filter((inv) => !inv.is_cancelled);
@@ -96,10 +141,8 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
     if (!selectedInvitation?.id) return;
 
     try {
-      // Call your service to update (ensure your API service has an 'update' method)
       await invitationApi.updateInvitation(selectedInvitation.id, updatedData);
-
-      fetchInvitations(); // Refresh the list
+      fetchInvitations();
       setEditModalVisible(false);
       Alert.alert("Success", "Invitation updated successfully.");
     } catch (err) {
@@ -112,7 +155,6 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
       setIsSharing(true);
       setSelectedInvitation(item);
 
-      // 1. Ensure the UI has rendered the card with the new data
       await new Promise((resolve) => setTimeout(resolve, 400));
 
       const imageUri = await captureRef(viewShotRef, {
@@ -121,16 +163,13 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
       });
 
       if (imageUri) {
-        // 2. Share the Image FIRST and WAIT for it to finish
         await Sharing.shareAsync(imageUri, {
           mimeType: "image/png",
           dialogTitle: `Share Access Pass for ${item.guest_name}`,
         });
 
-        // 3. Add a small buffer so the system share sheet can fully dismiss
         await new Promise((resolve) => setTimeout(resolve, 500));
 
-        // 4. Only share text if there are exclusions or if you want a follow-up message
         if (item.excluded_dates && item.excluded_dates.length > 0) {
           const formattedExclusions = item.excluded_dates
             .map((d) => d.split("-").reverse().join("/"))
@@ -138,9 +177,7 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
 
           const finalMessage = `Hello ${item.guest_name}, here is your access pass for GateMan estate.\n\n⚠️ NOTE: Access is DENIED on these dates:\n• ${formattedExclusions}`;
 
-          await Share.share({
-            message: finalMessage,
-          });
+          await Share.share({ message: finalMessage });
         }
       }
     } catch (err) {
@@ -151,18 +188,19 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
   };
 
   const formatDisplayName = (dateStr: string | Date) => {
+    if (!dateStr) return "N/A";
     const date = typeof dateStr === "string" ? new Date(dateStr) : dateStr;
-    return date.toLocaleDateString("en-GB"); // Result: DD/MM/YYYY
+    return date.toLocaleDateString("en-GB");
   };
 
   const formatDisplayTime = (timeStr: string | Date) => {
+    if (!timeStr) return "N/A";
     if (timeStr instanceof Date) {
       return timeStr.toLocaleTimeString([], {
         hour: "2-digit",
         minute: "2-digit",
       });
     }
-    // Handle "21:00:00" string from API
     const [hours, minutes] = timeStr.split(":");
     const date = new Date();
     date.setHours(parseInt(hours), parseInt(minutes));
@@ -170,6 +208,7 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
   };
 
   const isPastTime = (endDate: string, endTime: string) => {
+    if (!endDate || !endTime) return false;
     const [hours, minutes] = endTime.split(":");
     const expiry = new Date(endDate);
     expiry.setHours(parseInt(hours), parseInt(minutes), 0);
@@ -184,7 +223,6 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
         text: "text-rose-700",
       };
     }
-
     const now = new Date();
     const toLocalDateStr = (d: any): string => {
       if (!d) return "";
@@ -195,7 +233,6 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
     const checkinDateStr = toLocalDateStr(invite.actual_checkin_date);
     const checkoutDateStr = toLocalDateStr(invite.actual_checkout_date);
 
-    // Setup Times for Today
     const [startH, startM] = invite.start_time.split(":");
     const [endH, endM] = invite.end_time.split(":");
 
@@ -205,7 +242,6 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
     const todayEnd = new Date();
     todayEnd.setHours(parseInt(endH), parseInt(endM), 0, 0);
 
-    // 1. GLOBAL EXPIRY (Check if the entire multi-entry period is over)
     const overallExpiry = new Date(invite.end_date);
     overallExpiry.setHours(parseInt(endH), parseInt(endM), 0);
     if (now > overallExpiry) {
@@ -216,7 +252,6 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
       };
     }
 
-    // 2. EXCLUSION CHECK
     if (invite.excluded_dates?.includes(todayStr)) {
       return {
         label: "NOT ALLOWED TODAY",
@@ -225,7 +260,6 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
       };
     }
 
-    // 3. OVERSTAYED FROM A PREVIOUS DAY ("Zombie" check-in)
     if (checkinDateStr && checkinDateStr < todayStr) {
       if (!checkoutDateStr || checkoutDateStr < checkinDateStr) {
         return {
@@ -235,11 +269,10 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
         };
       }
     }
-    
+
     const isCheckedInToday = checkinDateStr === todayStr;
     const isCheckedOutToday = checkoutDateStr === todayStr;
 
-    // 4. LOGIC FOR GUESTS CURRENTLY INSIDE TODAY
     if (isCheckedInToday && !isCheckedOutToday) {
       if (now > todayEnd) {
         return {
@@ -255,7 +288,6 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
       };
     }
 
-    // 5. DEPARTED TODAY
     if (isCheckedOutToday) {
       return {
         label: "DEPARTED TODAY",
@@ -264,7 +296,6 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
       };
     }
 
-    // 6. EXPIRED TODAY (Window closed, no check-in occurred)
     if (!isCheckedInToday && now > todayEnd) {
       return {
         label: "EXPIRED TODAY",
@@ -273,12 +304,10 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
       };
     }
 
-    // 7. NOT ARRIVED TODAY (Within daily hours)
     const startDate = toLocalDateStr(invite.start_date);
     const endDate = toLocalDateStr(invite.end_date);
 
     if (startDate && endDate && todayStr >= startDate && todayStr <= endDate) {
-      // If it's too early for the daily window
       if (now < todayStart) {
         return {
           label: "NOT ARRIVED TODAY",
@@ -286,7 +315,6 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
           text: "text-slate-500",
         };
       }
-      // If it's currently within the window
       return {
         label: "READY FOR ENTRY",
         container: "bg-indigo-100",
@@ -304,7 +332,7 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
   const getStatusDetails = (
     status: string,
     isExpired: boolean,
-    startDate: string, // Added this parameter
+    startDate: string,
     isCancelled: boolean,
     startTime: string,
   ) => {
@@ -321,7 +349,6 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
     const today = new Date(new Date().setHours(0, 0, 0, 0));
     const startDay = new Date(start.setHours(0, 0, 0, 0));
 
-    // 1. Check if the invitation hasn't started yet (Future date)
     if (status === "pending" && today < startDay) {
       return {
         label: "UPCOMING",
@@ -330,7 +357,6 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
       };
     }
 
-    // 2. Check if the invitation is past its end date/time
     if (status === "pending" && isExpired) {
       return {
         label: "EXPIRED",
@@ -339,13 +365,11 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
       };
     }
 
-    // 3. Logic for "Pending" invites that are valid TODAY
     if (status === "pending") {
       const [startH, startM] = startTime.split(":");
       const todayStartTime = new Date();
       todayStartTime.setHours(parseInt(startH), parseInt(startM), 0, 0);
 
-      // If today is the day and current time is >= start time
       if (now >= todayStartTime) {
         return {
           label: "READY FOR ENTRY",
@@ -353,7 +377,6 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
           text: "text-indigo-700",
         };
       }
-
       return {
         label: "NOT ARRIVED",
         container: "bg-slate-100",
@@ -361,7 +384,6 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
       };
     }
 
-    // 4. Normal Status Switch for non-pending
     switch (status) {
       case "checked_in":
         return {
@@ -395,22 +417,14 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
     setExpandedId(expandedId === id ? null : id);
   };
 
-  if (isLoading) {
-    return (
-      <View className="flex-1 justify-center items-center">
-        <ActivityIndicator size="large" color="#4f46e5" />
-      </View>
-    );
-  }
-
   return (
-    <View className="flex-1">
-      {/* Search Header */}
-      <View className="px-4 mb-4">
-        <View className="flex-row items-center bg-white border border-gray-200 rounded-xl px-3 py-2 shadow-sm">
-          <Search size={20} color="#9CA3AF" />
+    <View className="flex-1 bg-white">
+      {/* Search Header and Filter Group */}
+      <View className="px-4 mb-3 flex-row gap-2 items-center">
+        <View className="flex-1 flex-row items-center bg-slate-50 border border-gray-200 rounded-xl px-3 py-2.5 shadow-xs">
+          <Search size={18} color="#9CA3AF" />
           <TextInput
-            className="flex-1 ml-2 text-gray-900 text-base"
+            className="flex-1 ml-2 text-gray-900 text-sm font-semibold"
             placeholder="Search guest name or code..."
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -418,16 +432,38 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => setSearchQuery("")}>
-              <X size={18} color="#9CA3AF" />
+              <X size={16} color="#9CA3AF" />
             </TouchableOpacity>
           )}
         </View>
+
+        {/* Filter button triggers if resident belongs to multiple estates */}
+        {user?.estate_ids && user.estate_ids.length > 1 && (
+          <TouchableOpacity
+            onPress={() => setShowEstateFilterModal(true)}
+            className="bg-indigo-50 p-3 rounded-xl border border-indigo-100 items-center justify-center"
+          >
+            <SlidersHorizontal size={18} color="#4f46e5" />
+          </TouchableOpacity>
+        )}
       </View>
 
-      {filteredInvitations.length === 0 ? (
+      {/* Mini Current Filter Status Bar */}
+      <View className="mx-4 mb-4 flex-row items-center bg-slate-50 rounded-full py-1.5 px-3 self-start border border-slate-100">
+        <MapPin size={12} color="#4f46e5" />
+        <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1">
+          Estate Scope: {activeEstateFilterName}
+        </Text>
+      </View>
+
+      {isLoading ? (
+        <View className="flex-1 justify-center items-center">
+          <ActivityIndicator size="large" color="#4f46e5" />
+        </View>
+      ) : filteredInvitations.length === 0 ? (
         <View className="flex-1 items-center justify-center p-6">
           <View className="w-20 h-20 bg-gray-100 rounded-2xl items-center justify-center mb-4">
-            <MapPin size={36} color="#4B5563" />
+            <User size={36} color="#4B5563" />
           </View>
           <Text className="text-lg font-semibold text-gray-700 mb-2">
             {searchQuery ? "No matches found" : "No active invitations"}
@@ -441,13 +477,15 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
         </View>
       ) : (
         <>
-          <Text className="text-gray-500 font-medium mb-4">
+          <Text className="text-gray-500 font-medium mb-4 px-4">
             {searchQuery
               ? `Search Results (${filteredInvitations.length})`
               : `Active Passes (${invitations.length})`}
           </Text>
+
           <ScrollView
             className="flex-1 px-4"
+            showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl
                 refreshing={isRefreshing}
@@ -463,19 +501,29 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
               const isPending = item.status === "pending";
               const isExpanded = expandedId === item.id;
               const isMultiEntry = item.invite_type === "multi_entry";
+              const isStaffEntry = item.invite_type === "staff_entry";
               const isDone =
                 item.status === "checked_out" || (isPending && isExpired);
-              const canCancel = isPending && !isExpired;
-              const canEdit = item.status !== "checked_out" && !isExpired;
+
+              const canEdit =
+                isStaffEntry || (item.status !== "checked_out" && !isExpired);
+              const canCancel = isPending && !isExpired && !isStaffEntry;
               const canShare = isPending && !isExpired;
-              const statusInfo = isMultiEntry 
-                ? getMultiEntryStatus(item) 
-                : getStatusDetails(item.status, isExpired, item.start_date, item.is_cancelled, item.start_time);
+
+              const statusInfo = isMultiEntry
+                ? getMultiEntryStatus(item)
+                : getStatusDetails(
+                    item.status,
+                    isExpired,
+                    item.start_date,
+                    item.is_cancelled,
+                    item.start_time,
+                  );
 
               return (
                 <View
                   key={item.id}
-                  className="mb-4 flex gap-2 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm"
+                  className={`mb-4 bg-white p-4 rounded-2xl border ${isStaffEntry ? "border-indigo-100 bg-indigo-50/5" : "border-gray-100"} shadow-sm`}
                 >
                   <View className="flex-row items-center">
                     <View className="mr-4">
@@ -485,39 +533,58 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
                           className="w-14 h-14 rounded-full"
                         />
                       ) : (
-                        <View className="w-14 h-14 rounded-full bg-indigo-50 items-center justify-center">
-                          <User size={24} color="#4f46e5" />
+                        <View
+                          className={`w-14 h-14 rounded-full ${isStaffEntry ? "bg-indigo-100" : "bg-indigo-50"} items-center justify-center`}
+                        >
+                          {isStaffEntry ? (
+                            <Briefcase size={22} color="#4f46e5" />
+                          ) : (
+                            <User size={24} color="#4f46e5" />
+                          )}
                         </View>
                       )}
                     </View>
 
                     <View className="flex-1">
-                      <View className="flex-row items-center justify-between">
-                        <Text
-                          className="text-lg font-bold text-gray-900 capitalize flex-1 mr-2" // Added flex-1 and margin here
-                          numberOfLines={1}
-                          ellipsizeMode="tail"
-                        >
-                          {item.guest_name}
+                      <Text
+                        className="text-lg font-bold text-gray-900 capitalize"
+                        numberOfLines={1}
+                      >
+                        {item.guest_name}
+                      </Text>
+
+                      {/* Staff Position Card Text */}
+                      {isStaffEntry && item.staff_position && (
+                        <Text className="text-slate-500 font-bold text-xs mt-0.5 mb-1">
+                          💼 {item.staff_position}
                         </Text>
-                      </View>
+                      )}
 
                       <Text className="text-indigo-600 font-mono font-bold tracking-widest">
                         {item.access_code}
                       </Text>
 
                       <View className="mt-1">
-                        {item.invite_type === "one_time" ? (
+                        {isStaffEntry ? (
                           <>
-                            <Text className="text-gray-600 text-xs font-semibold">
-                              {formatDisplayName(item.start_date)}
-                            </Text>
-                            <Text className="text-gray-400 text-[10px]">
-                              {formatDisplayTime(item.start_time)} —{" "}
-                              {formatDisplayTime(item.end_time)}
-                            </Text>
+                            {item.is_activated && item.end_date ? (
+                              <>
+                                <Text className="text-gray-600 text-xs font-semibold">
+                                  Valid: {formatDisplayName(item.start_date)} -{" "}
+                                  {formatDisplayName(item.end_date)}
+                                </Text>
+                                <Text className="text-gray-400 text-[10px]">
+                                  Daily: {formatDisplayTime(item.start_time)} —{" "}
+                                  {formatDisplayTime(item.end_time)}
+                                </Text>
+                              </>
+                            ) : (
+                              <Text className="text-gray-600 text-xs font-semibold">
+                                Activated: {formatDisplayName(item.start_date)}
+                              </Text>
+                            )}
                           </>
-                        ) : (
+                        ) : isMultiEntry ? (
                           <>
                             <Text className="text-gray-600 text-xs font-semibold">
                               {formatDisplayName(item.start_date)} -{" "}
@@ -528,31 +595,58 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
                               {formatDisplayTime(item.end_time)}
                             </Text>
                           </>
+                        ) : (
+                          /* one_time entry block */
+                          <>
+                            <Text className="text-gray-600 text-xs font-semibold">
+                              {item.end_date &&
+                              item.end_date !== item.start_date
+                                ? `${formatDisplayName(item.start_date)} - ${formatDisplayName(item.end_date)}`
+                                : formatDisplayName(item.start_date)}
+                            </Text>
+                            <Text className="text-gray-400 text-[10px]">
+                              {formatDisplayTime(item.start_time)} —{" "}
+                              {formatDisplayTime(item.end_time)}
+                            </Text>
+                          </>
                         )}
                       </View>
 
-                      <View
-                        className={`${statusInfo.container} px-2 py-0.5 rounded-md flex w-fit justify-center items-center mt-2`}
-                      >
-                        <Text
-                          className={`${statusInfo.text} text-[10px] font-extrabold`}
+                      {!isStaffEntry && (
+                        <View
+                          className={`${statusInfo.container} px-2 py-0.5 rounded-md flex w-fit justify-center items-center mt-2 self-start`}
                         >
-                          {statusInfo.label}
-                        </Text>
-                      </View>
+                          <Text
+                            className={`${statusInfo.text} text-[10px] font-extrabold`}
+                          >
+                            {statusInfo.label}
+                          </Text>
+                        </View>
+                      )}
+
+                      {isStaffEntry && (
+                        <View
+                          className={`px-2 py-0.5 rounded-md flex w-fit justify-center items-center mt-2 self-start ${item.is_activated ? "bg-emerald-100" : "bg-rose-100"}`}
+                        >
+                          <Text
+                            className={`text-[10px] font-extrabold ${item.is_activated ? "text-emerald-700" : "text-rose-700"}`}
+                          >
+                            {item.is_activated ? "ACTIVE" : "DISABLED"}
+                          </Text>
+                        </View>
+                      )}
                     </View>
 
                     <View className="flex items-center gap-3 mx-1">
                       {canEdit && (
                         <TouchableOpacity
-                          onPress={() => handleEditPress(item)} // This will open your new Modal
+                          onPress={() => handleEditPress(item)}
                           className="p-3 bg-indigo-50 rounded-full"
                         >
                           <Edit2 size={18} color="#4f46e5" />
                         </TouchableOpacity>
                       )}
 
-                      {/* CANCEL BUTTON (Trash) - Only for Pending */}
                       {canCancel && (
                         <TouchableOpacity
                           onPress={() =>
@@ -574,8 +668,7 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
                         </TouchableOpacity>
                       )}
 
-                      {/* LOCKED STATE (If nothing can be done) */}
-                      {isDone && (
+                      {isDone && !isStaffEntry && (
                         <View className="px-2">
                           <Text className="text-gray-300 text-[10px] font-bold">
                             HISTORY
@@ -584,9 +677,9 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
                       )}
                     </View>
                   </View>
+
                   {isMultiEntry && (
                     <View className="mt-2 border-t border-gray-50 pt-2">
-                      {/* The Toggle Row */}
                       <TouchableOpacity
                         onPress={() => toggleExpand(item.id!)}
                         className="flex-row items-center justify-between"
@@ -594,21 +687,18 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
                         <Text className="text-gray-500 text-[10px] font-bold uppercase">
                           Exclusion Dates
                         </Text>
-                        <View className="ml-2">
-                          {isExpanded ? (
-                            <ChevronUp size={18} color="#9CA3AF" />
-                          ) : (
-                            <ChevronDown size={18} color="#9CA3AF" />
-                          )}
-                        </View>
+                        {isExpanded ? (
+                          <ChevronUp size={18} color="#9CA3AF" />
+                        ) : (
+                          <ChevronDown size={18} color="#9CA3AF" />
+                        )}
                       </TouchableOpacity>
 
-                      {/* The Conditional Expansion */}
                       {isExpanded && (
-                        <>
+                        <View className="mt-2">
                           {item.excluded_dates &&
                           item.excluded_dates.length > 0 ? (
-                            <View className="flex-row flex-wrap gap-1 mt-2">
+                            <View className="flex-row flex-wrap gap-1">
                               {item.excluded_dates.map((date) => (
                                 <View
                                   key={date}
@@ -621,11 +711,11 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
                               ))}
                             </View>
                           ) : (
-                            <Text className="text-gray-400 text-[10px] italic mt-1">
+                            <Text className="text-gray-400 text-[10px] italic">
                               No excluded dates for this guest.
                             </Text>
                           )}
-                        </>
+                        </View>
                       )}
                     </View>
                   )}
@@ -636,7 +726,45 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
           </ScrollView>
         </>
       )}
-      <TrackInvitationCard
+
+      {/* Internal Estate Switcher Sheet */}
+      <Modal visible={showEstateFilterModal} animationType="slide" transparent>
+        <View className="flex-1 bg-black/50 justify-end">
+          <View className="bg-white h-[45%] rounded-t-[3rem] p-6">
+            <View className="flex-row justify-between items-center mb-4 px-2">
+              <Text className="font-black text-xl text-slate-900">
+                Switch Estate Scope
+              </Text>
+              <TouchableOpacity onPress={() => setShowEstateFilterModal(false)}>
+                <Text className="text-indigo-600 font-bold">Close</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false} className="mt-2">
+              {(user?.estates || []).map((estate) => (
+                <TouchableOpacity
+                  key={estate.id}
+                  className="p-5 border-b border-slate-50 flex-row items-center justify-between"
+                  onPress={() => {
+                    setSelectedEstateId(estate.id.toString());
+                    setShowEstateFilterModal(false);
+                  }}
+                >
+                  <Text
+                    className={`font-bold text-base ${selectedEstateId === estate.id.toString() ? "text-indigo-600" : "text-slate-700"}`}
+                  >
+                    {estate.name}
+                  </Text>
+                  {selectedEstateId === estate.id.toString() && (
+                    <View className="w-2.5 h-2.5 rounded-full bg-indigo-600" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* <TrackInvitationCard
         viewShotRef={viewShotRef}
         guestName={selectedInvitation?.guest_name || ""}
         guestImage={selectedInvitation?.guest_image_url || null}
@@ -662,7 +790,40 @@ const TrackGuestView = ({ estate_id, onInvitePress }: { estate_id:string, onInvi
             : ""
         }
         inviteType={selectedInvitation ? selectedInvitation?.invite_type : ""}
+      /> */}
+
+      <InvitationCard
+        viewShotRef={viewShotRef}
+        guestName={selectedInvitation?.guest_name || ""}
+        inviterName={user?.name || "Resident"}
+        guestImage={selectedInvitation?.guest_image_url || null}
+        accessCode={selectedInvitation?.access_code || "000000"}
+        startDate={
+          selectedInvitation
+            ? formatDisplayName(selectedInvitation.start_date)
+            : ""
+        }
+        endDate={
+          selectedInvitation
+            ? formatDisplayName(selectedInvitation.end_date)
+            : ""
+        }
+        startTime={
+          selectedInvitation
+            ? formatDisplayTime(selectedInvitation.start_time)
+            : ""
+        }
+        endTime={
+          selectedInvitation
+            ? formatDisplayTime(selectedInvitation.end_time)
+            : ""
+        }
+        inviteType={selectedInvitation ? selectedInvitation?.invite_type : ""}
+        estate_name={activeEstate?.name || ""}
+        estate_address={activeEstate?.address || ""}
+        locations={activeLocations}
       />
+
       <EditInvitationModal
         visible={editModalVisible}
         invitation={selectedInvitation}

@@ -169,7 +169,7 @@ export interface Invitation {
   guest_name: string;
   guest_image_url: string | null;
   access_code: string;
-  invite_type: "one_time" | "multi_entry";
+  invite_type: "one_time" | "multi_entry" | "staff_entry";
   start_date: any;
   end_date: any;
   start_time: any;
@@ -182,6 +182,9 @@ export interface Invitation {
   actual_checkout_date: any;
   created_at: string;
   is_cancelled: boolean;
+  estate_id: string;
+  staff_position?: string;
+  is_activated?: boolean;
 }
 
 export type ReportType = "GENERAL" | "SECURITY" | "PAYMENT";

@@ -1,6 +1,7 @@
 import { InvitationCard } from "@/app/components/InvitationCard";
 import TrackGuestView from "@/app/components/TrackGuest";
 import { getCloudinaryUrl, invitationApi } from "@/app/services/api";
+import { LocationPair } from "@/app/services/interfaces";
 import { useUser } from "@/app/UserContext";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
@@ -12,12 +13,12 @@ import {
   ChevronDown,
   Clock,
   ImageIcon,
+  MapPin,
   ShieldCheck,
   Square,
   X,
-  MapPin,
 } from "lucide-react-native";
-import React, { useRef, useState, useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -37,17 +38,23 @@ interface InviteGuestFormProps {
   selectedEstateId: string | null;
   setEstatePickerVisible: (visible: boolean) => void;
   activeEstate: any;
+  activeLocations: LocationPair[];
 }
 
 // --- 1. Invite Guest View Component ---
-const InviteGuestForm = ({ selectedEstateId, setEstatePickerVisible, activeEstate }: InviteGuestFormProps) => {
+const InviteGuestForm = ({
+  selectedEstateId,
+  setEstatePickerVisible,
+  activeEstate,
+  activeLocations,
+}: InviteGuestFormProps) => {
   const { user, isDarkMode } = useUser();
   const [guestType, setGuestType] = useState("one_time"); // one_time | multi_entry | staff_entry
   const [guestName, setGuestName] = useState("");
   const [staffPosition, setStaffPosition] = useState("");
   const [isModalVisible, setIsModalVisible] = useState(false);
   const viewShotRef = useRef<any>(null);
-  const [generatedCode, setGeneratedCode] = useState("000000");  
+  const [generatedCode, setGeneratedCode] = useState("000000");
 
   // Real Date/Time States
   const [startDate, setStartDate] = useState(new Date());
@@ -175,7 +182,11 @@ const InviteGuestForm = ({ selectedEstateId, setEstatePickerVisible, activeEstat
   };
 
   const handleGenerateCode = async () => {
-    if (!selectedEstateId) return Alert.alert("Context Missing", "Please select a property context first.");
+    if (!selectedEstateId)
+      return Alert.alert(
+        "Context Missing",
+        "Please select a property context first.",
+      );
     if (!guestName.trim()) return Alert.alert("Error", "Enter name details");
     if (guestType === "staff_entry" && !staffPosition.trim()) {
       return Alert.alert("Error", "Please clarify staff position role");
@@ -301,7 +312,7 @@ const InviteGuestForm = ({ selectedEstateId, setEstatePickerVisible, activeEstat
       setGuestImage(null);
       setGeneratedCode("000000");
       setExcludedDates([]);
-      setPermittedDays([1, 2, 3, 4, 5, 6, 0]); 
+      setPermittedDays([1, 2, 3, 4, 5, 6, 0]);
     }
   };
 
@@ -312,7 +323,9 @@ const InviteGuestForm = ({ selectedEstateId, setEstatePickerVisible, activeEstat
         <TouchableOpacity
           onPress={() => setEstatePickerVisible(true)}
           className={`mb-4 flex-row items-center justify-between p-4 rounded-2xl border ${
-            isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"
+            isDarkMode
+              ? "bg-slate-900 border-slate-800"
+              : "bg-white border-slate-200"
           } shadow-sm`}
         >
           <View className="flex-row items-center flex-1">
@@ -357,14 +370,22 @@ const InviteGuestForm = ({ selectedEstateId, setEstatePickerVisible, activeEstat
         <View className="flex gap-5">
           {/* Dynamic Name Input Context */}
           <View>
-            <Text className={`font-medium mb-1 ${isDarkMode ? "text-slate-300" : "text-gray-600"}`}>
+            <Text
+              className={`font-medium mb-1 ${isDarkMode ? "text-slate-300" : "text-gray-600"}`}
+            >
               {guestType === "staff_entry" ? "Staff Name:" : "Guest Name:"}
             </Text>
             <TextInput
               className={`p-4 rounded-lg border ${
-                isDarkMode ? "bg-slate-900 border-slate-800 text-white" : "bg-white border-gray-300 text-gray-900"
+                isDarkMode
+                  ? "bg-slate-900 border-slate-800 text-white"
+                  : "bg-white border-gray-300 text-gray-900"
               }`}
-              placeholder={guestType === "staff_entry" ? "Enter staff name" : "Enter guest name"}
+              placeholder={
+                guestType === "staff_entry"
+                  ? "Enter staff name"
+                  : "Enter guest name"
+              }
               placeholderTextColor={"#94a3b8"}
               value={guestName}
               onChangeText={setGuestName}
@@ -374,16 +395,22 @@ const InviteGuestForm = ({ selectedEstateId, setEstatePickerVisible, activeEstat
           {/* Conditional Staff Position Entry */}
           {guestType === "staff_entry" && (
             <View>
-              <Text className={`font-medium mb-1 ${isDarkMode ? "text-slate-300" : "text-gray-600"}`}>
+              <Text
+                className={`font-medium mb-1 ${isDarkMode ? "text-slate-300" : "text-gray-600"}`}
+              >
                 Staff Position:
               </Text>
               <TouchableOpacity
                 onPress={() => setIsModalVisible(true)}
                 className={`flex-row justify-between items-center p-4 rounded-lg border ${
-                  isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-gray-300"
+                  isDarkMode
+                    ? "bg-slate-900 border-slate-800"
+                    : "bg-white border-gray-300"
                 }`}
               >
-                <Text className={`font-medium ${staffPosition ? isDarkMode ? "text-white" : "text-gray-900" : "text-gray-400"}`}>
+                <Text
+                  className={`font-medium ${staffPosition ? (isDarkMode ? "text-white" : "text-gray-900") : "text-gray-400"}`}
+                >
                   {staffPosition || "Select staff position role"}
                 </Text>
                 <ChevronDown size={20} color="#64748b" />
@@ -393,18 +420,26 @@ const InviteGuestForm = ({ selectedEstateId, setEstatePickerVisible, activeEstat
 
           {/* Arrival Date Selector */}
           <View>
-            <Text className={`font-medium mb-1 ${isDarkMode ? "text-slate-300" : "text-gray-600"}`}>
+            <Text
+              className={`font-medium mb-1 ${isDarkMode ? "text-slate-300" : "text-gray-600"}`}
+            >
               {guestType === "one_time" ? "Arrival Date:" : "Start Date:"}
             </Text>
             <TouchableOpacity
-              onPress={() => setShowPicker({ type: "startDate", visible: true })}
+              onPress={() =>
+                setShowPicker({ type: "startDate", visible: true })
+              }
               className={`flex-row justify-between items-center p-4 rounded-lg border ${
-                isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-gray-300"
+                isDarkMode
+                  ? "bg-slate-900 border-slate-800"
+                  : "bg-white border-gray-300"
               }`}
             >
               <View className="flex-row items-center">
                 <Calendar size={20} color="#4f46e5" className="mr-2" />
-                <Text className={`font-medium ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+                <Text
+                  className={`font-medium ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                >
                   {formatDate(startDate)}
                 </Text>
               </View>
@@ -416,7 +451,9 @@ const InviteGuestForm = ({ selectedEstateId, setEstatePickerVisible, activeEstat
           {guestType !== "one_time" && (
             <View className="mt-2">
               <View className="flex-row justify-between items-center mb-1">
-                <Text className={`font-medium ${isDarkMode ? "text-slate-300" : "text-gray-600"}`}>
+                <Text
+                  className={`font-medium ${isDarkMode ? "text-slate-300" : "text-gray-600"}`}
+                >
                   End Date{" "}
                   {guestType === "staff_entry" && (
                     <Text className="text-gray-400 text-xs">(Optional)</Text>
@@ -432,14 +469,20 @@ const InviteGuestForm = ({ selectedEstateId, setEstatePickerVisible, activeEstat
                 )}
               </View>
               <TouchableOpacity
-                onPress={() => setShowPicker({ type: "endDate", visible: true })}
+                onPress={() =>
+                  setShowPicker({ type: "endDate", visible: true })
+                }
                 className={`flex-row justify-between items-center p-4 rounded-lg border ${
-                  isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-gray-300"
+                  isDarkMode
+                    ? "bg-slate-900 border-slate-800"
+                    : "bg-white border-gray-300"
                 }`}
               >
                 <View className="flex-row items-center">
                   <Calendar size={20} color="#4f46e5" className="mr-2" />
-                  <Text className={`font-medium ${endDate ? isDarkMode ? "text-white" : "text-gray-900" : "text-gray-400 italic"}`}>
+                  <Text
+                    className={`font-medium ${endDate ? (isDarkMode ? "text-white" : "text-gray-900") : "text-gray-400 italic"}`}
+                  >
                     {formatDate(endDate)}
                   </Text>
                 </View>
@@ -451,12 +494,18 @@ const InviteGuestForm = ({ selectedEstateId, setEstatePickerVisible, activeEstat
           {/* Permitted Access Workdays Checkboxes */}
           {guestType === "staff_entry" && (
             <View className="mt-2">
-              <Text className={`font-medium mb-2 ${isDarkMode ? "text-slate-300" : "text-gray-600"}`}>
+              <Text
+                className={`font-medium mb-2 ${isDarkMode ? "text-slate-300" : "text-gray-600"}`}
+              >
                 Permitted Access Workdays:
               </Text>
-              <View className={`flex-row flex-wrap gap-x-4 gap-y-3 p-4 rounded-lg border ${
-                isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-gray-300"
-              }`}>
+              <View
+                className={`flex-row flex-wrap gap-x-4 gap-y-3 p-4 rounded-lg border ${
+                  isDarkMode
+                    ? "bg-slate-900 border-slate-800"
+                    : "bg-white border-gray-300"
+                }`}
+              >
                 {DAYS_OF_WEEK.map((day) => {
                   const isChecked = permittedDays.includes(day.value);
                   return (
@@ -470,7 +519,9 @@ const InviteGuestForm = ({ selectedEstateId, setEstatePickerVisible, activeEstat
                       ) : (
                         <Square size={20} color="#64748b" />
                       )}
-                      <Text className={`ml-2 text-sm font-medium ${isChecked ? "text-indigo-400 font-bold" : "text-gray-500"}`}>
+                      <Text
+                        className={`ml-2 text-sm font-medium ${isChecked ? "text-indigo-400 font-bold" : "text-gray-500"}`}
+                      >
                         {day.label}
                       </Text>
                     </TouchableOpacity>
@@ -484,11 +535,15 @@ const InviteGuestForm = ({ selectedEstateId, setEstatePickerVisible, activeEstat
           {guestType === "multi_entry" && (
             <>
               <View className="flex-row justify-between items-center my-3">
-                <Text className={`font-bold ${isDarkMode ? "text-slate-300" : "text-gray-600"}`}>
+                <Text
+                  className={`font-bold ${isDarkMode ? "text-slate-300" : "text-gray-600"}`}
+                >
                   Blacklisted Dates:
                 </Text>
                 <TouchableOpacity
-                  onPress={() => setShowPicker({ type: "exclude", visible: true })}
+                  onPress={() =>
+                    setShowPicker({ type: "exclude", visible: true })
+                  }
                   className="bg-indigo-50 px-3 py-2 rounded-lg flex-row items-center border border-indigo-100"
                 >
                   <Calendar size={16} color="#4f46e5" />
@@ -497,7 +552,10 @@ const InviteGuestForm = ({ selectedEstateId, setEstatePickerVisible, activeEstat
                   </Text>
                 </TouchableOpacity>
               </View>
-              <View style={{ height: 100 }} className={`rounded-xl p-2 ${isDarkMode ? "bg-slate-950" : "bg-gray-100"}`}>
+              <View
+                style={{ height: 100 }}
+                className={`rounded-xl p-2 ${isDarkMode ? "bg-slate-950" : "bg-gray-100"}`}
+              >
                 {excludedDates.length > 0 ? (
                   <ScrollView nestedScrollEnabled={true}>
                     <View className="flex-row flex-wrap gap-2">
@@ -505,14 +563,22 @@ const InviteGuestForm = ({ selectedEstateId, setEstatePickerVisible, activeEstat
                         <View
                           key={dateStr}
                           className={`pl-3 pr-1 py-1 rounded-full flex-row items-center border ${
-                            isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-gray-300"
+                            isDarkMode
+                              ? "bg-slate-900 border-slate-800"
+                              : "bg-white border-gray-300"
                           }`}
                         >
-                          <Text className={`text-xs font-medium mr-2 ${isDarkMode ? "text-slate-300" : "text-gray-700"}`}>
+                          <Text
+                            className={`text-xs font-medium mr-2 ${isDarkMode ? "text-slate-300" : "text-gray-700"}`}
+                          >
                             {dateStr.split("-").reverse().join("/")}
                           </Text>
                           <TouchableOpacity
-                            onPress={() => setExcludedDates((prev) => prev.filter((d) => d !== dateStr))}
+                            onPress={() =>
+                              setExcludedDates((prev) =>
+                                prev.filter((d) => d !== dateStr),
+                              )
+                            }
                             className="bg-red-50 p-1 rounded-full"
                           >
                             <X size={14} color="#ef4444" />
@@ -535,30 +601,46 @@ const InviteGuestForm = ({ selectedEstateId, setEstatePickerVisible, activeEstat
           {/* Time Range Selectors */}
           <View className="flex-row justify-between gap-3">
             <View className="flex-1">
-              <Text className={`font-medium mb-1 ${isDarkMode ? "text-slate-300" : "text-gray-600"}`}>From:</Text>
+              <Text
+                className={`font-medium mb-1 ${isDarkMode ? "text-slate-300" : "text-gray-600"}`}
+              >
+                From:
+              </Text>
               <TouchableOpacity
                 onPress={() => setShowPicker({ type: "from", visible: true })}
                 className={`flex-row items-center p-4 rounded-lg border ${
-                  isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-gray-300"
+                  isDarkMode
+                    ? "bg-slate-900 border-slate-800"
+                    : "bg-white border-gray-300"
                 }`}
               >
                 <Clock size={18} color="#4f46e5" className="mr-2" />
-                <Text className={`font-medium ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+                <Text
+                  className={`font-medium ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                >
                   {formatTime(fromTime)}
                 </Text>
               </TouchableOpacity>
             </View>
 
             <View className="flex-1">
-              <Text className={`font-medium mb-1 ${isDarkMode ? "text-slate-300" : "text-gray-600"}`}>To:</Text>
+              <Text
+                className={`font-medium mb-1 ${isDarkMode ? "text-slate-300" : "text-gray-600"}`}
+              >
+                To:
+              </Text>
               <TouchableOpacity
                 onPress={() => setShowPicker({ type: "to", visible: true })}
                 className={`flex-row items-center p-4 rounded-lg border ${
-                  isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-gray-300"
+                  isDarkMode
+                    ? "bg-slate-900 border-slate-800"
+                    : "bg-white border-gray-300"
                 }`}
               >
                 <Clock size={18} color="#4f46e5" className="mr-2" />
-                <Text className={`font-medium ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+                <Text
+                  className={`font-medium ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                >
                   {formatTime(toTime)}
                 </Text>
               </TouchableOpacity>
@@ -589,7 +671,10 @@ const InviteGuestForm = ({ selectedEstateId, setEstatePickerVisible, activeEstat
           <View>
             {guestImage ? (
               <View className="relative w-24 h-24">
-                <Image source={{ uri: guestImage }} className="w-24 h-24 rounded-xl" />
+                <Image
+                  source={{ uri: guestImage }}
+                  className="w-24 h-24 rounded-xl"
+                />
                 <TouchableOpacity
                   onPress={() => setGuestImage(null)}
                   disabled={isUploading}
@@ -603,7 +688,9 @@ const InviteGuestForm = ({ selectedEstateId, setEstatePickerVisible, activeEstat
                 <TouchableOpacity
                   onPress={pickImage}
                   className={`flex-row items-center self-start px-4 py-3 rounded-xl border border-dashed ${
-                    isDarkMode ? "bg-slate-900 border-slate-700" : "bg-gray-100 border-gray-300"
+                    isDarkMode
+                      ? "bg-slate-900 border-slate-700"
+                      : "bg-gray-100 border-gray-300"
                   }`}
                 >
                   <ImageIcon size={20} color="#4f46e5" />
@@ -612,7 +699,8 @@ const InviteGuestForm = ({ selectedEstateId, setEstatePickerVisible, activeEstat
                   </Text>
                 </TouchableOpacity>
                 <Text className="text-gray-500 text-xs italic mt-2 px-1 text-center">
-                  * Invited staff/guests without a photo might be required to present verification items at the gatehouse.
+                  * Invited staff/guests without a photo might be required to
+                  present verification items at the gatehouse.
                 </Text>
               </>
             )}
@@ -649,9 +737,13 @@ const InviteGuestForm = ({ selectedEstateId, setEstatePickerVisible, activeEstat
 
       <Modal visible={isModalVisible} transparent animationType="slide">
         <View className="flex-1 justify-end bg-black/50 pb-10">
-          <View className={`rounded-t-3xl p-5 max-h-[70%] ${isDarkMode ? "bg-slate-900" : "bg-white"}`}>
+          <View
+            className={`rounded-t-3xl p-5 max-h-[70%] ${isDarkMode ? "bg-slate-900" : "bg-white"}`}
+          >
             <View className="flex-row justify-between items-center mb-4">
-              <Text className={`text-lg font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+              <Text
+                className={`text-lg font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}
+              >
                 Select Staff Position
               </Text>
               <TouchableOpacity
@@ -675,7 +767,9 @@ const InviteGuestForm = ({ selectedEstateId, setEstatePickerVisible, activeEstat
                     staffPosition === item ? "bg-indigo-50/50" : ""
                   }`}
                 >
-                  <Text className={`text-base ${staffPosition === item ? "text-indigo-600 font-bold" : isDarkMode ? "text-slate-300" : "text-gray-700"}`}>
+                  <Text
+                    className={`text-base ${staffPosition === item ? "text-indigo-600 font-bold" : isDarkMode ? "text-slate-300" : "text-gray-700"}`}
+                  >
                     {item}
                   </Text>
                 </TouchableOpacity>
@@ -692,7 +786,7 @@ const InviteGuestForm = ({ selectedEstateId, setEstatePickerVisible, activeEstat
 export default function GuestInvitesComponent() {
   const [currentView, setCurrentView] = useState("invite");
   const { user, isDarkMode } = useUser();
-  
+
   const [selectedEstateId, setSelectedEstateId] = useState<string | null>(null);
   const [estatePickerVisible, setEstatePickerVisible] = useState(false);
 
@@ -709,6 +803,11 @@ export default function GuestInvitesComponent() {
     return user.estates.find((e) => e.id === selectedEstateId) || null;
   }, [selectedEstateId, user?.estates]);
 
+  const activeLocations = useMemo(() => {
+    if (!user?.locations || !selectedEstateId) return [];
+    return user.locations[selectedEstateId] || [];
+  }, [selectedEstateId, user?.locations]);
+  
   const tabData = [
     { key: "invite", label: "Invite Guest" },
     { key: "track", label: "Track Guest" },
@@ -718,13 +817,21 @@ export default function GuestInvitesComponent() {
 
   if (hasNoEstates) {
     return (
-      <View className={`${isDarkMode ? "bg-slate-950" : "bg-gray-50"} flex-1 justify-center items-center p-6`}>
-        <View className={`${isDarkMode ? "bg-slate-900" : "bg-white"} p-8 rounded-3xl shadow-sm items-center border ${isDarkMode ? "border-slate-800" : "border-gray-100"}`}>
+      <View
+        className={`${isDarkMode ? "bg-slate-950" : "bg-gray-50"} flex-1 justify-center items-center p-6`}
+      >
+        <View
+          className={`${isDarkMode ? "bg-slate-900" : "bg-white"} p-8 rounded-3xl shadow-sm items-center border ${isDarkMode ? "border-slate-800" : "border-gray-100"}`}
+        >
           <ShieldCheck size={60} color="#4f46e5" />
-          <Text className={`text-xl font-bold ${isDarkMode ? "text-white" : "text-slate-900"} mt-4 text-center`}>
+          <Text
+            className={`text-xl font-bold ${isDarkMode ? "text-white" : "text-slate-900"} mt-4 text-center`}
+          >
             Security Access Restricted
           </Text>
-          <Text className={`text-sm ${isDarkMode ? "text-slate-400" : "text-gray-500"} mt-2 text-center px-4 max-w-[280px]`}>
+          <Text
+            className={`text-sm ${isDarkMode ? "text-slate-400" : "text-gray-500"} mt-2 text-center px-4 max-w-[280px]`}
+          >
             You are currently not attached to any active estates on GateMan.
           </Text>
           <TouchableOpacity
@@ -739,7 +846,9 @@ export default function GuestInvitesComponent() {
   }
 
   return (
-    <View className={`flex-1 p-4 ${isDarkMode ? "bg-slate-950" : "bg-gray-50"}`}>
+    <View
+      className={`flex-1 p-4 ${isDarkMode ? "bg-slate-950" : "bg-gray-50"}`}
+    >
       {/* --- Custom Tab Bar --- */}
       <View className="flex-row mb-6 justify-center">
         {tabData.map((tab) => (
@@ -752,7 +861,9 @@ export default function GuestInvitesComponent() {
                 : "border-b-4 border-transparent"
             }`}
           >
-            <Text className={`text-lg font-bold ${currentView === tab.key ? isDarkMode ? "text-indigo-400" : "text-indigo-800" : "text-gray-500"}`}>
+            <Text
+              className={`text-lg font-bold ${currentView === tab.key ? (isDarkMode ? "text-indigo-400" : "text-indigo-800") : "text-gray-500"}`}
+            >
               {tab.label}
             </Text>
           </TouchableOpacity>
@@ -761,25 +872,34 @@ export default function GuestInvitesComponent() {
 
       {/* --- Content Area --- */}
       {currentView === "invite" ? (
-        <InviteGuestForm 
-          selectedEstateId={selectedEstateId} 
+        <InviteGuestForm
+          selectedEstateId={selectedEstateId}
           setEstatePickerVisible={setEstatePickerVisible}
           activeEstate={activeEstate}
+          activeLocations={activeLocations}
         />
       ) : (
         /* Flow the selected workspace down to TrackGuestView natively */
-        <TrackGuestView 
-          estate_id={selectedEstateId ?? ""} 
-          onInvitePress={() => setCurrentView("invite")} 
+        <TrackGuestView
+          estate_id={selectedEstateId ?? ""}
+          onInvitePress={() => setCurrentView("invite")}
         />
       )}
 
       {/* Slide-Up Estate Workspace Context Picker Sheet */}
-      <Modal visible={estatePickerVisible} animationType="slide" transparent={true}>
+      <Modal
+        visible={estatePickerVisible}
+        animationType="slide"
+        transparent={true}
+      >
         <View className="flex-1 justify-end bg-black/50">
-          <View className={`${isDarkMode ? "bg-slate-900" : "bg-white"} rounded-t-[2.5rem] p-6 max-h-[60%]`}>
+          <View
+            className={`${isDarkMode ? "bg-slate-900" : "bg-white"} rounded-t-[2.5rem] p-6 max-h-[60%]`}
+          >
             <View className="w-12 h-1 bg-slate-300 rounded-full self-center mb-6 mx-auto" />
-            <Text className={`text-xl font-bold mb-4 ${isDarkMode ? "text-white" : "text-slate-900"}`}>
+            <Text
+              className={`text-xl font-bold mb-4 ${isDarkMode ? "text-white" : "text-slate-900"}`}
+            >
               Select Active Property Context
             </Text>
             <FlatList
@@ -794,12 +914,19 @@ export default function GuestInvitesComponent() {
                   className={`p-4 rounded-2xl mb-3 border flex-row items-center ${
                     selectedEstateId === item.id
                       ? "border-indigo-500 bg-indigo-50/40"
-                      : isDarkMode ? "border-slate-800 bg-slate-800/40" : "border-slate-100 bg-slate-50"
+                      : isDarkMode
+                        ? "border-slate-800 bg-slate-800/40"
+                        : "border-slate-100 bg-slate-50"
                   }`}
                 >
-                  <MapPin size={20} color={selectedEstateId === item.id ? "#4f46e5" : "#94a3b8"} />
+                  <MapPin
+                    size={20}
+                    color={selectedEstateId === item.id ? "#4f46e5" : "#94a3b8"}
+                  />
                   <View className="ml-3 flex-1">
-                    <Text className={`font-bold text-sm ${isDarkMode ? "text-white" : "text-slate-800"}`}>
+                    <Text
+                      className={`font-bold text-sm ${isDarkMode ? "text-white" : "text-slate-800"}`}
+                    >
                       {item.name}
                     </Text>
                   </View>

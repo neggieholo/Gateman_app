@@ -19,7 +19,11 @@ import {
 
 const BASE_URL = `${process.env.EXPO_PUBLIC_BASE_URL}/api`;
 
-export const postLogin = async (email: string, password: string, biometric_login: boolean) => {
+export const postLogin = async (
+  email: string,
+  password: string,
+  biometric_login: boolean,
+) => {
   try {
     const res = await fetch(`${BASE_URL}/auth/login/tenant`, {
       method: "POST",
@@ -66,7 +70,7 @@ export const sendOtpApi = async (target: string, type: string) => {
     const res = await fetch(`${BASE_URL}/auth/app/send-otp`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ target, type, role:'TENANT' }),
+      body: JSON.stringify({ target, type, role: "TENANT" }),
     });
 
     const data = await res.json();
@@ -390,8 +394,10 @@ export default async function registerForPushNotificationsAsync() {
   }
 }
 
-export const fetchAllTenants = async () => {
-  const res = await fetch(`${BASE_URL}/admin/tenants`, {
+export const fetchAllTenants = async (estate_id: string) => {
+  const res = await fetch(`${BASE_URL}/admin/tenant/tenants`, {
+    method: "POST",
+    body: JSON.stringify({ estate_id }),
     credentials: "include",
   });
   if (!res.ok) {
@@ -721,7 +727,7 @@ export const changePassword = async (
   newPassword: string,
   role: string,
 ) => {
-  console.log("Passwords in api:",currentPassword, newPassword, role)
+  console.log("Passwords in api:", currentPassword, newPassword, role);
   try {
     const response = await fetch(`${BASE_URL}/change-password`, {
       method: "POST",
@@ -771,7 +777,7 @@ export const submitEstateReport = async (payload: SubmitReportPayload) => {
   }
 };
 
-export const getMyReports = async (estate_id:string) => {
+export const getMyReports = async (estate_id: string) => {
   try {
     const res = await fetch(`${BASE_URL}/security/my-reports`, {
       method: "POST",
@@ -790,35 +796,36 @@ export const deleteReport = async (id: string) => {
   return await res.json();
 };
 
-export const getEstatePaymentSettings =
-  async (id:string): Promise<PaymentSettingsResponse> => {
-    try {
-      const res = await fetch(`${BASE_URL}/admin/payment-settings`, {
-        method: "POST",
-        body: JSON.stringify({ id }),
-        credentials: "include",
-      });
+export const getEstatePaymentSettings = async (
+  id: string,
+): Promise<PaymentSettingsResponse> => {
+  try {
+    const res = await fetch(`${BASE_URL}/admin/payment-settings`, {
+      method: "POST",
+      body: JSON.stringify({ id }),
+      credentials: "include",
+    });
 
-      const data = await res.json();
+    const data = await res.json();
 
-      if (!res.ok) {
-        return {
-          success: false,
-          data: null as any, // Match your interface expectation
-          error: data.error || "Failed to fetch settings",
-        };
-      }
-
-      return data;
-    } catch (err) {
-      console.error("Payment Settings Fetch Error:", err);
+    if (!res.ok) {
       return {
         success: false,
-        data: null as any,
-        error: "Network error or server unreachable",
+        data: null as any, // Match your interface expectation
+        error: data.error || "Failed to fetch settings",
       };
     }
-  };
+
+    return data;
+  } catch (err) {
+    console.error("Payment Settings Fetch Error:", err);
+    return {
+      success: false,
+      data: null as any,
+      error: "Network error or server unreachable",
+    };
+  }
+};
 
 // POST: Upload Payment Record
 export const uploadPaymentLog = async (payload: any) => {
@@ -837,7 +844,7 @@ export const uploadPaymentLog = async (payload: any) => {
 
 // GET: Fetch History with Date Filters
 export const getPaymentHistory = async (
-  id:string,
+  id: string,
   startDate?: string,
   endDate?: string,
 ) => {
@@ -871,7 +878,9 @@ export const deletePaymentLog = async (id: string) => {
   }
 };
 
-export const getEmergencyContacts = async (estate_id: string): Promise<{
+export const getEmergencyContacts = async (
+  estate_id: string,
+): Promise<{
   success: boolean;
   contacts: EmergencyContact[];
   error?: string;
@@ -887,45 +896,46 @@ export const getEmergencyContacts = async (estate_id: string): Promise<{
     return {
       success: false,
       contacts: [],
-      error: error
+      error: error,
     };
   }
 };
 
-
 const handleResponse = async (response: Response) => {
   const data = await response.json();
   if (!response.ok) {
-    throw data.error || 'Something went wrong';
+    throw data.error || "Something went wrong";
   }
   return data;
 };
 
-export const createEvent = async (eventData: CreateEventRequest): Promise<EstateEvent> => {
+export const createEvent = async (
+  eventData: CreateEventRequest,
+): Promise<EstateEvent> => {
   const response = await fetch(`${BASE_URL}/event/create`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(eventData),
   });
   const data = await handleResponse(response);
   return data.event;
 };
 
-
 export const getOrganizerEvents = async (): Promise<EstateEvent[]> => {
   const response = await fetch(`${BASE_URL}/event/organizer/all`);
   return await handleResponse(response);
 };
 
-
 export const deleteEvent = async (eventId: string): Promise<void> => {
   const response = await fetch(`${BASE_URL}/event/delete/${eventId}`, {
-    method: 'DELETE',
+    method: "DELETE",
   });
   await handleResponse(response);
 };
 
-export const getResidentDashboardStats = async (estate_id: string): Promise<{
+export const getResidentDashboardStats = async (
+  estate_id: string,
+): Promise<{
   success: boolean;
   data?: DashboardStats;
   message?: string;
@@ -936,7 +946,7 @@ export const getResidentDashboardStats = async (estate_id: string): Promise<{
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({estate_id}),
+      body: JSON.stringify({ estate_id }),
       credentials: "include",
     });
 
@@ -970,7 +980,7 @@ export const getEventDateLabel = (dateString: string): string => {
 
   const todayDate = new Date(todayStr);
   const targetDate = new Date(dateString);
-  
+
   // Calculate difference in days cleanly
   const diffTime = targetDate.getTime() - todayDate.getTime();
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));

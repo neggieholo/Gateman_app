@@ -16,9 +16,11 @@ import { router, useLocalSearchParams } from "expo-router";
 import {
   Bell,
   BellOff,
+  ChevronDown,
   ChevronLeft,
   Download,
   LogOut,
+  MapPin,
   MoreVertical,
   Phone,
   Search,
@@ -89,6 +91,7 @@ const ChatManager = () => {
     remoteTyping,
     privateUnread,
     groupUnread,
+    isDarkMode,
   } = useUser();
 
   const [isInitialLoading, setIsInitialLoading] = useState(true);
@@ -138,6 +141,8 @@ const ChatManager = () => {
   const flatListRef = useRef<any>(null);
   const [isMuted, setIsMuted] = useState(false);
   const { autoId } = useLocalSearchParams();
+  const [selectedEstateId, setSelectedEstateId] = useState<string | null>(null);
+  const [showEstateMenu, setShowEstateMenu] = useState(false);
   const { startVoipCall, CallOverlay } = useEmergencyCall();
   const navigation = useNavigation<any>();
 
@@ -150,13 +155,19 @@ const ChatManager = () => {
   // const isAdmin =
   //   isGroupChat && myId ? selectedTenant.admins.includes(myId) : false;
 
+  useEffect(() => {
+    if (user?.estate_ids && user.estate_ids.length > 0) {
+      setSelectedEstateId(user.estate_ids[0].toString());
+    }
+  }, [user?.estate_ids]);
+
   //initializer
   useEffect(() => {
-    if (!user?.estate_id) return;
+    if (!selectedEstateId) return;
     const initializeChatSystem = async () => {
       try {
         const [tenantRes] = await Promise.all([
-          fetchAllTenants(),
+          fetchAllTenants(selectedEstateId),
           user?.chatToken
             ? auth().signInWithCustomToken(user.chatToken)
             : Promise.resolve(),
@@ -171,15 +182,15 @@ const ChatManager = () => {
     };
 
     initializeChatSystem();
-  }, [user?.chatToken, user?.estate_id]);
+  }, [user?.chatToken, selectedEstateId]);
 
   //block function
   useEffect(() => {
-    if (!user?.id || !user.estate_id) return;
+    if (!user?.id || !selectedEstateId) return;
 
     const relationsRef = firestore()
       .collection("estate_chats")
-      .doc(user.estate_id)
+      .doc(selectedEstateId)
       .collection("user_relations")
       .doc(user.id.toString());
 
@@ -198,14 +209,14 @@ const ChatManager = () => {
     );
 
     return () => unsubscribe();
-  }, [user?.id, user?.estate_id]);
+  }, [user?.id, selectedEstateId]);
 
   useEffect(() => {
-    if (!user?.id || !user.estate_id) return;
+    if (!user?.id || !selectedEstateId) return;
 
     const unsubscribe = firestore()
       .collection("estate_chats")
-      .doc(user.estate_id)
+      .doc(selectedEstateId)
       .collection("user_relations")
       .doc(user.id.toString())
       .onSnapshot((doc) => {
@@ -218,7 +229,7 @@ const ChatManager = () => {
       });
 
     return () => unsubscribe();
-  }, [user?.id, user?.estate_id]);
+  }, [user?.id, selectedEstateId]);
 
   // Filter the full tenants list to only show blocked residents
   const blockedTenants = useMemo(() => {
@@ -227,14 +238,14 @@ const ChatManager = () => {
 
   //unblock function
   useEffect(() => {
-    if (!selectedTenant?.id || !user?.id || !user.estate_id) return;
+    if (!selectedTenant?.id || !user?.id || !selectedEstateId) return;
 
     const tenantId = selectedTenant.id.toString();
     const myId = user.id.toString();
 
     const unsubscribeReverseBlock = firestore()
       .collection("estate_chats")
-      .doc(user.estate_id)
+      .doc(selectedEstateId)
       .collection("user_relations")
       .doc(tenantId)
       .onSnapshot((doc) => {
@@ -258,15 +269,15 @@ const ChatManager = () => {
       });
 
     return () => unsubscribeReverseBlock();
-  }, [selectedTenant?.id, user?.id, user?.estate_id]);
+  }, [selectedTenant?.id, user?.id, selectedEstateId]);
 
   //group fetch
   useEffect(() => {
     // if (!user?.id || !user.estate_id || currentTab !== "groups") return;
-    if (!user?.id || !user.estate_id) return;
+    if (!user?.id || !selectedEstateId) return;
     const unsubscribe = firestore()
       .collection("estate_chats")
-      .doc(user.estate_id)
+      .doc(selectedEstateId)
       .collection("groups")
       .where("memberIds", "array-contains", user.id.toString())
       .onSnapshot(
@@ -281,7 +292,7 @@ const ChatManager = () => {
       );
 
     return () => unsubscribe();
-  }, [user?.id, user?.estate_id, currentTab]);
+  }, [user?.id, selectedEstateId, currentTab]);
 
   const activeGroupData = useMemo(() => {
     if (!isGroupChat || !selectedTenant) return null;
@@ -309,8 +320,8 @@ const ChatManager = () => {
 
     return visibleTenants.filter((t) => {
       const name = t.name?.toLowerCase() || "";
-      const block = t.block?.toString().toLowerCase() || "";
-      const unit = t.unit?.toString().toLowerCase() || "";
+      const block = t.locations?.block?.toString().toLowerCase() || "";
+      const unit = t.locations?.unit?.toString().toLowerCase() || "";
 
       return (
         name.includes(query) || block.includes(query) || unit.includes(query)
@@ -357,12 +368,12 @@ const ChatManager = () => {
 
   //chatroom fetch
   useEffect(() => {
-    if (!user?.id || !user?.estate_id) return;
+    if (!user?.id || !selectedEstateId) return;
 
     const myId = user.id.toString();
     const unsubscribe = firestore()
       .collection("estate_chats")
-      .doc(user.estate_id)
+      .doc(selectedEstateId)
       .collection("private_chats")
       .where("memberIds", "array-contains", myId)
       .onSnapshot(
@@ -382,11 +393,11 @@ const ChatManager = () => {
       );
 
     return () => unsubscribe();
-  }, [user?.id, user?.estate_id]);
+  }, [user?.id, selectedEstateId]);
 
   //message fetch
   useEffect(() => {
-    if (!selectedTenant || !user || !user.estate_id) return;
+    if (!selectedTenant || !user || !selectedEstateId) return;
     setIsInitialLoading(true);
 
     const chatCollection = isGroupChat ? "groups" : "private_chats";
@@ -396,7 +407,7 @@ const ChatManager = () => {
 
     const roomRef = firestore()
       .collection("estate_chats")
-      .doc(user.estate_id)
+      .doc(selectedEstateId)
       .collection(chatCollection)
       .doc(roomId);
 
@@ -445,14 +456,14 @@ const ChatManager = () => {
           return;
         }
 
-        const isCache = snap.metadata.fromCache;
+        // const isCache = snap.metadata.fromCache;
         const newMsgs: IFileMessage[] = [];
         const removedIds: string[] = [];
 
         snap.docChanges().forEach((change) => {
           const mData = change.doc.data();
           const messageId = change.doc.id;
-          const hasPendingWrites = change.doc.metadata.hasPendingWrites;
+          // const hasPendingWrites = change.doc.metadata.hasPendingWrites;
 
           if (change.type === "added" || change.type === "modified") {
             newMsgs.push({
@@ -510,17 +521,17 @@ const ChatManager = () => {
   }, [selectedTenant, user]);
 
   const onSend = async (newMsgs: IFileMessage[] = []) => {
-    if (!selectedTenant || !user?.estate_id) return;
+    if (!selectedTenant || !selectedEstateId) return;
     const myId = user?.id?.toString();
     const messageToSend = newMsgs[0];
     const finalId = messageToSend._id.toString();
     const roomId = isGroupChat
       ? selectedTenant.id
-      : [user.id, selectedTenant.id].sort().join("_");
+      : [user?.id, selectedTenant.id].sort().join("_");
 
     const roomRef = firestore()
       .collection("estate_chats")
-      .doc(user.estate_id)
+      .doc(selectedEstateId)
       .collection(isGroupChat ? "groups" : "private_chats")
       .doc(roomId);
 
@@ -533,7 +544,7 @@ const ChatManager = () => {
       .set({
         text: messageToSend.text,
         createdAt: firestore.FieldValue.serverTimestamp(),
-        user: { _id: myId, name: user.name, avatar: user.avatar || null },
+        user: { _id: myId, name: user?.name, avatar: user?.avatar || null },
         image: messageToSend.image || null,
         audio: messageToSend.audio || null,
         video: messageToSend.video || null,
@@ -599,7 +610,7 @@ const ChatManager = () => {
         roomId: roomId,
         isGroup: isGroupChat,
         senderId: myId,
-        senderName: user.name,
+        senderName: user?.name,
       };
 
       const notificationBody = messageToSend.text
@@ -612,7 +623,7 @@ const ChatManager = () => {
       if (selectedTenant.push_token) {
         sendPushNotification(
           selectedTenant.push_token,
-          user.name,
+          user?.name,
           notificationBody,
           pushData,
         );
@@ -636,7 +647,7 @@ const ChatManager = () => {
         memberIds: notificationRecipients,
         text: notificationBody,
         roomId: roomId,
-        senderName: user.name,
+        senderName: user?.name,
         groupName: (selectedTenant as any).name,
       });
     }
@@ -644,15 +655,15 @@ const ChatManager = () => {
   };
 
   const markAsRead = async () => {
-    if (!selectedTenant || !user?.estate_id) return;
+    if (!selectedTenant || !selectedEstateId) return;
     const myId = user?.id?.toString();
     const roomId = isGroupChat
       ? selectedTenant.id
-      : [user.id, selectedTenant.id].sort().join("_");
+      : [user?.id, selectedTenant.id].sort().join("_");
 
     const roomRef = firestore()
       .collection("estate_chats")
-      .doc(user.estate_id)
+      .doc(selectedEstateId)
       .collection(isGroupChat ? "groups" : "private_chats")
       .doc(roomId);
 
@@ -686,50 +697,25 @@ const ChatManager = () => {
 
   //mark as read
   useEffect(() => {
-    if (selectedTenant && user?.estate_id) {
+    if (selectedTenant && selectedEstateId) {
       markAsRead();
     }
-  }, [selectedTenant, messages.length]);
-
-  // const renderCustomView = (props: any) => {
-  //   const { currentMessage } = props;
-
-  //   if (currentMessage?.replyMessage) {
-  //     const replyText = currentMessage.replyMessage.text || "";
-  //     const truncatedText =
-  //       replyText.length > 30 ? replyText.substring(0, 30) + "..." : replyText;
-
-  //     return (
-  //       <View className="bg-white/50 border-l-4 border-white px-2 py-2 m-1 rounded-sm min-w-[150px]">
-  //         {isGroupChat && currentMessage.replyMessage.user?.name && (
-  //           <Text className="font-extrabold text-[#6366f1] text-[11px] mb-0.5">
-  //             {currentMessage.replyMessage.user.name}
-  //           </Text>
-  //         )}
-
-  //         <Text className="text-gray-600 text-[12px] leading-4">
-  //           {truncatedText}
-  //         </Text>
-  //       </View>
-  //     );
-  //   }
-  //   return null;
-  // };
+  }, [selectedTenant, messages.length, selectedEstateId]);
 
   const handleBlockUser = async (targetId: string) => {
-    if (!user?.id || !user.estate_id) return;
+    if (!user?.id || !selectedEstateId) return;
 
     const roomId = [user.id, targetId].sort().join("_");
     const roomRef = firestore()
       .collection("estate_chats")
-      .doc(user.estate_id)
+      .doc(selectedEstateId)
       .collection("private_chats")
       .doc(roomId);
 
     try {
       await firestore()
         .collection("estate_chats")
-        .doc(user.estate_id)
+        .doc(selectedEstateId)
         .collection("user_relations")
         .doc(user.id.toString())
         .set(
@@ -758,7 +744,7 @@ const ChatManager = () => {
   };
 
   const handleBulkUnblock = async () => {
-    if (!user?.id || !user.estate_id || selectedForUnblock.length === 0) {
+    if (!user?.id || !selectedEstateId || selectedForUnblock.length === 0) {
       setBlockedModalVisible(false);
       return;
     }
@@ -766,7 +752,7 @@ const ChatManager = () => {
     try {
       const userRelationsRef = firestore()
         .collection("estate_chats")
-        .doc(user.estate_id)
+        .doc(selectedEstateId)
         .collection("user_relations")
         .doc(user.id.toString());
 
@@ -817,16 +803,16 @@ const ChatManager = () => {
         text: "Clear",
         style: "destructive",
         onPress: async () => {
-          if (!selectedTenant || !user?.estate_id) return;
+          if (!selectedTenant || !selectedEstateId) return;
           const roomId = isGroupChat
             ? selectedTenant._id || selectedTenant.id
-            : [user.id, selectedTenant.id].sort().join("_");
+            : [user?.id, selectedTenant.id].sort().join("_");
 
           try {
             if (isGroupChat) {
               const groupRef = firestore()
                 .collection("estate_chats")
-                .doc(user.estate_id)
+                .doc(selectedEstateId)
                 .collection("groups")
                 .doc(roomId);
 
@@ -851,7 +837,7 @@ const ChatManager = () => {
               // Private chat: Physical delete
               const messagesRef = firestore()
                 .collection("estate_chats")
-                .doc(user.estate_id)
+                .doc(selectedEstateId)
                 .collection("private_chats")
                 .doc(roomId);
 
@@ -900,7 +886,7 @@ const ChatManager = () => {
 
       const roomRef = firestore()
         .collection("estate_chats")
-        .doc(user?.estate_id)
+        .doc(selectedEstateId!)
         .collection(isGroupChat ? "groups" : "private_chats")
         .doc(roomId);
 
@@ -942,10 +928,10 @@ const ChatManager = () => {
   };
 
   useEffect(() => {
-    if (!selectedTenant?.id || !user?.id || !user.estate_id) return;
+    if (!selectedTenant?.id || !user?.id || !selectedEstateId) return;
 
     const tenantId = selectedTenant.id.toString();
-    const estateId = user.estate_id;
+    const estateId = selectedEstateId;
 
     // Listen to the TARGET's relations to see if they block US
     const unsubscribe = firestore()
@@ -980,7 +966,7 @@ const ChatManager = () => {
       );
 
     return () => unsubscribe();
-  }, [selectedTenant?.id, user?.id, user?.estate_id]);
+  }, [selectedTenant?.id, user?.id, selectedEstateId]);
 
   const handleFinalizeGroup = async () => {
     if (!groupName.trim() || selectedGroupMembers.length < 2) {
@@ -1014,7 +1000,7 @@ const ChatManager = () => {
     try {
       await firestore()
         .collection("estate_chats")
-        .doc(user?.estate_id)
+        .doc(selectedEstateId!)
         .collection("groups")
         .doc(groupId)
         .set(groupData);
@@ -1031,12 +1017,12 @@ const ChatManager = () => {
   };
 
   useEffect(() => {
-    if (!isGroupChat || !selectedTenant?._id || !user?.estate_id) return;
+    if (!isGroupChat || !selectedTenant?._id || !selectedEstateId) return;
 
     // 1. Establish the path to the group
     const groupRef = firestore()
       .collection("estate_chats")
-      .doc(user.estate_id)
+      .doc(selectedEstateId)
       .collection("groups")
       .doc(selectedTenant._id);
 
@@ -1060,7 +1046,7 @@ const ChatManager = () => {
 
     // 3. Clean up the listener when leaving the chat
     return () => unsubscribe();
-  }, [selectedTenant, isGroupChat, user]);
+  }, [selectedTenant, isGroupChat, user, selectedEstateId]);
 
   const toggleGroupMute = async () => {
     if (!user?.id || !isGroupChat || !selectedTenant?._id) return;
@@ -1068,7 +1054,7 @@ const ChatManager = () => {
     try {
       const groupRef = firestore()
         .collection("estate_chats")
-        .doc(user.estate_id)
+        .doc(selectedEstateId!)
         .collection("groups")
         .doc(selectedTenant._id);
 
@@ -1120,7 +1106,7 @@ const ChatManager = () => {
           try {
             const groupRef = firestore()
               .collection("estate_chats")
-              .doc(user.estate_id)
+              .doc(selectedEstateId!)
               .collection("groups")
               .doc(groupId);
 
@@ -1187,7 +1173,7 @@ const ChatManager = () => {
 
         const roomRef = firestore()
           .collection("estate_chats")
-          .doc(user?.estate_id)
+          .doc(selectedEstateId!)
           .collection(chatCollection)
           .doc(roomId);
 
@@ -1329,28 +1315,6 @@ const ChatManager = () => {
       launchCamera(["images", "videos"]);
     }
   };
-
-  // 2. Gallery
-  // const pickImage = async () => {
-  //   const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
-
-  //   if (!result.canceled) {
-  //     // Just a "middle-man" step to swap local for web
-  //     const webUrl = await getCloudinaryUrl(result.assets[0].uri, "image");
-
-  //     if (webUrl) {
-  //       onSend([
-  //         {
-  //           _id: Math.random().toString(),
-  //           createdAt: new Date(),
-  //           user: { _id: myId || "anon", name: user?.name },
-  //           image: webUrl,
-  //           text: "",
-  //         },
-  //       ]);
-  //     }
-  //   }
-  // };
 
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
@@ -1569,27 +1533,6 @@ const ChatManager = () => {
     }
   };
 
-  //   const handleShareMessageFile = async (message: any) => {
-  //   if (!message.file) return;
-
-  //   try {
-  //     const isAvailable = await Sharing.isAvailableAsync();
-  //     if (!isAvailable) {
-  //       Alert.alert("Error", "Sharing is not supported on this device.");
-  //       return;
-  //     }
-
-  //     // We share the remote URL directly so the user doesn't
-  //     // have to wait for a local download to finish first.
-  //     await Sharing.shareAsync(message.file.url, {
-  //       dialogTitle: `Share ${message.file.name}`,
-  //       mimeType: message.file.mimeType || 'application/pdf',
-  //     });
-  //   } catch (e) {
-  //     console.error("Sharing Error:", e);
-  //   }
-  // };
-
   // --- START RECORDING ---
   const startAudioRecording = async () => {
     try {
@@ -1676,88 +1619,29 @@ const ChatManager = () => {
     }
   };
 
-  // const startCall = async (type: "voice" | "video") => {
-  //   if (!isGroupChat) {
-  //     if (!selectedTenant?.push_token) {
-  //       Alert.alert(
-  //         "User Offline",
-  //         "This resident cannot be reached at the moment because they haven't enabled notifications.",
-  //       );
-  //       return;
-  //     }
-  //   }
-
-  //   const callId = `call_${user?.id}_${Date.now()}`;
-
-  //   const pushData = {
-  //     type: "incoming_call",
-  //     callId: callId,
-  //     callerId: user?.id,
-  //     callerName: user?.name,
-  //     callerAvatar: user?.avatar,
-  //     callType: type,
-  //     channelName: callId,
-  //   };
-
-  //   if (!isGroupChat) {
-  //     try {
-  //       // 1. Send Signaling Push
-  //       await sendPushNotification(
-  //         selectedTenant.push_token,
-  //         `Incoming ${type === "video" ? "Video" : "Voice"} Call`,
-  //         `${user?.name} is calling...`,
-  //         pushData,
-  //       );
-
-  //       router.push({
-  //         pathname: "/CallScreen",
-  //         params: {
-  //           callId: pushData.callId,
-  //           callerName: pushData.callerName,
-  //           callerAvatar: pushData.callerAvatar || "",
-  //           callType: pushData.callType,
-  //           isIncoming: "false",
-  //           roomName: selectedTenant.name,
-  //         },
-  //       });
-  //     } catch (err) {
-  //       console.error("Call signaling failed:", err);
-  //       Alert.alert(
-  //         "Call Failed",
-  //         "Could not establish a connection. Please try again.",
-  //       );
-  //     }
-  //   }
-  // };
-
-  // const handleStartCall = () => {
-  //   if (!selectedTenant) return;
-
-  //   const channelName = `gate_${user?.id}_${selectedTenant.id}`;
-
-  //   startVoipCall(channelName);
-  // };
-
   const handleStartCall = async () => {
     const channelName = `gate_man_${selectedTenant?.id}`;
 
     const callData = {
       type: "emergency_call",
       channelName: channelName,
-      senderName: user?.name, 
+      senderName: user?.name,
       senderId: myId,
     };
 
-    if(socket) {socket.emit('initiate_call', callData)}
+    if (socket) {
+      socket.emit("initiate_call", callData);
+    }
 
     // 1. Send the push to the Tenant
     if (!isGroupChat && selectedTenant && selectedTenant.push_token) {
       await sendPushNotification(
-      selectedTenant.push_token,
-      "🚨 INCOMING CALL",
-      `${user?.name} is calling you!`,
-      callData,
-    );}
+        selectedTenant.push_token,
+        "🚨 INCOMING CALL",
+        `${user?.name} is calling you!`,
+        callData,
+      );
+    }
 
     // 2. Navigate yourself to the call page
     navigation.navigate("EmergencyCallPage", {
@@ -1894,7 +1778,7 @@ const ChatManager = () => {
     </View>
   );
 
-  if (!user?.estate_id) {
+  if (!selectedEstateId) {
     return (
       <View className="flex-1 justify-center items-center bg-white p-6">
         <Text className="text-gray-400 text-center font-medium">
@@ -1998,11 +1882,18 @@ const ChatManager = () => {
               <Text className="font-bold text-lg text-gray-900">
                 {displayName}
               </Text>
-              {!isGroupChat && "block" in selectedTenant && (
-                <Text className="text-gray-400 text-[10px] font-bold uppercase">
-                  Block {selectedTenant.block} • Unit {selectedTenant.unit}
-                </Text>
-              )}
+              {/* Check if active estate key exists in tenant dictionary profile before rendering */}
+              {!isGroupChat &&
+                selectedEstateId &&
+                selectedTenant?.locations?.[selectedEstateId]?.[0] && (
+                  <Text className="text-gray-400 text-[10px] font-bold uppercase">
+                    Block {selectedTenant.locations[selectedEstateId][0].block}{" "}
+                    • Unit{" "}
+                    {selectedTenant.locations[selectedEstateId][0].unit.join(
+                      ", ",
+                    )}
+                  </Text>
+                )}
               {onlineUsers.includes(selectedTenant.id?.toString() || "") && (
                 <View className="absolute right-5 top-5 w-3 h-3 bg-green-500 rounded-full" />
               )}
@@ -2457,7 +2348,7 @@ const ChatManager = () => {
             group={activeGroupData}
             currentUser={user}
             tenants={visibleTenants}
-            estateId={user.estate_id}
+            estateId={selectedEstateId}
             setSelectedTenant={setSelectedTenant}
           />
         )}
@@ -2468,6 +2359,56 @@ const ChatManager = () => {
   // --- TENANT LIST VIEW ---
   return (
     <View className="flex-1 bg-gray-50">
+      {user?.estate_ids && user.estate_ids.length > 1 && (
+        <View className="bg-white px-4 pt-3 pb-1 border-b border-gray-100 z-50">
+          <TouchableOpacity
+            onPress={() => setShowEstateMenu(!showEstateMenu)}
+            className="flex-row items-center justify-between bg-slate-50 border border-slate-200 px-4 py-2.5 rounded-xl"
+          >
+            <View className="flex-row items-center flex-1">
+              <MapPin size={16} color="#4f46e5" />
+              <Text
+                className="ml-2 font-bold text-gray-800 text-sm flex-1"
+                numberOfLines={1}
+              >
+                Chatting in:{" "}
+                {user.estates?.find((e) => e.id.toString() === selectedEstateId)
+                  ?.name || "Select Estate"}
+              </Text>
+            </View>
+            <ChevronDown size={16} color="#64748b" />
+          </TouchableOpacity>
+
+          {/* Dropdown Options overlay */}
+          {showEstateMenu && (
+            <View className="absolute left-4 right-4 top-[52px] bg-white rounded-xl shadow-xl border border-gray-100 z-50 py-1">
+              {user.estates?.map((estate) => (
+                <TouchableOpacity
+                  key={estate.id}
+                  onPress={() => {
+                    setSelectedEstateId(estate.id.toString());
+                    setShowEstateMenu(false);
+                  }}
+                  className={`px-4 py-3 border-b border-gray-50 last:border-b-0 flex-row items-center justify-between ${
+                    selectedEstateId === estate.id.toString()
+                      ? "bg-indigo-50/40"
+                      : ""
+                  }`}
+                >
+                  <Text
+                    className={`text-sm ${selectedEstateId === estate.id.toString() ? "text-indigo-600 font-bold" : "text-gray-700"}`}
+                  >
+                    {estate.name}
+                  </Text>
+                  {selectedEstateId === estate.id.toString() && (
+                    <View className="w-2 h-2 rounded-full bg-indigo-600" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+      )}
       <View className="flex-row bg-white border-b border-gray-100 px-4 pb-2 mt-2">
         <TouchableOpacity
           onPress={() => setCurrentTab("residents")}
