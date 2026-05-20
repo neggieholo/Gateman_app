@@ -21,8 +21,12 @@ interface CardProps {
   endTime: string;
   estate_name: string;
   estate_address: string;
+  estate_state: string;
+  estate_lga: string;
   locations: LocationPair[];
   staffPosition?: string;
+  permittedDays?: number[];
+  excludedDates?: string[];
 }
 
 export const InvitationCard = ({
@@ -38,14 +42,44 @@ export const InvitationCard = ({
   endTime,
   estate_name,
   estate_address,
+  estate_state,
+  estate_lga,
   locations = [],
   staffPosition,
+  permittedDays,
+  excludedDates,
 }: CardProps) => {
   const isStaff = inviteType === "staff_entry";
 
+  // Check if a real, valid expiration date text is provided
+  const hasValidEndDate =
+    endDate &&
+    endDate.trim() !== "" &&
+    endDate.trim() !== null &&
+    !endDate.toLowerCase().includes("no expiration");
+
+  // Determine the top label dynamically
+  const validityLabel = hasValidEndDate
+    ? "Validity Period"
+    : isStaff
+      ? "Activation Date"
+      : "Validity Period";
+
+  const displayDateRange = () => {
+    if (isStaff && !hasValidEndDate) {
+      return `${startDate} (Perpetual)`;
+    }
+    return `${startDate} - ${endDate}`;
+  };
+
+  
+
   return (
     /* We keep it contained for the capture layout */
-    <View className="my-4 items-center" style={{ position: "absolute", left: -1000, top: -1000 }}>
+    <View
+      className="my-4 items-center"
+      style={{ position: "absolute", left: -1000, top: -1000 }}
+    >
       <ViewShot ref={viewShotRef} options={{ format: "png", quality: 1 }}>
         <View
           className="bg-white p-8 rounded-[50px] border-[6px] border-[#D4AF37] relative overflow-hidden"
@@ -117,25 +151,14 @@ export const InvitationCard = ({
               </Text>
             </Text>
 
-            {/* Estate Branding Context Line */}
-            <Text className="text-[#0A1F44] text-lg font-bold text-center mt-3">
-              🏠 {estate_name || "Premium Estate"}
-            </Text>
-
-            {/* Estate Address Context Line */}
-            <Text className="text-slate-400 text-xs font-medium text-center mt-0.5 px-6">
-              {estate_address || "Estate Location Address"}
-            </Text>
-
-            {/* 📍 LOCATIONS CONTAINER LAYER */}
             {locations && locations.length > 0 && (
               <View className="flex-row flex-wrap justify-center gap-2 mt-4 px-4 w-full">
                 {locations.map((loc, idx) => {
                   const unitsString = Array.isArray(loc.unit)
                     ? loc.unit.join(", ")
                     : typeof loc.unit === "string"
-                    ? loc.unit
-                    : "";
+                      ? loc.unit
+                      : "";
 
                   return (
                     <View
@@ -143,31 +166,48 @@ export const InvitationCard = ({
                       className="bg-indigo-50/90 border border-indigo-100 px-3 py-1.5 rounded-xl flex-row items-center"
                     >
                       <Text className="text-indigo-950 font-black text-xs">
-                        Blk {loc.block} <Text className="text-slate-300 font-normal">|</Text> Unit(s): {unitsString}
+                        Blk {loc.block}{" "}
+                        <Text className="text-slate-300 font-normal">|</Text>{" "}
+                        Unit(s): {unitsString}
                       </Text>
                     </View>
                   );
                 })}
               </View>
             )}
+
+            {/* Estate Branding Context Line */}
+            <Text className="text-[#0A1F44] text-lg font-bold text-center mt-3">
+              🏠 {estate_name || "Premium Estate"}
+            </Text>
+
+            {/* Estate Address Context Line */}
+            <Text className="text-slate-400 text-md font-montserrat-bold text-center mt-0.5 px-6">
+              {estate_address || "Estate Location Address"}
+            </Text>
+            <Text className="text-slate-400 text-xs font-montserrat-bold text-center mt-0.5 px-6">
+              {estate_lga && estate_state
+                ? `${estate_lga}, ${estate_state}`
+                : "Isolo, Lagos"}
+            </Text>
           </View>
 
           {/* 4. PASS VALIDITY SCHEDULE WINDOW */}
           <View className="bg-slate-50 border border-slate-100 rounded-2xl p-4 mb-6 w-full flex-row justify-around">
-            <View className="items-center">
-              <Text className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">
-                Validity Period
+            <View className="items-center flex-1 px-1">
+              <Text className="text-slate-400 text-[10px] uppercase font-bold tracking-wider text-center">
+                {validityLabel}
               </Text>
-              <Text className="text-[#0A1F44] font-black text-xs mt-1">
-                {startDate} {endDate ? `- ${endDate}` : "(Perpetual)"}
+              <Text className="text-[#0A1F44] font-black text-xs mt-1 text-center">
+                {displayDateRange()}
               </Text>
             </View>
             <View className="w-[1px] bg-slate-200 h-full" />
-            <View className="items-center">
-              <Text className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">
+            <View className="items-center flex-1 px-1">
+              <Text className="text-slate-400 text-[10px] uppercase font-bold tracking-wider text-center">
                 Access Hours
               </Text>
-              <Text className="text-[#0A1F44] font-black text-xs mt-1">
+              <Text className="text-[#0A1F44] font-black text-xs mt-1 text-center">
                 {startTime} - {endTime}
               </Text>
             </View>
@@ -202,6 +242,63 @@ export const InvitationCard = ({
               </Text>
             </View>
           </View>
+          {/* 4b. DYNAMIC PERMISSIONS & EXCLUSIONS LAYER */}
+          {isStaff && permittedDays && permittedDays.length > 0 && (
+            <View className="w-full px-2 mb-4">
+              <Text className="text-slate-400 text-[10px] uppercase font-bold tracking-wider mb-1.5">
+                🗓️ Approved Workdays
+              </Text>
+              <View className="flex-row flex-wrap gap-1">
+                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(
+                  (dayName, index) => {
+                    const isAllowed = permittedDays.includes(index);
+                    return (
+                      <View
+                        key={`workday-${index}`}
+                        className={`px-2.5 py-1 rounded-md border ${
+                          isAllowed
+                            ? "bg-emerald-50 border-emerald-200"
+                            : "bg-slate-50 border-slate-100 opacity-40"
+                        }`}
+                      >
+                        <Text
+                          className={`text-[11px] font-bold ${
+                            isAllowed
+                              ? "text-emerald-700"
+                              : "text-slate-400 line-through"
+                          }`}
+                        >
+                          {dayName}
+                        </Text>
+                      </View>
+                    );
+                  },
+                )}
+              </View>
+            </View>
+          )}
+
+          {inviteType === "multi_entry" &&
+            excludedDates &&
+            excludedDates.length > 0 && (
+              <View className="w-full px-2 mb-4">
+                <Text className="text-rose-500 text-[10px] uppercase font-bold tracking-wider mb-1.5">
+                  ⚠️ Access Denied On These Dates
+                </Text>
+                <View className="flex-row flex-wrap gap-1.5">
+                  {excludedDates.map((dateStr, idx) => (
+                    <View
+                      key={`excluded-${idx}`}
+                      className="bg-rose-50 border border-rose-100 px-2 py-0.5 rounded-md"
+                    >
+                      <Text className="text-rose-700 font-bold text-[11px]">
+                        {dateStr}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
 
           {/* 7. FOOTER SECTION */}
           <View className="items-center border-t border-slate-100 pt-6">

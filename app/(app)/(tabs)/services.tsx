@@ -26,12 +26,12 @@ const ServiceListItem: React.FC<ServiceItemProps> = ({
   icon: Icon,
   color,
   onPress,
-  isDarkMode
+  isDarkMode,
 }) => (
   <TouchableOpacity
     onPress={onPress}
     activeOpacity={0.7}
-    className={`flex-row items-center justify-between p-5 ${isDarkMode ? 'bg-gm-navy border-gm-gold':'bg-white border-slate-100' } rounded-3xl mb-3 shadow-sm border`}
+    className={`flex-row items-center justify-between p-5 ${isDarkMode ? "bg-gm-navy border-gm-gold" : "bg-white border-slate-100"} rounded-3xl mb-3 shadow-sm border`}
   >
     <View className="flex-row items-center flex-1">
       <View
@@ -41,8 +41,16 @@ const ServiceListItem: React.FC<ServiceItemProps> = ({
         <Icon size={22} color={color} />
       </View>
       <View>
-        <Text className={`${isDarkMode ? 'text-gm-gold':'text-gm-navy'} font-oswald-semibold text-base`}>{title}</Text>
-        <Text className={`${isDarkMode ? 'text-slate-400':'text-slate-500 '} font-roboto-regular text-xs`}>{subtitle}</Text>
+        <Text
+          className={`${isDarkMode ? "text-gm-gold" : "text-gm-navy"} font-oswald-semibold text-base`}
+        >
+          {title}
+        </Text>
+        <Text
+          className={`${isDarkMode ? "text-slate-400" : "text-slate-500 "} font-roboto-regular text-xs`}
+        >
+          {subtitle}
+        </Text>
       </View>
     </View>
     <ChevronRight size={18} color="#cbd5e1" />
@@ -56,28 +64,29 @@ export default function EstateServicesScreen() {
   if (hasNoEstates) {
     return (
       <View
-        className={`${isDarkMode ? "bg-gm-navy/20" : "bg-gray-50"} flex-1 justify-center items-center p-6`}
+        className={`${isDarkMode ? "bg-slate-950" : "bg-slate-50"} flex-1 justify-center items-center p-6`}
       >
         <View
-          className={`${isDarkMode ? "bg-gm-navy" : "bg-white"} p-8 rounded-3xl shadow-sm items-center border ${isDarkMode ? "border-slate-800" : "border-gray-100"}`}
+          className={`${isDarkMode ? "bg-gm-navy border-slate-800" : "bg-white border-slate-100"} p-8 rounded-[2.5rem] shadow-sm items-center border`}
         >
-          <ShieldCheck size={60} color="#4f46e5" />
+          <ShieldCheck size={60} color={isDarkMode ? "#D4AF37" : "#0A1F44"} />
           <Text
-            className={`text-xl font-bold ${isDarkMode ? "text-white" : "text-gm-navy"} mt-4 text-center`}
+            className={`text-xl font-bold ${isDarkMode ? "text-gm-gold" : "text-gm-navy"} mt-4 text-center`}
           >
             Access Restricted
           </Text>
           <Text
-            className={`text-sm ${isDarkMode ? "text-slate-400" : "text-gray-500"} mt-2 text-center px-4 max-w-[280px]`}
+            className={`text-sm ${isDarkMode ? "text-slate-400" : "text-slate-500"} mt-2 text-center px-4 max-w-[280px]`}
           >
             You are currently not attached to any active estates on GateMan.
           </Text>
-
           <TouchableOpacity
-            className={`${isDarkMode ? "bg-gm-charcoal" : "bg-gm-navy"} py-4 px-10 rounded-2xl shadow-md mt-6`}
+            className={`w-full p-4 rounded-2xl shadow-sm mt-6 border items-center ${isDarkMode ? "bg-gm-charcoal border-gm-gold" : "bg-slate-900 border-transparent"}`}
             onPress={() => router.push("/JoinRequest" as any)}
           >
-            <Text className="text-white font-bold text-lg">Join an Estate</Text>
+            <Text className="text-white font-roboto-regular font-bold text-base">
+              Join an Estate
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -91,7 +100,9 @@ export default function EstateServicesScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View className="mb-6">
-          <Text className={`${isDarkMode ? 'text-gray-300':'text-slate-500 '} font-oswald-semibold`}>
+          <Text
+            className={`${isDarkMode ? "text-gray-300" : "text-slate-500 "} font-oswald-semibold`}
+          >
             Utilities, payments, and security info
           </Text>
         </View>

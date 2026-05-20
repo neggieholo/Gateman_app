@@ -931,8 +931,15 @@ export const createEvent = async (
   return data.event;
 };
 
-export const getOrganizerEvents = async (): Promise<EstateEvent[]> => {
-  const response = await fetch(`${BASE_URL}/event/organizer/all`);
+export const getOrganizerEvents = async (
+  estate_id: string,
+): Promise<EstateEvent[]> => {
+  // console.log("Fetching events for:", estate_id)
+  const response = await fetch(`${BASE_URL}/event/organizer/all`, {
+    method: "POST",
+    headers: { "Content-type": "application/json" },
+    body: JSON.stringify({ estate_id }),
+  });
   return await handleResponse(response);
 };
 

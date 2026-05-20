@@ -1,3 +1,4 @@
+import { useUser } from "@/app/UserContext";
 import * as ImagePicker from "expo-image-picker";
 import { ImageIcon, X } from "lucide-react-native";
 import React, { useState } from "react";
@@ -18,7 +19,6 @@ import { getCloudinaryUrl } from "../services/api";
 interface CreatePostModalProps {
   isVisible: boolean;
   onClose: () => void;
-  // Updated to include the image URL
   onSubmit: () => void;
   category: string;
   title: string;
@@ -39,13 +39,14 @@ export default function CreatePostModal({
   setContent,
   setImageUrl,
 }: CreatePostModalProps) {
+  const { isDarkMode, theme } = useUser();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
-      allowsEditing: false
+      allowsEditing: false,
     });
 
     if (!result.canceled) {
@@ -70,7 +71,6 @@ export default function CreatePostModal({
       }
 
       await onSubmit();
-
       setSelectedImage(null);
     } catch (error) {
       Alert.alert(
@@ -86,79 +86,143 @@ export default function CreatePostModal({
     <Modal visible={isVisible} animationType="slide" transparent={true}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        // Offset helps ensure the button isn't hidden by the keyboard
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
         className="flex-1 justify-end bg-black/50"
       >
-        <View className="bg-white rounded-t-3xl p-6 h-3/4">
-          <View className="flex-row justify-between items-center mb-6">
-            <Text className="text-xl font-bold">{`New Post`}</Text>
+        <View
+          className={`rounded-t-[3rem] p-6  pb-20 h-3/4 border-t ${
+            isDarkMode ? "bg-gm-charcoal border-slate-800" : "bg-white border-transparent"
+          }`}
+        >
+          {/* Header Layout */}
+          <View className="flex-row justify-between items-center mb-6 px-1">
+            <Text
+              style={{ fontFamily: "montserrat-bold" }}
+              className={`text-2xl ${isDarkMode ? "text-gm-gold" : "text-slate-900"}`}
+            >
+              New Post
+            </Text>
             <TouchableOpacity onPress={onClose} disabled={isUploading}>
-              <Text className="text-gray-500 font-bold">Cancel</Text>
+              <Text
+                style={{ fontFamily: "oswald-semibold" }}
+                className={`text-sm uppercase tracking-wide ${
+                  isDarkMode ? "text-slate-400" : "text-slate-500"
+                }`}
+              >
+                Cancel
+              </Text>
             </TouchableOpacity>
           </View>
 
-          <Text className="text-gray-500 mb-2 font-semibold">Title</Text>
-          <TextInput
-            className="bg-gray-100 rounded-xl px-4 py-3 mb-4 font-bold text-gray-900"
-            placeholderTextColor="#9ca3af"
-            placeholder="e.g. Broken Water Pipe"
-            value={title}
-            onChangeText={setTitle}
-            editable={!isUploading}
-            maxLength={50}
-          />
+          {/* Form Content Scroll Group Container */}
+          <View className="flex-1">
+            {/* Title Field Element */}
+            <Text
+              style={{ fontFamily: "oswald-semibold" }}
+              className={`mb-2 text-xs uppercase tracking-wider ${
+                isDarkMode ? "text-slate-400" : "text-slate-500"
+              }`}
+            >
+              Title
+            </Text>
+            <TextInput
+              style={{ fontFamily: "montserrat-bold" }}
+              className={`rounded-2xl px-4 py-3.5 mb-5 border ${
+                isDarkMode
+                  ? "bg-gm-navy border-slate-800 text-white"
+                  : "bg-slate-100 border-slate-200 text-slate-900"
+              }`}
+              placeholderTextColor={isDarkMode ? "#475569" : "#9ca3af"}
+              placeholder="e.g. Broken Water Pipe"
+              value={title}
+              onChangeText={setTitle}
+              editable={!isUploading}
+              maxLength={50}
+            />
 
-          <Text className="text-gray-500 mb-2 font-semibold">Content</Text>
-          <TextInput
-            className="bg-gray-100 rounded-xl px-4 py-4 mb-4 h-32 text-gray-900"
-            placeholderTextColor="#9ca3af"
-            placeholder="Provide more details..."
-            multiline
-            textAlignVertical="top"
-            value={content}
-            onChangeText={setContent}
-            editable={!isUploading}
-          />
+            {/* Content Field Element */}
+            <Text
+              style={{ fontFamily: "oswald-semibold" }}
+              className={`mb-2 text-xs uppercase tracking-wider ${
+                isDarkMode ? "text-slate-400" : "text-slate-500"
+              }`}
+            >
+              Content
+            </Text>
+            <TextInput
+              style={{ fontFamily: "roboto-regular" }}
+              className={`rounded-2xl px-4 py-4 mb-6 h-36 border leading-6 ${
+                isDarkMode
+                  ? "bg-gm-navy border-slate-800 text-slate-200"
+                  : "bg-slate-100 border-slate-200 text-slate-800"
+              }`}
+              placeholderTextColor={isDarkMode ? "#475569" : "#9ca3af"}
+              placeholder="Provide more details..."
+              multiline
+              textAlignVertical="top"
+              value={content}
+              onChangeText={setContent}
+              editable={!isUploading}
+            />
 
-          {/* Image Upload/Preview Area */}
-          <View className="mb-6">
-            {selectedImage ? (
-              <View className="relative w-24 h-24">
-                <Image
-                  source={{ uri: selectedImage }}
-                  className="w-24 h-24 rounded-xl"
-                />
+            {/* Image Upload Preview Framework Block */}
+            <View className="mb-8">
+              {selectedImage ? (
+                <View className="relative w-24 h-24 shadow-md">
+                  <Image
+                    source={{ uri: selectedImage }}
+                    className={`w-24 h-24 rounded-2xl ${
+                      isDarkMode ? "bg-slate-900" : "bg-slate-200"
+                    }`}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setSelectedImage(null)}
+                    disabled={isUploading}
+                    className="absolute -top-2 -right-2 bg-red-500 rounded-full p-1.5 shadow-lg"
+                  >
+                    <X size={12} color="white" />
+                  </TouchableOpacity>
+                </View>
+              ) : (
                 <TouchableOpacity
-                  onPress={() => setSelectedImage(null)}
-                  disabled={isUploading}
-                  className="absolute -top-2 -right-2 bg-red-500 rounded-full p-1"
+                  onPress={pickImage}
+                  className={`flex-row items-center self-start px-5 py-3.5 rounded-2xl border border-dashed ${
+                    isDarkMode
+                      ? "bg-gm-navy/40 border-slate-700"
+                      : "bg-slate-50 border-slate-300"
+                  }`}
                 >
-                  <X size={12} color="white" />
+                  <ImageIcon size={20} color={isDarkMode ? "#D4AF37" : "#4f46e5"} />
+                  <Text
+                    style={{ fontFamily: "oswald-semibold" }}
+                    className={`ml-2 uppercase tracking-wide text-xs ${
+                      isDarkMode ? "text-gm-gold" : "text-indigo-600"
+                    }`}
+                  >
+                    Add a Photo
+                  </Text>
                 </TouchableOpacity>
-              </View>
-            ) : (
-              <TouchableOpacity
-                onPress={pickImage}
-                className="flex-row items-center bg-gray-100 self-start px-4 py-3 rounded-xl border border-dashed border-gray-300"
-              >
-                <ImageIcon size={20} color="#4f46e5" />
-                <Text className="text-indigo-600 ml-2 font-bold">
-                  Add a Photo
-                </Text>
-              </TouchableOpacity>
-            )}
+              )}
+            </View>
           </View>
 
+          {/* Action Trigger Node */}
           <TouchableOpacity
             onPress={handlePublish}
             disabled={isUploading}
-            className="bg-indigo-600 py-4 rounded-xl items-center shadow-md"
+            className={`py-4 rounded-2xl items-center shadow-xl ${
+              isDarkMode ? "bg-gm-charcoal border border-gm-gold" : "bg-slate-900"
+            }`}
           >
             {isUploading ? (
-              <ActivityIndicator color="white" />
+              <ActivityIndicator color={isDarkMode ? "#D4AF37" : "white"} />
             ) : (
-              <Text className="text-white font-bold text-lg">Publish Post</Text>
+              <Text
+                style={{ fontFamily: "montserrat-bold" }}
+                className={`text-base tracking-wide ${isDarkMode ? "text-gm-gold" : "text-white"}`}
+              >
+                Publish Post
+              </Text>
             )}
           </TouchableOpacity>
         </View>

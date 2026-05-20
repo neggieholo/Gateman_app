@@ -77,15 +77,16 @@ const InviteGuestForm = ({
 
   const STAFF_POSITIONS = [
     "Driver",
-    "Chef / Cook",
-    "Cleaner / Housekeeper",
+    "Cook",
+    "Housekeeper",
     "Gardener",
-    "Security / Gatekeeper",
-    "Nanny / Babysitter",
-    "Electrician / Plumber",
+    "Security",
+    "Nanny",
+    "Electrician",
+    "Plumber",
     "Facility Maintenance",
-    "Tailor / Fashion Designer",
-    "Delivery / Logistics",
+    "Tailor",
+    "Delivery",
   ];
 
   const DAYS_OF_WEEK = [
@@ -172,13 +173,31 @@ const InviteGuestForm = ({
     }
   };
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const formatTime = (time: Date | null) => {
+    if (!time) return "00:00 AM";
+
+    return time.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
   };
 
-  const formatDate = (date: Date | null) => {
+  const formatDate = (date: Date | null, typeContext: string = "normal") => {
     if (!date) return "No Expiration Set";
-    return date.toLocaleDateString("en-GB"); // DD/MM/YYYY
+
+    let dateToFormat = new Date(date.getTime());
+
+    if (guestType === "one_time" && typeContext === "one_time_end") {
+      const fromVal = fromTime.getHours() * 60 + fromTime.getMinutes();
+      const toVal = toTime.getHours() * 60 + toTime.getMinutes();
+
+      if (toVal < fromVal) {
+        dateToFormat.setDate(dateToFormat.getDate() + 1);
+      }
+    }
+
+    return dateToFormat.toLocaleDateString("en-GB");
   };
 
   const handleGenerateCode = async () => {
@@ -190,6 +209,9 @@ const InviteGuestForm = ({
     if (!guestName.trim()) return Alert.alert("Error", "Enter name details");
     if (guestType === "staff_entry" && !staffPosition.trim()) {
       return Alert.alert("Error", "Please clarify staff position role");
+    }
+    if (guestType === "multi_entry" && !endDate) {
+      return Alert.alert("Error", "Please set a validity end date");
     }
     if (guestType === "staff_entry" && permittedDays.length === 0) {
       return Alert.alert(
@@ -223,27 +245,25 @@ const InviteGuestForm = ({
 
       let computedExclusions: string[] = [...excludedDates];
 
-      if (guestType === "staff_entry") {
-        computedExclusions = [];
-        const currentTrackingDate = new Date(startDate);
+      // if (guestType === "staff_entry") {
+      //   computedExclusions = [];
 
-        const evaluationLimit = endDate
-          ? new Date(endDate)
-          : new Date(new Date().setFullYear(new Date().getFullYear() + 1));
+      //   if (endDate) {
+      //     const currentTrackingDate = new Date(startDate);
+      //     const evaluationLimit = new Date(endDate);
 
-        while (currentTrackingDate <= evaluationLimit) {
-          const currentDayOfWeek = currentTrackingDate.getDay();
+      //     while (currentTrackingDate <= evaluationLimit) {
+      //       const currentDayOfWeek = currentTrackingDate.getDay();
+      //       if (!permittedDays.includes(currentDayOfWeek)) {
+      //         computedExclusions.push(
+      //           currentTrackingDate.toISOString().split("T")[0],
+      //         );
+      //       }
+      //       currentTrackingDate.setDate(currentTrackingDate.getDate() + 1);
+      //     }
+      //   }
+      // }
 
-          if (!permittedDays.includes(currentDayOfWeek)) {
-            computedExclusions.push(
-              currentTrackingDate.toISOString().split("T")[0],
-            );
-          }
-          currentTrackingDate.setDate(currentTrackingDate.getDate() + 1);
-        }
-      }
-
-      // Injected active selectedEstateId context securely into operational scope
       const payload = {
         estate_id: selectedEstateId,
         guest_name: guestName,
@@ -256,6 +276,7 @@ const InviteGuestForm = ({
         end_time: toTime.toTimeString().split(" ")[0].slice(0, 5),
         excluded_dates:
           guestType === "multi_entry" ? excludedDates : computedExclusions,
+        permitted_days: guestType === "staff_entry" ? permittedDays : [], // 🛠️ Added to API Payload
       };
 
       const response = await invitationApi.createInvitation(payload);
@@ -279,12 +300,6 @@ const InviteGuestForm = ({
 
         if (imageUri) {
           const isAvailable = await Sharing.isAvailableAsync();
-          const exclusionMsg =
-            excludedDates.length > 0
-              ? `\n\n⚠️ NOTE: Access is DENIED on these dates: \n• ${excludedDates.join("\n• ")}`
-              : "";
-
-          const finalMessage = `Hello ${guestName}, here is your access pass for GateMan estate.${exclusionMsg}`;
 
           if (isAvailable) {
             await Sharing.shareAsync(imageUri, {
@@ -292,14 +307,12 @@ const InviteGuestForm = ({
               dialogTitle: "Share Staff/Guest Access Pass",
               UTI: "public.png",
             });
-
-            if (excludedDates.length > 0) {
-              await Share.share({
-                message: finalMessage,
-              });
-            }
           } else {
-            await Share.share({ title: "Access Pass", url: imageUri });
+            await Share.share({
+              title: "Access Pass",
+              url: imageUri,
+              message: `GateMan Access Pass for ${guestName}. Code: ${response.access_code}`,
+            });
           }
         }
       }
@@ -745,13 +758,24 @@ const InviteGuestForm = ({
           guestImage={guestImage}
           accessCode={generatedCode}
           startDate={formatDate(startDate)}
-          endDate={formatDate(endDate)}
+          staffPosition={staffPosition}
+          endDate={
+            guestType === "one_time"
+              ? formatDate(startDate, "one_time_end")
+              : formatDate(endDate, "normal")
+          }
           startTime={formatTime(fromTime)}
           endTime={formatTime(toTime)}
           inviteType={guestType}
           estate_name={activeEstate?.name || ""}
           estate_address={activeEstate?.address || ""}
-          locations={activeEstate?.locations || []}
+          estate_state={activeEstate?.state || ""}
+          estate_lga={activeEstate?.town || ""}
+          locations={activeLocations || []}
+          permittedDays={permittedDays}
+          excludedDates={excludedDates.map((d) =>
+            new Date(d).toLocaleDateString("en-GB"),
+          )}
         />
       </ScrollView>
 
@@ -838,27 +862,29 @@ export default function GuestInvitesComponent() {
   if (hasNoEstates) {
     return (
       <View
-        className={`${isDarkMode ? "bg-slate-950" : "bg-gray-50"} flex-1 justify-center items-center p-6`}
+        className={`${isDarkMode ? "bg-slate-950" : "bg-slate-50"} flex-1 justify-center items-center p-6`}
       >
         <View
-          className={`${isDarkMode ? "bg-slate-900" : "bg-white"} p-8 rounded-3xl shadow-sm items-center border ${isDarkMode ? "border-slate-800" : "border-gray-100"}`}
+          className={`${isDarkMode ? "bg-gm-navy border-slate-800" : "bg-white border-slate-100"} p-8 rounded-[2.5rem] shadow-sm items-center border`}
         >
-          <ShieldCheck size={60} color="#4f46e5" />
+          <ShieldCheck size={60} color={isDarkMode ? "#D4AF37" : "#0A1F44"} />
           <Text
-            className={`text-xl font-bold ${isDarkMode ? "text-white" : "text-slate-900"} mt-4 text-center`}
+            className={`text-xl font-bold ${isDarkMode ? "text-gm-gold" : "text-gm-navy"} mt-4 text-center`}
           >
-            Security Access Restricted
+            Access Restricted
           </Text>
           <Text
-            className={`text-sm ${isDarkMode ? "text-slate-400" : "text-gray-500"} mt-2 text-center px-4 max-w-[280px]`}
+            className={`text-sm ${isDarkMode ? "text-slate-400" : "text-slate-500"} mt-2 text-center px-4 max-w-[280px]`}
           >
             You are currently not attached to any active estates on GateMan.
           </Text>
           <TouchableOpacity
-            className="bg-indigo-600 py-4 px-10 rounded-2xl shadow-md mt-6"
-            onPress={() => router.push("/JoinRequest")}
+            className={`w-full p-4 rounded-2xl shadow-sm mt-6 border items-center ${isDarkMode ? "bg-gm-charcoal border-gm-gold" : "bg-slate-900 border-transparent"}`}
+            onPress={() => router.push("/JoinRequest" as any)}
           >
-            <Text className="text-white font-bold text-lg">Join an Estate</Text>
+            <Text className="text-white font-roboto-regular font-bold text-base">
+              Join an Estate
+            </Text>
           </TouchableOpacity>
         </View>
       </View>

@@ -33,7 +33,6 @@ import { Invitation } from "../services/interfaces";
 import { useUser } from "../UserContext";
 import { EditInvitationModal } from "./EditInvitationModal";
 import { InvitationCard } from "./InvitationCard";
-import { TrackInvitationCard } from "./TrackInvitationCard";
 
 const TrackGuestView = ({
   estate_id,
@@ -56,6 +55,9 @@ const TrackGuestView = ({
   const [editModalVisible, setEditModalVisible] = useState(false);
   const viewShotRef = useRef<any>(null);
   const [isSharing, setIsSharing] = useState(false);
+  const [permittedDays, setPermittedDays] = useState<number[]>([
+      1, 2, 3, 4, 5, 6, 0,
+    ]);
   const [selectedInvitation, setSelectedInvitation] =
     useState<Invitation | null>(null);
 
@@ -78,7 +80,7 @@ const TrackGuestView = ({
     }
   };
 
-  // Re-fetch automatically whenever the internal selected estate filter switches
+
   useEffect(() => {
     fetchInvitations();
   }, [selectedEstateId]);
@@ -167,18 +169,6 @@ const TrackGuestView = ({
           mimeType: "image/png",
           dialogTitle: `Share Access Pass for ${item.guest_name}`,
         });
-
-        await new Promise((resolve) => setTimeout(resolve, 500));
-
-        if (item.excluded_dates && item.excluded_dates.length > 0) {
-          const formattedExclusions = item.excluded_dates
-            .map((d) => d.split("-").reverse().join("/"))
-            .join("\n• ");
-
-          const finalMessage = `Hello ${item.guest_name}, here is your access pass for GateMan estate.\n\n⚠️ NOTE: Access is DENIED on these dates:\n• ${formattedExclusions}`;
-
-          await Share.share({ message: finalMessage });
-        }
       }
     } catch (err) {
       Alert.alert("Error", "Could not share invitation.");
@@ -219,7 +209,9 @@ const TrackGuestView = ({
     if (invite.is_cancelled) {
       return {
         label: "CANCELLED",
-        container: isDarkMode ? "bg-red-950/40 border border-red-900/30" : "bg-rose-100",
+        container: isDarkMode
+          ? "bg-red-950/40 border border-red-900/30"
+          : "bg-rose-100",
         text: "text-rose-500",
       };
     }
@@ -247,7 +239,9 @@ const TrackGuestView = ({
     if (now > overallExpiry) {
       return {
         label: "EXPIRED",
-        container: isDarkMode ? "bg-red-950/20 border border-red-900/20" : "bg-rose-50",
+        container: isDarkMode
+          ? "bg-red-950/20 border border-red-900/20"
+          : "bg-rose-50",
         text: "text-rose-400",
       };
     }
@@ -255,7 +249,9 @@ const TrackGuestView = ({
     if (invite.excluded_dates?.includes(todayStr)) {
       return {
         label: "NOT ALLOWED TODAY",
-        container: isDarkMode ? "bg-amber-950/40 border border-amber-900/30" : "bg-amber-100",
+        container: isDarkMode
+          ? "bg-amber-950/40 border border-amber-900/30"
+          : "bg-amber-100",
         text: "text-amber-500",
       };
     }
@@ -264,7 +260,9 @@ const TrackGuestView = ({
       if (!checkoutDateStr || checkoutDateStr < checkinDateStr) {
         return {
           label: "OVERSTAYED (PAST)",
-          container: isDarkMode ? "bg-red-950/50 border border-red-900/40" : "bg-red-100",
+          container: isDarkMode
+            ? "bg-red-950/50 border border-red-900/40"
+            : "bg-red-100",
           text: "text-red-500",
         };
       }
@@ -277,13 +275,17 @@ const TrackGuestView = ({
       if (now > todayEnd) {
         return {
           label: "OVERSTAYED TODAY",
-          container: isDarkMode ? "bg-red-950/50 border border-red-900/40" : "bg-red-100",
+          container: isDarkMode
+            ? "bg-red-950/50 border border-red-900/40"
+            : "bg-red-100",
           text: "text-red-500",
         };
       }
       return {
         label: "INSIDE",
-        container: isDarkMode ? "bg-emerald-950/40 border border-emerald-900/30" : "bg-emerald-100",
+        container: isDarkMode
+          ? "bg-emerald-950/40 border border-emerald-900/30"
+          : "bg-emerald-100",
         text: "text-emerald-500",
       };
     }
@@ -291,7 +293,9 @@ const TrackGuestView = ({
     if (isCheckedOutToday) {
       return {
         label: "DEPARTED TODAY",
-        container: isDarkMode ? "bg-blue-950/40 border border-blue-900/30" : "bg-blue-100",
+        container: isDarkMode
+          ? "bg-blue-950/40 border border-blue-900/30"
+          : "bg-blue-100",
         text: "text-blue-400",
       };
     }
@@ -299,7 +303,9 @@ const TrackGuestView = ({
     if (!isCheckedInToday && now > todayEnd) {
       return {
         label: "EXPIRED TODAY",
-        container: isDarkMode ? "bg-red-950/20 border border-red-900/20" : "bg-rose-50",
+        container: isDarkMode
+          ? "bg-red-950/20 border border-red-900/20"
+          : "bg-rose-50",
         text: "text-rose-400",
       };
     }
@@ -311,20 +317,26 @@ const TrackGuestView = ({
       if (now < todayStart) {
         return {
           label: "NOT ARRIVED TODAY",
-          container: isDarkMode ? "bg-slate-900 border border-slate-800" : "bg-slate-100",
+          container: isDarkMode
+            ? "bg-slate-900 border border-slate-800"
+            : "bg-slate-100",
           text: "text-slate-400",
         };
       }
       return {
         label: "READY FOR ENTRY",
-        container: isDarkMode ? "bg-slate-900 border border-gm-gold/30" : "bg-indigo-100",
+        container: isDarkMode
+          ? "bg-slate-900 border border-gm-gold/30"
+          : "bg-indigo-100",
         text: isDarkMode ? "text-gm-gold" : "text-indigo-700",
       };
     }
 
     return {
       label: "UPCOMING",
-      container: isDarkMode ? "bg-slate-900 border border-slate-800" : "bg-slate-50",
+      container: isDarkMode
+        ? "bg-slate-900 border border-slate-800"
+        : "bg-slate-50",
       text: "text-slate-400",
     };
   };
@@ -339,7 +351,9 @@ const TrackGuestView = ({
     if (isCancelled) {
       return {
         label: "CANCELLED",
-        container: isDarkMode ? "bg-red-950/40 border border-red-900/30" : "bg-rose-100",
+        container: isDarkMode
+          ? "bg-red-950/40 border border-red-900/30"
+          : "bg-rose-100",
         text: "text-rose-500",
       };
     }
@@ -352,7 +366,9 @@ const TrackGuestView = ({
     if (status === "pending" && today < startDay) {
       return {
         label: "UPCOMING",
-        container: isDarkMode ? "bg-slate-900 border border-slate-800" : "bg-indigo-50",
+        container: isDarkMode
+          ? "bg-slate-900 border border-slate-800"
+          : "bg-indigo-50",
         text: isDarkMode ? "text-slate-400" : "text-indigo-500",
       };
     }
@@ -360,7 +376,9 @@ const TrackGuestView = ({
     if (status === "pending" && isExpired) {
       return {
         label: "EXPIRED",
-        container: isDarkMode ? "bg-red-950/20 border border-red-900/20" : "bg-rose-50",
+        container: isDarkMode
+          ? "bg-red-950/20 border border-red-900/20"
+          : "bg-rose-50",
         text: "text-rose-400",
       };
     }
@@ -373,13 +391,17 @@ const TrackGuestView = ({
       if (now >= todayStartTime) {
         return {
           label: "READY FOR ENTRY",
-          container: isDarkMode ? "bg-slate-900 border border-gm-gold/30" : "bg-indigo-100",
+          container: isDarkMode
+            ? "bg-slate-900 border border-gm-gold/30"
+            : "bg-indigo-100",
           text: isDarkMode ? "text-gm-gold" : "text-indigo-700",
         };
       }
       return {
         label: "NOT ARRIVED",
-        container: isDarkMode ? "bg-slate-900 border border-slate-800" : "bg-slate-100",
+        container: isDarkMode
+          ? "bg-slate-900 border border-slate-800"
+          : "bg-slate-100",
         text: "text-slate-400",
       };
     }
@@ -388,25 +410,33 @@ const TrackGuestView = ({
       case "checked_in":
         return {
           label: "INSIDE",
-          container: isDarkMode ? "bg-emerald-950/40 border border-emerald-900/30" : "bg-emerald-100",
+          container: isDarkMode
+            ? "bg-emerald-950/40 border border-emerald-900/30"
+            : "bg-emerald-100",
           text: "text-emerald-500",
         };
       case "checked_out":
         return {
           label: "DEPARTED",
-          container: isDarkMode ? "bg-blue-950/40 border border-blue-900/30" : "bg-blue-100",
+          container: isDarkMode
+            ? "bg-blue-950/40 border border-blue-900/30"
+            : "bg-blue-100",
           text: "text-blue-400",
         };
       case "overstayed":
         return {
           label: "OVERSTAYED",
-          container: isDarkMode ? "bg-red-950/50 border border-red-900/40" : "bg-amber-100",
+          container: isDarkMode
+            ? "bg-red-950/50 border border-red-900/40"
+            : "bg-amber-100",
           text: "text-red-500",
         };
       default:
         return {
           label: status.toUpperCase(),
-          container: isDarkMode ? "bg-slate-900 border border-slate-800" : "bg-slate-100",
+          container: isDarkMode
+            ? "bg-slate-900 border border-slate-800"
+            : "bg-slate-100",
           text: "text-slate-400",
         };
     }
@@ -421,9 +451,13 @@ const TrackGuestView = ({
     <View className={`flex-1 ${isDarkMode ? "bg-slate-950" : "bg-white"}`}>
       {/* Search Header and Filter Group */}
       <View className="px-4 mb-3 flex-row gap-2 items-center">
-        <View className={`flex-1 flex-row items-center border rounded-xl px-3 py-2.5 shadow-xs ${
-          isDarkMode ? "bg-gm-navy border-slate-800" : "bg-slate-50 border-gray-200"
-        }`}>
+        <View
+          className={`flex-1 flex-row items-center border rounded-xl px-3 py-2.5 shadow-xs ${
+            isDarkMode
+              ? "bg-gm-navy border-slate-800"
+              : "bg-slate-50 border-gray-200"
+          }`}
+        >
           <Search size={18} color={isDarkMode ? "#475569" : "#9CA3AF"} />
           <TextInput
             className={`flex-1 ml-2 text-sm font-semibold ${isDarkMode ? "text-white" : "text-gray-900"}`}
@@ -445,41 +479,63 @@ const TrackGuestView = ({
           <TouchableOpacity
             onPress={() => setShowEstateFilterModal(true)}
             className={`p-3 rounded-xl border items-center justify-center ${
-              isDarkMode ? "bg-gm-navy border-slate-800" : "bg-indigo-50 border-indigo-100"
+              isDarkMode
+                ? "bg-gm-navy border-slate-800"
+                : "bg-indigo-50 border-indigo-100"
             }`}
           >
-            <SlidersHorizontal size={18} color={isDarkMode ? "#D4AF37" : "#4f46e5"} />
+            <SlidersHorizontal
+              size={18}
+              color={isDarkMode ? "#D4AF37" : "#4f46e5"}
+            />
           </TouchableOpacity>
         )}
       </View>
 
       {/* Mini Current Filter Status Bar */}
-      <View className={`mx-4 mb-4 flex-row items-center rounded-full py-1.5 px-3 self-start border ${
-        isDarkMode ? "bg-gm-navy/40 border-slate-800/60" : "bg-slate-50 border-slate-100"
-      }`}>
+      <View
+        className={`mx-4 mb-4 flex-row items-center rounded-full py-1.5 px-3 self-start border ${
+          isDarkMode
+            ? "bg-gm-navy/40 border-slate-800/60"
+            : "bg-slate-50 border-slate-100"
+        }`}
+      >
         <MapPin size={12} color={isDarkMode ? "#D4AF37" : "#4f46e5"} />
-        <Text className={`text-[10px] font-black uppercase tracking-wider ml-1 ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>
+        <Text
+          className={`text-[10px] font-black uppercase tracking-wider ml-1 ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
+        >
           Estate Scope: {activeEstateFilterName}
         </Text>
       </View>
 
       {isLoading ? (
         <View className="flex-1 justify-center items-center">
-          <ActivityIndicator size="large" color={isDarkMode ? "#D4AF37" : "#4f46e5"} />
+          <ActivityIndicator
+            size="large"
+            color={isDarkMode ? "#D4AF37" : "#4f46e5"}
+          />
         </View>
       ) : filteredInvitations.length === 0 ? (
         <View className="flex-1 items-center justify-center p-6">
-          <View className={`w-20 h-20 rounded-2xl items-center justify-center mb-4 ${isDarkMode ? "bg-gm-navy" : "bg-gray-100"}`}>
+          <View
+            className={`w-20 h-20 rounded-2xl items-center justify-center mb-4 ${isDarkMode ? "bg-gm-navy" : "bg-gray-100"}`}
+          >
             <User size={36} color={isDarkMode ? "#64748b" : "#4B5563"} />
           </View>
-          <Text className={`text-lg font-semibold mb-2 ${isDarkMode ? "text-slate-300" : "text-gray-700"}`}>
+          <Text
+            className={`text-lg font-semibold mb-2 ${isDarkMode ? "text-slate-300" : "text-gray-700"}`}
+          >
             {searchQuery ? "No matches found" : "No active invitations"}
           </Text>
           <TouchableOpacity
             onPress={onInvitePress}
             className={`py-3 px-6 rounded-xl border ${isDarkMode ? "bg-slate-900 border-gm-gold" : "bg-indigo-600 border-transparent"}`}
           >
-            <Text className={`font-bold ${isDarkMode ? "text-gm-gold" : "text-white"}`}>Invite a guest</Text>
+            <Text
+              className={`font-bold ${isDarkMode ? "text-gm-gold" : "text-white"}`}
+            >
+              Invite a guest
+            </Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -532,9 +588,13 @@ const TrackGuestView = ({
                 <View
                   key={item.id}
                   className={`mb-4 p-4 rounded-2xl border shadow-sm ${
-                    isStaffEntry 
-                      ? isDarkMode ? "border-gm-gold/20 bg-gm-navy/30" : "border-indigo-100 bg-indigo-50/5" 
-                      : isDarkMode ? "border-slate-800 bg-gm-navy" : "border-gray-100 bg-white"
+                    isStaffEntry
+                      ? isDarkMode
+                        ? "border-gm-gold/20 bg-gm-navy/30"
+                        : "border-indigo-100 bg-indigo-50/5"
+                      : isDarkMode
+                        ? "border-slate-800 bg-gm-navy"
+                        : "border-gray-100 bg-white"
                   }`}
                 >
                   <View className="flex-row items-center">
@@ -547,15 +607,25 @@ const TrackGuestView = ({
                       ) : (
                         <View
                           className={`w-14 h-14 rounded-full items-center justify-center ${
-                            isStaffEntry 
-                              ? isDarkMode ? "bg-slate-900" : "bg-indigo-100" 
-                              : isDarkMode ? "bg-slate-900" : "bg-indigo-50"
+                            isStaffEntry
+                              ? isDarkMode
+                                ? "bg-slate-900"
+                                : "bg-indigo-100"
+                              : isDarkMode
+                                ? "bg-slate-900"
+                                : "bg-indigo-50"
                           }`}
                         >
                           {isStaffEntry ? (
-                            <Briefcase size={22} color={isDarkMode ? "#D4AF37" : "#4f46e5"} />
+                            <Briefcase
+                              size={22}
+                              color={isDarkMode ? "#D4AF37" : "#4f46e5"}
+                            />
                           ) : (
-                            <User size={24} color={isDarkMode ? "#D4AF37" : "#4f46e5"} />
+                            <User
+                              size={24}
+                              color={isDarkMode ? "#D4AF37" : "#4f46e5"}
+                            />
                           )}
                         </View>
                       )}
@@ -571,12 +641,16 @@ const TrackGuestView = ({
 
                       {/* Staff Position Card Text */}
                       {isStaffEntry && item.staff_position && (
-                        <Text className={`font-bold text-xs mt-0.5 mb-1 ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>
+                        <Text
+                          className={`font-bold text-xs mt-0.5 mb-1 ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
+                        >
                           💼 {item.staff_position}
                         </Text>
                       )}
 
-                      <Text className={`font-mono font-bold tracking-widest ${isDarkMode ? "text-gm-gold" : "text-indigo-600"}`}>
+                      <Text
+                        className={`font-mono font-bold tracking-widest ${isDarkMode ? "text-gm-gold" : "text-indigo-600"}`}
+                      >
                         {item.access_code}
                       </Text>
 
@@ -585,7 +659,9 @@ const TrackGuestView = ({
                           <>
                             {item.is_activated && item.end_date ? (
                               <>
-                                <Text className={`${isDarkMode ? "text-slate-300" : "text-gray-600"} text-xs font-semibold`}>
+                                <Text
+                                  className={`${isDarkMode ? "text-slate-300" : "text-gray-600"} text-xs font-semibold`}
+                                >
                                   Valid: {formatDisplayName(item.start_date)} -{" "}
                                   {formatDisplayName(item.end_date)}
                                 </Text>
@@ -595,14 +671,18 @@ const TrackGuestView = ({
                                 </Text>
                               </>
                             ) : (
-                              <Text className={`${isDarkMode ? "text-slate-300" : "text-gray-600"} text-xs font-semibold`}>
+                              <Text
+                                className={`${isDarkMode ? "text-slate-300" : "text-gray-600"} text-xs font-semibold`}
+                              >
                                 Activated: {formatDisplayName(item.start_date)}
                               </Text>
                             )}
                           </>
                         ) : isMultiEntry ? (
                           <>
-                            <Text className={`${isDarkMode ? "text-slate-300" : "text-gray-600"} text-xs font-semibold`}>
+                            <Text
+                              className={`${isDarkMode ? "text-slate-300" : "text-gray-600"} text-xs font-semibold`}
+                            >
                               {formatDisplayName(item.start_date)} -{" "}
                               {formatDisplayName(item.end_date)}
                             </Text>
@@ -614,7 +694,9 @@ const TrackGuestView = ({
                         ) : (
                           /* one_time entry block */
                           <>
-                            <Text className={`${isDarkMode ? "text-slate-300" : "text-gray-600"} text-xs font-semibold`}>
+                            <Text
+                              className={`${isDarkMode ? "text-slate-300" : "text-gray-600"} text-xs font-semibold`}
+                            >
                               {item.end_date &&
                               item.end_date !== item.start_date
                                 ? `${formatDisplayName(item.start_date)} - ${formatDisplayName(item.end_date)}`
@@ -643,9 +725,13 @@ const TrackGuestView = ({
                       {isStaffEntry && (
                         <View
                           className={`px-2 py-0.5 rounded-md flex w-fit justify-center items-center mt-2 self-start ${
-                            item.is_activated 
-                              ? isDarkMode ? "bg-emerald-950/40 border border-emerald-900/30" : "bg-emerald-100" 
-                              : isDarkMode ? "bg-red-950/40 border border-red-900/30" : "bg-rose-100"
+                            item.is_activated
+                              ? isDarkMode
+                                ? "bg-emerald-950/40 border border-emerald-900/30"
+                                : "bg-emerald-100"
+                              : isDarkMode
+                                ? "bg-red-950/40 border border-red-900/30"
+                                : "bg-rose-100"
                           }`}
                         >
                           <Text
@@ -663,7 +749,10 @@ const TrackGuestView = ({
                           onPress={() => handleEditPress(item)}
                           className={`p-3 rounded-full ${isDarkMode ? "bg-slate-900 border border-slate-800" : "bg-indigo-50"}`}
                         >
-                          <Edit2 size={18} color={isDarkMode ? "#D4AF37" : "#4f46e5"} />
+                          <Edit2
+                            size={18}
+                            color={isDarkMode ? "#D4AF37" : "#4f46e5"}
+                          />
                         </TouchableOpacity>
                       )}
 
@@ -699,7 +788,9 @@ const TrackGuestView = ({
                   </View>
 
                   {isMultiEntry && (
-                    <View className={`mt-2 border-t pt-2 ${isDarkMode ? "border-slate-800" : "border-gray-50"}`}>
+                    <View
+                      className={`mt-2 border-t pt-2 ${isDarkMode ? "border-slate-800" : "border-gray-50"}`}
+                    >
                       <TouchableOpacity
                         onPress={() => toggleExpand(item.id!)}
                         className="flex-row items-center justify-between"
@@ -708,9 +799,15 @@ const TrackGuestView = ({
                           Exclusion Dates
                         </Text>
                         {isExpanded ? (
-                          <ChevronUp size={18} color={isDarkMode ? "#64748b" : "#9CA3AF"} />
+                          <ChevronUp
+                            size={18}
+                            color={isDarkMode ? "#64748b" : "#9CA3AF"}
+                          />
                         ) : (
-                          <ChevronDown size={18} color={isDarkMode ? "#64748b" : "#9CA3AF"} />
+                          <ChevronDown
+                            size={18}
+                            color={isDarkMode ? "#64748b" : "#9CA3AF"}
+                          />
                         )}
                       </TouchableOpacity>
 
@@ -723,7 +820,9 @@ const TrackGuestView = ({
                                 <View
                                   key={date}
                                   className={`px-2 py-1 rounded-md border ${
-                                    isDarkMode ? "bg-red-950/30 border-red-900/20" : "bg-red-50 border-red-100"
+                                    isDarkMode
+                                      ? "bg-red-950/30 border-red-900/20"
+                                      : "bg-red-50 border-red-100"
                                   }`}
                                 >
                                   <Text className="text-red-500 text-[10px] font-medium">
@@ -752,13 +851,21 @@ const TrackGuestView = ({
       {/* Internal Estate Switcher Sheet */}
       <Modal visible={showEstateFilterModal} animationType="slide" transparent>
         <View className="flex-1 bg-black/50 justify-end">
-          <View className={`h-[45%] rounded-t-[3rem] p-6 border-t ${isDarkMode ? "bg-slate-900 border-gm-gold" : "bg-white"}`}>
+          <View
+            className={`h-[45%] rounded-t-[3rem] p-6 border-t ${isDarkMode ? "bg-slate-900 border-gm-gold" : "bg-white"}`}
+          >
             <View className="flex-row justify-between items-center mb-4 px-2">
-              <Text className={`font-black text-xl ${isDarkMode ? "text-gm-gold" : "text-slate-900"}`}>
+              <Text
+                className={`font-black text-xl ${isDarkMode ? "text-gm-gold" : "text-slate-900"}`}
+              >
                 Switch Estate Scope
               </Text>
               <TouchableOpacity onPress={() => setShowEstateFilterModal(false)}>
-                <Text className={`font-bold ${isDarkMode ? "text-white" : "text-gm-navy"}`}>Close</Text>
+                <Text
+                  className={`font-bold ${isDarkMode ? "text-white" : "text-gm-navy"}`}
+                >
+                  Close
+                </Text>
               </TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false} className="mt-2">
@@ -775,15 +882,21 @@ const TrackGuestView = ({
                   >
                     <Text
                       className={`font-bold text-base ${
-                        isSelected 
-                          ? isDarkMode ? "text-gm-gold" : "text-indigo-600" 
-                          : isDarkMode ? "text-slate-400" : "text-slate-700"
+                        isSelected
+                          ? isDarkMode
+                            ? "text-gm-gold"
+                            : "text-indigo-600"
+                          : isDarkMode
+                            ? "text-slate-400"
+                            : "text-slate-700"
                       }`}
                     >
                       {estate.name}
                     </Text>
                     {isSelected && (
-                      <View className={`w-2.5 h-2.5 rounded-full ${isDarkMode ? "bg-gm-gold" : "bg-indigo-600"}`} />
+                      <View
+                        className={`w-2.5 h-2.5 rounded-full ${isDarkMode ? "bg-gm-gold" : "bg-indigo-600"}`}
+                      />
                     )}
                   </TouchableOpacity>
                 );
@@ -820,9 +933,14 @@ const TrackGuestView = ({
             : ""
         }
         inviteType={selectedInvitation ? selectedInvitation?.invite_type : ""}
+        staffPosition={selectedInvitation?.staff_position}
         estate_name={activeEstate?.name || ""}
         estate_address={activeEstate?.address || ""}
+        estate_state={activeEstate?.state || ""}
+        estate_lga={activeEstate?.lga || ""}
         locations={activeLocations}
+        permittedDays={selectedInvitation?.permitted_days}
+        excludedDates={selectedInvitation?.excluded_dates}
       />
 
       <EditInvitationModal

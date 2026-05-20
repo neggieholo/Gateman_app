@@ -4,13 +4,12 @@ import { router } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import {
   Building,
-  ChevronDown,
   ChevronRight,
-  Landmark,
   Lock,
-  MapPin,
   Phone,
   User,
+  Users,
+  Settings
 } from "lucide-react-native";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -45,9 +44,9 @@ export default function ResidentSettings() {
   >(null);
   const [otpLoading, setOtpLoading] = useState(false);
   const [verifyingOtp, setverifyingOtp] = useState(false);
+  const connectedEstatesCount = user?.estate_ids?.length || 0;
+  const connectedUsersCount = user?.sub_users?.length || 1;
 
-  // 🏛️ Multi-Estate State Management Workspace Variables
-  const [estateDropdownVisible, setEstateDropdownVisible] = useState(false);
   const [selectedEstateId, setSelectedEstateId] = useState<string>("");
 
   const inputRefs = useRef(
@@ -321,10 +320,10 @@ export default function ResidentSettings() {
   const memoizedHeader = useMemo(
     () => (
       <View
-        className={`${isDarkMode ? "bg-gm-navy/20" : "bg-gray-50 "} p-6 pb-20`}
+        className={`${isDarkMode ? "bg-slate-950" : "bg-gray-50 "} p-6 pb-20`}
       >
         <Text
-          className={`${isDarkMode ? "text-gm-charcoal" : "text-slate-500"} text-lg font-oswald-semibold mb-8`}
+          className={`${isDarkMode ? "text-gray-300" : "text-slate-500"} text-lg font-oswald-semibold mb-8`}
         >
           Manage your contact and security info
         </Text>
@@ -362,68 +361,68 @@ export default function ResidentSettings() {
             </View>
           </View>
 
-          {/* 🔄 MULTI-ESTATE WORKSPACE DROP-DOWN SELECTION BOX */}
-          {user?.estates && user.estates.length > 0 && (
-            <View className="mb-4">
+          <View
+            className={`${isDarkMode ? "bg-gm-navy border-gm-gold" : "bg-white border-slate-100"} p-6 rounded-3xl border shadow-sm mb-6`}
+          >
+            <View className="flex-row items-center mb-6">
+              <Settings size={20} color="#4f46e5" />
               <Text
-                className={`text-[10px] font-oswald-semibold ${isDarkMode ? "text-gm-gold" : "text-slate-400 "} uppercase tracking-widest mb-1`}
+                className={`ml-2 font-montserrat-bold ${isDarkMode ? "text-white" : "text-gm-navy"} text-lg`}
               >
-                Select Estate Profile View
+                Account Overview
               </Text>
-              <TouchableOpacity
-                onPress={() => setEstateDropdownVisible(true)}
-                className={`flex-row items-center ${isDarkMode ? "bg-gm-navy border-gm-gold" : "bg-slate-50 border-slate-100"} p-4 rounded-2xl border`}
+            </View>
+
+            {/* Metric Columns Row */}
+            <View className="flex-row gap-x-4 mb-6">
+              {/* Connected Estates Box */}
+              <View
+                className={`flex-1 p-4 rounded-2xl items-center ${isDarkMode ? "bg-gm-charcoal/40" : "bg-slate-50"}`}
               >
-                <Landmark size={16} color="#4f46e5" />
-                <View className="ml-3 flex-1 pr-2">
-                  <Text
-                    className={`font-roboto-regular font-bold ${isDarkMode ? "text-white" : "text-slate-700"}`}
-                  >
-                    {activeEstateContext?.name || "Select Estate"}
-                  </Text>
-                  {activeEstateContext?.address && (
-                    <Text
-                      className="text-xs text-slate-400 font-roboto-regular mt-0.5"
-                      numberOfLines={1}
-                    >
-                      {activeEstateContext.address}, {activeEstateContext.town}
-                    </Text>
-                  )}
-                </View>
-                <ChevronDown size={18} color="#94a3b8" />
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Dynamic Housing Context Fields */}
-          <View className="mb-4">
-            <Text
-              className={`text-[10px] font-oswald-semibold ${isDarkMode ? "text-gm-gold" : "text-slate-400 "} uppercase tracking-widest mb-1`}
-            >
-              {activeLocationContext?.isMultiProperty
-                ? "Assigned Residences"
-                : "Residence Location"}
-            </Text>
-            <View
-              className={`flex-row items-start ${isDarkMode ? "bg-gm-navy border-gm-gold" : "bg-slate-50 border-slate-100"} p-4 rounded-2xl border`}
-            >
-              <Building size={16} color="#94a3b8" style={{ marginTop: 2 }} />
-
-              <View className="ml-3 flex-1">
-                {activeLocationContext?.locationLines.map((line, index) => (
-                  <Text
-                    key={index}
-                    className={`font-roboto-regular font-bold text-slate-500 ${index > 0 ? "mt-2" : ""}`}
-                  >
-                    {line}
-                  </Text>
-                ))}
+                <Building
+                  size={22}
+                  color={isDarkMode ? "#D4AF37" : "#4f46e5"}
+                />
+                <Text
+                  className={`text-2xl font-black mt-2 ${isDarkMode ? "text-white" : "text-gm-navy"}`}
+                >
+                  {connectedEstatesCount}
+                </Text>
+                <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-wider text-center mt-1">
+                  Connected Estates
+                </Text>
               </View>
 
-              <View className="ml-auto">
-                <Lock size={14} color="#cbd5e1" />
+              {/* Households Members / Shared Users Box */}
+              <View
+                className={`flex-1 p-4 rounded-2xl items-center ${isDarkMode ? "bg-gm-charcoal/40" : "bg-slate-50"}`}
+              >
+                <Users size={22} color="#10b981" />
+                <Text
+                  className={`text-2xl font-black mt-2 ${isDarkMode ? "text-white" : "text-gm-navy"}`}
+                >
+                  {connectedUsersCount}
+                </Text>
+                <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-wider text-center mt-1">
+                  Active Users
+                </Text>
               </View>
             </View>
+
+            {/* Core Action Button Trigger to Manage Account workspace */}
+            <TouchableOpacity
+              onPress={() => router.push("/AccountWorkspace" as any)}
+              className={`w-full py-4 rounded-2xl flex-row items-center justify-center border ${
+                isDarkMode
+                  ? "bg-gm-charcoal border-gm-gold"
+                  : "bg-gm-navy border-transparent shadow-sm"
+              }`}
+            >
+              <Text className="text-white font-bold text-base mr-1">
+                Manage Account
+              </Text>
+              <ChevronRight size={18} color="white" />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -707,100 +706,6 @@ export default function ResidentSettings() {
         removeClippedSubviews={false}
       />
 
-      {/* 🏛️ MULTI-ESTATE SELECTOR BOTTOM MODAL DIALOG CONTAINER */}
-      <Modal
-        visible={estateDropdownVisible}
-        animationType="fade"
-        transparent={true}
-      >
-        <TouchableOpacity
-          className="flex-1 justify-center bg-black/40 p-5"
-          activeOpacity={1}
-          onPress={() => setEstateDropdownVisible(false)}
-        >
-          {/* Clean, fully-rounded self-contained floating card container */}
-          <View
-            className={`${
-              isDarkMode ? "bg-gm-charcoal border border-gm-gold" : "bg-white"
-            } rounded-3xl p-5 max-h-[70%] w-full shadow-2xl`}
-            // Prevent clicks inside the card from accidentally triggering the backdrop close
-            onTouchStart={(e) => e.stopPropagation()}
-          >
-            {/* Removed the bottom sheet handle bar since it doesn't slide anymore */}
-
-            <Text
-              className={`text-lg font-montserrat-bold mb-4 text-center ${
-                isDarkMode ? "text-gm-gold" : "text-gm-navy"
-              }`}
-            >
-              Switch Estate Context View
-            </Text>
-
-            <FlatList
-              data={user?.estates || []}
-              keyExtractor={(item) => item.id}
-              showsVerticalScrollIndicator={false}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  onPress={() => {
-                    setSelectedEstateId(item.id);
-                    setEstateDropdownVisible(false);
-                  }}
-                  className={`p-4 rounded-xl mb-2.5 border flex-row items-center ${
-                    selectedEstateId === item.id
-                      ? isDarkMode
-                        ? "border-gm-gold bg-slate-800/40"
-                        : "border-indigo-500 bg-indigo-50/40"
-                      : "border-slate-100 bg-slate-50"
-                  }`}
-                >
-                  <MapPin
-                    size={18}
-                    color={
-                      selectedEstateId === item.id
-                        ? isDarkMode
-                          ? "#D4AF37"
-                          : "#4f46e5"
-                        : "#94a3b8"
-                    }
-                  />
-                  <View className="ml-3 flex-1">
-                    <Text
-                      className={`font-oswald-semibold text-sm ${
-                        isDarkMode ? "text-gm-gold" : "text-slate-800"
-                      }`}
-                    >
-                      {item.name}
-                    </Text>
-                    <Text
-                      className={`text-xs ${
-                        isDarkMode ? "text-gray-400" : "text-gm-navy"
-                      } font-roboto-regular mt-0.5`}
-                      numberOfLines={1}
-                    >
-                      {item.address}, {item.town}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              )}
-            />
-
-            <TouchableOpacity
-              onPress={() => setEstateDropdownVisible(false)}
-              className={`mt-2 p-3.5 rounded-xl items-center ${
-                isDarkMode ? "border border-gm-gold" : "bg-slate-100"
-              }`}
-            >
-              <Text
-                className={`${isDarkMode ? "text-gm-gold" : "text-slate-700"} font-bold text-sm`}
-              >
-                Cancel
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
       {/* OTP Verification Modal */}
       <Modal visible={showOtpInput} animationType="fade" transparent={true}>
         <View className="flex-1 justify-center items-center bg-black/60 px-6">
@@ -841,10 +746,16 @@ export default function ResidentSettings() {
               ))}
             </View>
             {verifyingOtp ? (
-              <Text className={`${isDarkMode ? "text-gm-gold":"text-gm-navy"} font-oswald-semibold mb-4`}>Verifying...</Text>
+              <Text
+                className={`${isDarkMode ? "text-gm-gold" : "text-gm-navy"} font-oswald-semibold mb-4`}
+              >
+                Verifying...
+              </Text>
             ) : (
               <TouchableOpacity onPress={handleCancelOtp} disabled={otpLoading}>
-                <Text className="text-red-500 font-oswald-semibold">Cancel</Text>
+                <Text className="text-red-500 font-oswald-semibold">
+                  Cancel
+                </Text>
               </TouchableOpacity>
             )}
             {error ? (

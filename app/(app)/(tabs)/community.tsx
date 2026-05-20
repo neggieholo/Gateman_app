@@ -334,28 +334,29 @@ export default function Community() {
   if (hasNoEstates) {
     return (
       <View
-        className={`${isDarkMode ? "bg-gm-navy/20" : "bg-gray-50"} flex-1 justify-center items-center p-6`}
+        className={`${isDarkMode ? "bg-slate-950" : "bg-slate-50"} flex-1 justify-center items-center p-6`}
       >
         <View
-          className={`${isDarkMode ? "bg-gm-navy" : "bg-white"} p-8 rounded-3xl shadow-sm items-center border ${isDarkMode ? "border-slate-800" : "border-gray-100"}`}
+          className={`${isDarkMode ? "bg-gm-navy border-slate-800" : "bg-white border-slate-100"} p-8 rounded-[2.5rem] shadow-sm items-center border`}
         >
-          <ShieldCheck size={60} color="#4f46e5" />
+          <ShieldCheck size={60} color={isDarkMode ? "#D4AF37" : "#0A1F44"} />
           <Text
-            className={`text-xl font-bold ${isDarkMode ? "text-white" : "text-gm-navy"} mt-4 text-center`}
+            className={`text-xl font-bold ${isDarkMode ? "text-gm-gold" : "text-gm-navy"} mt-4 text-center`}
           >
-            Security Access Restricted
+            Access Restricted
           </Text>
           <Text
-            className={`text-sm ${isDarkMode ? "text-slate-400" : "text-gray-500"} mt-2 text-center px-4 max-w-[280px]`}
+            className={`text-sm ${isDarkMode ? "text-slate-400" : "text-slate-500"} mt-2 text-center px-4 max-w-[280px]`}
           >
             You are currently not attached to any active estates on GateMan.
           </Text>
-
           <TouchableOpacity
-            className={`${isDarkMode ? "bg-gm-charcoal" : "bg-gm-navy"} py-4 px-10 rounded-2xl shadow-md mt-6`}
+            className={`w-full p-4 rounded-2xl shadow-sm mt-6 border items-center ${isDarkMode ? "bg-gm-charcoal border-gm-gold" : "bg-slate-900 border-transparent"}`}
             onPress={() => router.push("/JoinRequest" as any)}
           >
-            <Text className="text-white font-bold text-lg">Join an Estate</Text>
+            <Text className="text-white font-roboto-regular font-bold text-base">
+              Join an Estate
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -404,7 +405,7 @@ export default function Community() {
           }`}
         >
           <Text
-            className={`font-oswald-semibold tracking-wider text-md ${activeMainTab === "communication" ? (isDarkMode ? "text-gm-gold" : "text-gm-navy") : isDarkMode ?"text-gray-800":"text-gray-500"}`}
+            className={`font-oswald-semibold tracking-wider text-md ${activeMainTab === "communication" ? (isDarkMode ? "text-gm-gold" : "text-gm-navy") : isDarkMode ? "text-gray-800" : "text-gray-500"}`}
           >
             Communication Board
           </Text>
@@ -413,14 +414,15 @@ export default function Community() {
         <TouchableOpacity
           onPress={() => setActiveMainTab("marketplace")}
           className={`flex-1 py-3 rounded-xl items-center justify-center ${
-            activeMainTab === "marketplace" ? isDarkMode
+            activeMainTab === "marketplace"
+              ? isDarkMode
                 ? "bg-gm-navy"
                 : "bg-white"
               : ""
           }`}
         >
           <Text
-            className={`font-oswald-semibold tracking-wider text-md ${activeMainTab === "marketplace" ? (isDarkMode ? "text-gm-gold" : "text-gm-navy") : isDarkMode ?"text-gray-800":"text-gray-500"}`}
+            className={`font-oswald-semibold tracking-wider text-md ${activeMainTab === "marketplace" ? (isDarkMode ? "text-gm-gold" : "text-gm-navy") : isDarkMode ? "text-gray-800" : "text-gray-500"}`}
           >
             Marketplace
           </Text>

@@ -7,18 +7,24 @@ import { router } from "expo-router";
 import {
   Bell,
   Calendar,
+  ChevronDown,
   ChevronRight,
   Heart,
+  MapPin,
   MessageSquare,
   ShieldCheck,
   UserCheck,
   UserMinus,
   UserPlus,
   UserX,
-  MapPin,
-  ChevronDown,
 } from "lucide-react-native";
-import React, { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -141,28 +147,29 @@ export default function Dashboard() {
   if (hasNoEstates) {
     return (
       <View
-        className={`${isDarkMode ? "bg-gm-navy/20" : "bg-gray-50"} flex-1 justify-center items-center p-6`}
+        className={`${isDarkMode ? "bg-slate-950" : "bg-slate-50"} flex-1 justify-center items-center p-6`}
       >
         <View
-          className={`${isDarkMode ? "bg-gm-navy" : "bg-white"} p-8 rounded-3xl shadow-sm items-center border ${isDarkMode ? "border-slate-800" : "border-gray-100"}`}
+          className={`${isDarkMode ? "bg-gm-navy border-slate-800" : "bg-white border-slate-100"} p-8 rounded-[2.5rem] shadow-sm items-center border`}
         >
-          <ShieldCheck size={60} color="#4f46e5" />
+          <ShieldCheck size={60} color={isDarkMode ? "#D4AF37" : "#0A1F44"} />
           <Text
-            className={`text-xl font-bold ${isDarkMode ? "text-white" : "text-gm-navy"} mt-4 text-center`}
+            className={`text-xl font-bold ${isDarkMode ? "text-gm-gold" : "text-gm-navy"} mt-4 text-center`}
           >
             Access Restricted
           </Text>
           <Text
-            className={`text-sm ${isDarkMode ? "text-slate-400" : "text-gray-500"} mt-2 text-center px-4 max-w-[280px]`}
+            className={`text-sm ${isDarkMode ? "text-slate-400" : "text-slate-500"} mt-2 text-center px-4 max-w-[280px]`}
           >
             You are currently not attached to any active estates on GateMan.
           </Text>
-
           <TouchableOpacity
-            className={`${isDarkMode ? "bg-gm-charcoal" : "bg-gm-navy"} py-4 px-10 rounded-2xl shadow-md mt-6`}
+            className={`w-full p-4 rounded-2xl shadow-sm mt-6 border items-center ${isDarkMode ? "bg-gm-charcoal border-gm-gold" : "bg-slate-900 border-transparent"}`}
             onPress={() => router.push("/JoinRequest" as any)}
           >
-            <Text className="text-white font-bold text-lg">Join an Estate</Text>
+            <Text className="text-white font-roboto-regular font-bold text-base">
+              Join an Estate
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -170,7 +177,12 @@ export default function Dashboard() {
   }
 
   if (loading)
-  return <ActivityIndicator className={`flex-1 ${isDarkMode? 'bg-slate-950':''}`} color={theme.accent} />;
+    return (
+      <ActivityIndicator
+        className={`flex-1 ${isDarkMode ? "bg-slate-950" : ""}`}
+        color={theme.accent}
+      />
+    );
 
   return (
     <SafeAreaView
@@ -230,7 +242,7 @@ export default function Dashboard() {
               Welcome back,
             </Text>
             <Text
-              className={`text-2xl font-montserrat-extrabold d ${isDarkMode? "text-gray-200":"text-gm-navy"}`}
+              className={`text-2xl font-montserrat-extrabold d ${isDarkMode ? "text-gray-200" : "text-gm-navy"}`}
               numberOfLines={1}
             >
               {user.name ? user.name.split(" ")[0] : "Resident"}
@@ -242,7 +254,9 @@ export default function Dashboard() {
             <TouchableOpacity
               onPress={() => setEstatePickerVisible(true)}
               className={`flex-row items-center p-2.5 px-4 rounded-full border shadow-sm ${
-                isDarkMode ? "bg-gm-navy border-slate-800" : "bg-white border-slate-200"
+                isDarkMode
+                  ? "bg-gm-navy border-slate-800"
+                  : "bg-white border-slate-200"
               }`}
             >
               <MapPin size={14} color={isDarkMode ? "#D4AF37" : "#4f46e5"} />
@@ -254,7 +268,11 @@ export default function Dashboard() {
               >
                 {activeEstate?.name || "Switch Estate"}
               </Text>
-              <ChevronDown size={14} color={isDarkMode ? "#D4AF37" : "#94a3b8"} className="ml-1" />
+              <ChevronDown
+                size={14}
+                color={isDarkMode ? "#D4AF37" : "#94a3b8"}
+                className="ml-1"
+              />
             </TouchableOpacity>
           )}
         </View>
@@ -262,7 +280,9 @@ export default function Dashboard() {
         {/* --- 2. Quick Guest Stats (The "Expected" Section) --- */}
         <View className="mb-6">
           <View className="flex-row justify-between items-end mb-4">
-            <Text className={`text-lg font-oswald-semibold ${isDarkMode? "text-gray-300":"text-gm-navy"}`}>
+            <Text
+              className={`text-lg font-oswald-semibold ${isDarkMode ? "text-gray-300" : "text-gm-navy"}`}
+            >
               Today&apos;s Guests
             </Text>
             <TouchableOpacity onPress={() => router.push("/guests")}>
@@ -375,7 +395,9 @@ export default function Dashboard() {
 
         {/* --- 5. Upcoming Events --- */}
         <View className="mb-10">
-          <Text className={`text-lg font-oswald-semibold ${isDarkMode? "text-gray-300":"text-gm-navy"} mb-4`}>
+          <Text
+            className={`text-lg font-oswald-semibold ${isDarkMode ? "text-gray-300" : "text-gm-navy"} mb-4`}
+          >
             Upcoming Events
           </Text>
           {mainEvent ? (
@@ -437,11 +459,19 @@ export default function Dashboard() {
       </ScrollView>
 
       {/* Slide-Up Property Sheets Modal Selection Area */}
-      <Modal visible={estatePickerVisible} animationType="slide" transparent={true}>
+      <Modal
+        visible={estatePickerVisible}
+        animationType="slide"
+        transparent={true}
+      >
         <View className="flex-1 justify-end bg-black/50">
-          <View className={`${isDarkMode ? "bg-slate-900" : "bg-white"} rounded-t-[2.5rem] p-6 max-h-[60%]`}>
+          <View
+            className={`${isDarkMode ? "bg-slate-900" : "bg-white"} rounded-t-[2.5rem] p-6 max-h-[60%]`}
+          >
             <View className="w-12 h-1 bg-slate-300 rounded-full self-center mb-6 mx-auto" />
-            <Text className={`text-xl font-bold mb-4 ${isDarkMode ? "text-white" : "text-slate-900"}`}>
+            <Text
+              className={`text-xl font-bold mb-4 ${isDarkMode ? "text-white" : "text-slate-900"}`}
+            >
               Select Active Estate Dashboard
             </Text>
             <FlatList
@@ -456,12 +486,19 @@ export default function Dashboard() {
                   className={`p-4 rounded-2xl mb-3 border flex-row items-center ${
                     selectedEstateId === item.id
                       ? "border-indigo-500 bg-indigo-50/40"
-                      : isDarkMode ? "border-slate-800 bg-slate-800/40" : "border-slate-100 bg-slate-50"
+                      : isDarkMode
+                        ? "border-slate-800 bg-slate-800/40"
+                        : "border-slate-100 bg-slate-50"
                   }`}
                 >
-                  <MapPin size={20} color={selectedEstateId === item.id ? "#4f46e5" : "#94a3b8"} />
+                  <MapPin
+                    size={20}
+                    color={selectedEstateId === item.id ? "#4f46e5" : "#94a3b8"}
+                  />
                   <View className="ml-3 flex-1">
-                    <Text className={`font-bold text-sm ${isDarkMode ? "text-white" : "text-slate-800"}`}>
+                    <Text
+                      className={`font-bold text-sm ${isDarkMode ? "text-white" : "text-slate-800"}`}
+                    >
                       {item.name}
                     </Text>
                   </View>

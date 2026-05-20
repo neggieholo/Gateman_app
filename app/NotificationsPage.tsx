@@ -63,9 +63,6 @@ export default function NotificationsPage() {
     <View className={`flex flex-1 ${isDarkMode ? "bg-slate-950" : "bg-gray-50"}`}>
       {/* Header Bar */}
       <View className="p-4 flex-row justify-between items-center">
-        <Text className={`text-2xl font-black ${isDarkMode ? "text-white" : "text-gray-900"}`}>
-          Notifications
-        </Text>
         <TouchableOpacity onPress={triggerRefresh}>
           <Text className={`font-black ${isDarkMode ? "text-gm-gold" : "text-indigo-600"}`}>
             Refresh

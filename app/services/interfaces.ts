@@ -5,9 +5,13 @@ export interface Estate {
   id: string;
   name: string;
   estate_code: string;
+  address: string;
   created_at: string | null;
   city: string | null;
+  state: string;
+  lga: string;
   town: string | null;
+  kyc_selection: KYCSelection;
 }
 
 export interface Apartment {
@@ -51,13 +55,14 @@ export interface User {
     message: string;
   } | null;
 
-  estate_ids: string[]; 
+  estate_ids: string[];
 
   locations: {
     [estateId: string]: LocationPair[];
   };
 
-  estates: EstateProfile[]; 
+  estates: EstateProfile[];
+  sub_users: string[];
 
   wallet_balance?: string | number;
   avatar?: string | null;
@@ -69,6 +74,13 @@ export interface User {
   chatToken?: string;
   push_token?: string;
   last_notification_read_at: string;
+}
+
+export interface KYCSelection {
+  selfie: boolean;
+  rent_contract: boolean;
+  ids: boolean;
+  utility_bill: boolean;
 }
 
 export interface tempNotification {
@@ -120,6 +132,7 @@ export interface ChatRoom {
   lastSenderId?: string;
   [key: string]: any;
 }
+
 
 export interface IFileMessage extends IMessage {
   file?: {
@@ -184,6 +197,7 @@ export interface Invitation {
   is_cancelled: boolean;
   estate_id: string;
   staff_position?: string;
+  permitted_days: number[];
   is_activated?: boolean;
 }
 

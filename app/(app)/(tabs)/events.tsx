@@ -227,16 +227,16 @@ export default function CreateEventScreen() {
         <View className={`${isDarkMode ? "bg-gm-navy border-slate-800" : "bg-white border-slate-100"} p-8 rounded-[2.5rem] shadow-sm items-center border`}>
           <ShieldCheck size={60} color={isDarkMode ? "#D4AF37" : "#0A1F44"} />
           <Text className={`text-xl font-bold ${isDarkMode ? "text-gm-gold" : "text-gm-navy"} mt-4 text-center`}>
-            Security Access Restricted
+            Access Restricted
           </Text>
           <Text className={`text-sm ${isDarkMode ? "text-slate-400" : "text-slate-500"} mt-2 text-center px-4 max-w-[280px]`}>
             You are currently not attached to any active estates on GateMan.
           </Text>
           <TouchableOpacity
-            className={`w-full py-4 rounded-2xl shadow-sm mt-6 border items-center ${isDarkMode ? "bg-gm-charcoal border-gm-gold" : "bg-slate-900 border-transparent"}`}
+            className={`w-full p-4 rounded-2xl shadow-sm mt-6 border items-center ${isDarkMode ? "bg-gm-charcoal border-gm-gold" : "bg-slate-900 border-transparent"}`}
             onPress={() => router.push("/JoinRequest" as any)}
           >
-            <Text className="text-white font-bold text-base">Join an Estate</Text>
+            <Text className="text-white font-roboto-regular font-bold text-base">Join an Estate</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -290,7 +290,7 @@ export default function CreateEventScreen() {
                 Scheduling Requirement
               </Text>
               <Text className={`text-xs font-bold leading-relaxed ${isDarkMode ? "text-slate-300" : "text-amber-700"}`}>
-                Schedule at least <Text className={`font-black ${isDarkMode ? "text-gm-gold" : "text-amber-900"}`}>7 days</Text> in advance for approval.
+                Schedule at least <Text className={`font-black ${isDarkMode ? "text-gm-gold" : "text-amber-900"}`}>7 days</Text> in advance for a timely approval.
               </Text>
             </View>
           </View>

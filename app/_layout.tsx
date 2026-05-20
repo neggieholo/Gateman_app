@@ -185,6 +185,21 @@ export default function RootLayout() {
                     headerShown: true,
                   }}
                 />
+
+                <Stack.Screen
+                  name="AllEvents"
+                  options={{
+                    title: "Your Events",
+                    headerShown: true,
+                  }}
+                />
+                <Stack.Screen
+                  name="AccountWorkspace"
+                  options={{
+                    title: "Accounts Configuration",
+                    headerShown: true,
+                  }}
+                />
               </Stack>
             </UserProvider>
           </ActionSheetProvider>
