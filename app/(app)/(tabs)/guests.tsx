@@ -344,18 +344,38 @@ const InviteGuestForm = ({
       )}
 
       {/* Guest Type Selector */}
-      <View className="flex-row gap-4 mb-6 flex-wrap">
+      <View className="flex-row gap-4 mb-6 flex-wrap justify-evenly p-2">
         {["one_time", "multi_entry", "staff_entry"].map((type) => (
           <TouchableOpacity
             key={type}
             onPress={() => handleTypeChange(type)}
-            className={`flex-row items-center p-2 rounded-full ${guestType === type ? "bg-indigo-100" : ""}`}
+            className={`flex-row items-center p-2 rounded-full border ${
+              guestType === type
+                ? isDarkMode
+                  ? "bg-gm-navy border-gm-gold"
+                  : "bg-indigo-100"
+                : isDarkMode
+                  ? "bg-gm-charcoal border-slate-800"
+                  : "bg-white border-gray-200"
+            }`}
           >
             <View
-              className={`w-4 h-4 rounded-full border-2 mr-2 ${guestType === type ? "border-indigo-600 bg-indigo-600" : "border-gray-400"}`}
+              className={`w-4 h-4 rounded-full border-2 mr-2 ${
+                guestType === type
+                  ? isDarkMode
+                    ? "bg-gm-gold border-gm-gold"
+                    : "border-indigo-600 bg-indigo-600"
+                  : "border-gray-400"
+              }`}
             />
             <Text
-              className={`font-semibold capitalize ${guestType === type ? "text-indigo-800" : "text-gray-600"}`}
+              className={`font-oswald-semibold capitalize ${
+                guestType === type
+                  ? isDarkMode
+                    ? "text-gm-gold"
+                    : "text-indigo-800"
+                  : "text-gray-600"
+              }`}
             >
               {type.replace("_", " ")}
             </Text>
@@ -707,7 +727,7 @@ const InviteGuestForm = ({
           </View>
 
           <TouchableOpacity
-            className={`mt-6 py-4 rounded-xl shadow-lg ${isUploading ? "bg-indigo-400" : "bg-indigo-600"}`}
+            className={`mt-6 py-4 rounded-xl shadow-lg ${isUploading ? (isDarkMode ? "bg-gray-500" : "bg-indigo-400") : isDarkMode ? "bg-gm-charcoal" : "bg-indigo-600"}`}
             onPress={handleGenerateCode}
             disabled={isUploading}
           >
@@ -807,7 +827,7 @@ export default function GuestInvitesComponent() {
     if (!user?.locations || !selectedEstateId) return [];
     return user.locations[selectedEstateId] || [];
   }, [selectedEstateId, user?.locations]);
-  
+
   const tabData = [
     { key: "invite", label: "Invite Guest" },
     { key: "track", label: "Track Guest" },
@@ -857,12 +877,14 @@ export default function GuestInvitesComponent() {
             onPress={() => setCurrentView(tab.key)}
             className={`py-2 px-6 rounded-lg ${
               currentView === tab.key
-                ? "border-b-4 border-indigo-600"
+                ? isDarkMode
+                  ? "border-b-4 border-gm-gold"
+                  : "border-b-4 border-indigo-600"
                 : "border-b-4 border-transparent"
             }`}
           >
             <Text
-              className={`text-lg font-bold ${currentView === tab.key ? (isDarkMode ? "text-indigo-400" : "text-indigo-800") : "text-gray-500"}`}
+              className={`text-lg font-bold ${currentView === tab.key ? (isDarkMode ? "text-gm-gold" : "text-indigo-800") : "text-gray-500"}`}
             >
               {tab.label}
             </Text>

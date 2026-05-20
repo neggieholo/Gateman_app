@@ -22,7 +22,7 @@ import { PaymentMode, UtilityPaymentInfo } from "./services/interfaces";
 import { useUser } from "./UserContext";
 
 export default function UtilityPaymentRouter() {
-  const { user, isDarkMode } = useUser();
+  const { user, isDarkMode, theme } = useUser();
   const [loading, setLoading] = useState(true);
   const [selectedEstateId, setSelectedEstateId] = useState<string | null>(null);
   const [estatePickerVisible, setEstatePickerVisible] = useState(false);
@@ -38,7 +38,6 @@ export default function UtilityPaymentRouter() {
     }
 
     if (user.estate_ids.length === 1) {
-      // Single Estate: Auto-select and fetch instantly
       const singleId = user.estate_ids[0];
       setSelectedEstateId(singleId);
       fetchPaymentInfo(singleId);
@@ -115,12 +114,11 @@ export default function UtilityPaymentRouter() {
   if (loading)
     return (
       <View
-        className={`flex-1 justify-center items-center ${isDarkMode ? "bg-slate-950" : "bg-white"}`}
+        className={`flex-1 justify-center items-center ${isDarkMode ? "bg-slate-950" : "bg-slate-50"}`}
       >
         <ActivityIndicator size="small" color="#6366f1" />
       </View>
     );
-
 
   if (!selectedEstateId && user?.estate_ids && user.estate_ids.length > 1) {
     return (
@@ -129,7 +127,7 @@ export default function UtilityPaymentRouter() {
       >
         <TouchableOpacity
           onPress={() => setEstatePickerVisible(true)}
-          className="bg-indigo-600 px-8 py-4 rounded-3xl shadow-sm"
+          className="bg-gm-navy px-8 py-4 rounded-3xl shadow-sm"
         >
           <Text className="text-white font-black text-base">
             Select An Estate to Continue
@@ -141,7 +139,7 @@ export default function UtilityPaymentRouter() {
 
   return (
     <ScrollView
-      className={`flex-1 ${isDarkMode ? "bg-gm-navy/10" : "bg-slate-50"}`}
+      className={`flex-1 ${isDarkMode ? "bg-slate-950" : "bg-slate-50"}`}
     >
       <View className="p-6 pt-12">
         {/* 🔄 Dropdown Switcher displayed ONLY for users with multiple active accounts */}
@@ -168,51 +166,70 @@ export default function UtilityPaymentRouter() {
         )}
 
         {config?.payment_type === "api" && (
-          <View className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm items-center">
+          <View
+            className={`${isDarkMode ? "bg-gm-navy border-gm-gold" : "bg-white border-slate-100"}  p-8 rounded-[40px] border shadow-sm items-center`}
+          >
             {isApiReady ? (
               <>
-                <View className="bg-blue-50 p-5 rounded-3xl mb-6">
-                  <ExternalLink size={32} color="#3b82f6" />
+                <View
+                  className={`${isDarkMode ? "bg-gm-charcoal" : "bg-blue-50"} p-5 rounded-3xl mb-6`}
+                >
+                  <ExternalLink size={32} color={theme.accent} />
                 </View>
-                <Text className="text-xl font-black text-slate-900 text-center">
+                <Text
+                  className={`text-xl font-montserrat-bold ${isDarkMode ? "text-gm-gold" : "text-gm-navy"} text-center`}
+                >
                   External Portal
                 </Text>
-                <Text className="text-xs text-slate-400 mt-1 text-center font-medium">
+                <Text className="text-lg text-slate-400 mt-1 text-center font-oswald-semibold">
                   {activeEstateName}
                 </Text>
                 <TouchableOpacity
                   onPress={() =>
                     handleOpenURL(config.details.external_api_url!)
                   }
-                  className="bg-blue-600 w-full p-5 rounded-3xl items-center mt-8"
+                  className={`${isDarkMode ? "bg-gm-charcoal border border-gm-gold" : "bg-gm-navy"} w-full p-5 rounded-3xl items-center mt-8`}
                 >
-                  <Text className="text-white font-black text-lg">
+                  <Text
+                    className={`${isDarkMode ? "text-gm-gold" : "text-white"} font-montserrat-bold text-lg`}
+                  >
                     Go to Portal
                   </Text>
                 </TouchableOpacity>
               </>
             ) : (
-              <MissingDetailsMessage type="Portal Link" />
+              <MissingDetailsMessage type="Portal Link" isDarkMode={isDarkMode} />
             )}
           </View>
         )}
 
         {config?.payment_type === "manual" && (
-          <View className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm">
+          <View
+            className={`${isDarkMode ? "bg-gm-navy border-gm-gold" : "bg-white border-slate-100"} p-8 rounded-[40px] border shadow-sm`}
+          >
             {isManualReady ? (
               <>
                 <View className="items-center mb-6">
-                  <View className="bg-emerald-50 p-5 rounded-3xl">
-                    <Landmark size={32} color="#10b981" />
+                  <View
+                    className={`${isDarkMode ? "bg-gm-charcoal" : "bg-blue-50"} bg-emerald-50 p-5 rounded-3xl`}
+                  >
+                    <Landmark
+                      size={32}
+                      color={isDarkMode ? "#D4AF37" : "#10b981"}
+                    />
                   </View>
-                  <Text className="text-xl font-black text-slate-900 mt-4">
+                  <Text
+                    className={`text-xl font-montserrat-bold ${isDarkMode ? "text-gm-gold" : "text-gm-navy"} text-center`}
+                  >
                     Bank Transfer
                   </Text>
-                  <Text className="text-xs text-slate-400 mt-1 font-medium">
+                  <Text className="text-lg text-slate-400 mt-1 text-center font-oswald-semibold">
                     {activeEstateName}
                   </Text>
                 </View>
-                <View className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
+                <View
+                  className={`${isDarkMode ? "bg-gm-charcoal border border-gm-gold" : "bg-slate-50 border-slate-100"} p-6 rounded-3xl border`}
+                >
                   <DetailRow
                     label="Bank Name"
                     value={config.details.bank_name}
@@ -230,7 +247,7 @@ export default function UtilityPaymentRouter() {
                 </View>
               </>
             ) : (
-              <MissingDetailsMessage type="Account Details" />
+              <MissingDetailsMessage type="Account Details" isDarkMode={isDarkMode} />
             )}
           </View>
         )}
@@ -296,15 +313,23 @@ export default function UtilityPaymentRouter() {
   );
 }
 
-const MissingDetailsMessage = ({ type }: { type: string }) => (
+const MissingDetailsMessage = ({
+  type,
+  isDarkMode,
+}: {
+  type: string;
+  isDarkMode: boolean;
+}) => (
   <View className="items-center py-4">
-    <View className="bg-amber-50 p-4 rounded-full mb-4">
-      <Info size={24} color="#f59e0b" />
+    <View className={`${isDarkMode ? 'bg-gm-charcoal':'bg-amber-50'} p-4 rounded-full mb-4`}>
+      <Info size={24} color={isDarkMode ? "#D4AF37":"#f59e0b"} />
     </View>
-    <Text className="text-slate-900 font-black text-center text-lg">
+    <Text
+      className={`${isDarkMode ? "text-gm-gold" : "text-gm-navy"} font-montserrat-bold text-center text-lg`}
+    >
       Details Missing
     </Text>
-    <Text className="text-slate-500 text-center mt-2 leading-5">
+    <Text className="text-slate-400 text-center mt-2 leading-5 font-roboto-regular">
       The estate admin has not fully configured the {type}. Please contact your
       estate office.
     </Text>

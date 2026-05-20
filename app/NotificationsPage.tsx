@@ -20,6 +20,7 @@ import {
 export default function NotificationsPage() {
   const {
     user,
+    isDarkMode,
     tempnotification,
     setTempnotification,
     notifications,
@@ -59,20 +60,26 @@ export default function NotificationsPage() {
   };
 
   return (
-    <View className="flex flex-1 bg-gray-50">
+    <View className={`flex flex-1 ${isDarkMode ? "bg-slate-950" : "bg-gray-50"}`}>
+      {/* Header Bar */}
       <View className="p-4 flex-row justify-between items-center">
-        <Text className="text-2xl font-bold text-gray-900">Notifications</Text>
+        <Text className={`text-2xl font-black ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+          Notifications
+        </Text>
         <TouchableOpacity onPress={triggerRefresh}>
-          <Text className="text-blue-600 font-semibold">Refresh</Text>
+          <Text className={`font-black ${isDarkMode ? "text-gm-gold" : "text-indigo-600"}`}>
+            Refresh
+          </Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView
         contentContainerStyle={{ flexGrow: 1 }}
-        className="bg-gray-50"
+        className={`${isDarkMode ? "bg-slate-950" : "bg-gray-50"}`}
         refreshControl={
           <RefreshControl
             refreshing={loadingNotifications}
+            tintColor={isDarkMode ? "#D4AF37" : "#4f46e5"}
             onRefresh={triggerRefresh}
           />
         }
@@ -96,7 +103,7 @@ export default function NotificationsPage() {
             ))
           : !user?.isTemp && (
               <View className="items-center mt-20 px-10">
-                <Text className="text-gray-400 text-center">
+                <Text className="text-slate-400 text-center font-medium">
                   Your notification tray is empty.
                 </Text>
               </View>
@@ -105,7 +112,7 @@ export default function NotificationsPage() {
         {/* Empty State for Temp Users */}
         {user?.isTemp && !tempnotification && (
           <View className="items-center mt-20 px-10">
-            <Text className="text-gray-400 text-center">
+            <Text className="text-slate-400 text-center font-medium">
               Your notification tray is empty.
             </Text>
           </View>

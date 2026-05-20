@@ -4,7 +4,9 @@ import { communityApi, getRelativeTime } from "@/app/services/api";
 import { Comment, Like, Post } from "@/app/services/interfaces";
 import { useRouter } from "expo-router";
 import {
+  ChevronDown,
   ImageIcon,
+  MapPin,
   MessageSquare,
   Plus,
   RefreshCw,
@@ -14,8 +16,6 @@ import {
   ThumbsUp,
   Trash,
   X,
-  MapPin,
-  ChevronDown,
 } from "lucide-react-native";
 import React, {
   useCallback,
@@ -183,7 +183,7 @@ export default function Community() {
   const handleOpenPost = async (post: Post) => {
     setSelectedPost(post);
     setComments([]);
-    setLikes([]); 
+    setLikes([]);
     setIsDetailVisible(true);
     setLoadingComments(true);
 
@@ -350,7 +350,7 @@ export default function Community() {
           >
             You are currently not attached to any active estates on GateMan.
           </Text>
-          
+
           <TouchableOpacity
             className={`${isDarkMode ? "bg-gm-charcoal" : "bg-gm-navy"} py-4 px-10 rounded-2xl shadow-md mt-6`}
             onPress={() => router.push("/JoinRequest" as any)}
@@ -364,7 +364,7 @@ export default function Community() {
 
   return (
     <SafeAreaView
-      className={`${isDarkMode ? "bg-gm-navy/20" : "bg-gray-50 "} flex-1`}
+      className={`${isDarkMode ? "bg-slate-950" : "bg-gray-50 "} flex-1`}
       edges={["top", "left", "right"]}
     >
       {/* 📍 CUSTOM DYNAMIC PROPERTY WORKSPACE CONTEXT PICKER BANNER */}
@@ -372,7 +372,9 @@ export default function Community() {
         <TouchableOpacity
           onPress={() => setEstatePickerVisible(true)}
           className={`mx-4 mt-2 flex-row items-center justify-between p-3.5 rounded-2xl border ${
-            isDarkMode ? "bg-gm-navy border-slate-800" : "bg-white border-slate-200"
+            isDarkMode
+              ? "bg-gm-navy border-slate-800"
+              : "bg-white border-slate-200"
           } shadow-sm`}
         >
           <View className="flex-row items-center flex-1">
@@ -394,11 +396,15 @@ export default function Community() {
         <TouchableOpacity
           onPress={() => setActiveMainTab("communication")}
           className={`flex-1 py-3 rounded-xl items-center justify-center ${
-            activeMainTab === "communication" ? isDarkMode? "bg-gm-navy" : "bg-white" : ""
+            activeMainTab === "communication"
+              ? isDarkMode
+                ? "bg-gm-navy"
+                : "bg-white"
+              : ""
           }`}
         >
           <Text
-            className={`font-oswald-semibold tracking-wider text-md ${activeMainTab === "communication" ? isDarkMode ? "text-gm-gold" : "text-gm-navy" : "text-gray-500"}`}
+            className={`font-oswald-semibold tracking-wider text-md ${activeMainTab === "communication" ? (isDarkMode ? "text-gm-gold" : "text-gm-navy") : isDarkMode ?"text-gray-800":"text-gray-500"}`}
           >
             Communication Board
           </Text>
@@ -407,11 +413,14 @@ export default function Community() {
         <TouchableOpacity
           onPress={() => setActiveMainTab("marketplace")}
           className={`flex-1 py-3 rounded-xl items-center justify-center ${
-            activeMainTab === "marketplace" ? "bg-white" : ""
+            activeMainTab === "marketplace" ? isDarkMode
+                ? "bg-gm-navy"
+                : "bg-white"
+              : ""
           }`}
         >
           <Text
-            className={`font-oswald-semibold tracking-wider text-md ${activeMainTab === "marketplace" ? "text-gm-navy" : "text-gray-500"}`}
+            className={`font-oswald-semibold tracking-wider text-md ${activeMainTab === "marketplace" ? (isDarkMode ? "text-gm-gold" : "text-gm-navy") : isDarkMode ?"text-gray-800":"text-gray-500"}`}
           >
             Marketplace
           </Text>
@@ -424,7 +433,7 @@ export default function Community() {
           <View className="w-20 h-20 bg-indigo-50 rounded-full items-center justify-center mb-4">
             <ShoppingBag size={36} color="#0A1F44" />
           </View>
-          <Text className="text-xl font-oswald-semibold text-gray-900 mb-1">
+          <Text className={`text-xl font-oswald-semibold text-gray-900 mb-1`}>
             Marketplace
           </Text>
           <Text className="text-sm text-gray-500 font-roboto-regular text-center px-8">
@@ -439,12 +448,16 @@ export default function Community() {
               onPress={() => setActiveSubFilter("all")}
               className={`px-5 py-2 rounded-full border items-center justify-center ${
                 activeSubFilter === "all"
-                  ? isDarkMode ? "bg-gm-navy border-gm-gold" : "bg-gm-navy border-gray-200"
-                  : "border-gray-200"
+                  ? isDarkMode
+                    ? "bg-gm-navy border-gm-gold"
+                    : "bg-indigo-600 border-indigo-600"
+                  : isDarkMode
+                    ? "bg-gm-charcoal border-slate-800"
+                    : "bg-white border-gray-200"
               }`}
             >
               <Text
-                className={`text-xs font-oswald-semibold ${activeSubFilter === "all" ? isDarkMode ?'text-gm-gold' : "text-white" : "text-gray-600"}`}
+                className={`text-xs font-oswald-semibold ${activeSubFilter === "all" ? (isDarkMode ? "text-gm-gold" : "text-white") : "text-gray-600"}`}
               >
                 All Posts
               </Text>
@@ -454,20 +467,30 @@ export default function Community() {
               onPress={() => setActiveSubFilter("my_posts")}
               className={`px-5 py-2 rounded-full border items-center justify-center ${
                 activeSubFilter === "my_posts"
-                  ? isDarkMode ? "bg-gm-navy border-gm-gold" : "bg-gm-navy border-gray-200"
-                  : "border-gray-200"
+                  ? isDarkMode
+                    ? "bg-gm-navy border-gm-gold"
+                    : "bg-indigo-600 border-indigo-600"
+                  : isDarkMode
+                    ? "bg-gm-charcoal border-slate-800"
+                    : "bg-white border-gray-200"
               }`}
             >
               <Text
-                className={`text-xs font-oswald-semibold ${activeSubFilter === "my_posts" ? isDarkMode ?'text-gm-gold' : "text-white" : "text-gray-600"}`}
+                className={`text-xs font-oswald-semibold ${activeSubFilter === "my_posts" ? (isDarkMode ? "text-gm-gold" : "text-white") : isDarkMode ? "text-white" : "text-gray-500"}`}
               >
                 My Posts
               </Text>
             </TouchableOpacity>
           </View>
 
-          <View className={`${isDarkMode ? "bg-gm-navy border-gm-gold":"bg-white border border-gray-200"} mx-4 my-3 flex-row items-center rounded-lg px-4 py-1.5`}>
-            <Search size={18} color={isDarkMode ? '#D4AF37':'#9ca3af'} className="mr-2" />
+          <View
+            className={`${isDarkMode ? "bg-gm-navy border-gm-gold" : "bg-white border border-gray-200"} mx-4 my-3 flex-row items-center rounded-lg px-4 py-1.5`}
+          >
+            <Search
+              size={18}
+              color={isDarkMode ? "#D4AF37" : "#9ca3af"}
+              className="mr-2"
+            />
             <TextInput
               className="flex-1 py-2 text-sm text-gray-900 font-roboto-regular"
               placeholder={
@@ -475,11 +498,11 @@ export default function Community() {
                   ? "Search by title..."
                   : "Search by title or poster name..."
               }
-              placeholderTextColor={isDarkMode ? '#D4AF37':'#9ca3af'}
+              placeholderTextColor={isDarkMode ? "#D4AF37" : "#9ca3af"}
               value={searchQuery}
               onChangeText={setSearchQuery}
               returnKeyType="search"
-              clearButtonMode="while-editing" 
+              clearButtonMode="while-editing"
             />
             {searchQuery.length > 0 && (
               <TouchableOpacity
@@ -490,7 +513,7 @@ export default function Community() {
               </TouchableOpacity>
             )}
           </View>
-          
+
           <ScrollView
             ref={scrollRef}
             className="px-4 pb-24"
@@ -513,10 +536,10 @@ export default function Community() {
             {filteredPosts.map((post) => (
               <View
                 key={post.id}
-                className={`p-4 rounded-2xl mb-4 shadow border ${isDarkMode ? "bg-gm-navy border-gm-gold":"bg-white border border-gray-200"}`}
+                className={`p-4 rounded-2xl mb-4 shadow border ${isDarkMode ? "bg-gm-navy border-gm-gold" : "bg-white border border-gray-200"}`}
               >
                 <TouchableOpacity
-                  className={`items-start mb-2 w-full rounded-2xl p-2 border ${isDarkMode ? "border-gm-gold":"border-gray-200"}`}
+                  className={`items-start mb-2 w-full rounded-2xl p-2 border ${isDarkMode ? "border-gm-gold" : "border-gray-200"}`}
                   onPress={() => handleOpenPost(post)}
                 >
                   <View className="flex-row items-center gap-2">
@@ -531,7 +554,9 @@ export default function Community() {
                     </View>
                     <View>
                       <View className="flex items-start justify-center">
-                        <Text className={`font-montserrat-bold ${isDarkMode ? "text-gm-gold":"text-gm-navy"}`}>
+                        <Text
+                          className={`font-montserrat-bold ${isDarkMode ? "text-gm-gold" : "text-gm-navy"}`}
+                        >
                           {post.author_name}
                         </Text>
                       </View>
@@ -541,8 +566,16 @@ export default function Community() {
                     </View>
                   </View>
                   <View className="p-3">
-                    <Text className={`font-oswald-semibold ${isDarkMode ? "text-gm-gold":"text-gm-navy"} text-lg mb-1`}>{post.title}</Text>
-                    <Text className={`mb-2 ${isDarkMode ? "text-gray-300":"text-gray-600"}`}>{post.content}</Text>
+                    <Text
+                      className={`font-oswald-semibold ${isDarkMode ? "text-gm-gold" : "text-gm-navy"} text-lg mb-1`}
+                    >
+                      {post.title}
+                    </Text>
+                    <Text
+                      className={`mb-2 ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}
+                    >
+                      {post.content}
+                    </Text>
                   </View>
                 </TouchableOpacity>
 
@@ -555,22 +588,30 @@ export default function Community() {
                       size={18}
                       color={post.has_liked ? "#2563eb" : "#9ca3af"}
                     />
-                  <Text className={`ml-1 font-roboto-regular ${isDarkMode ? "text-gm-gold":"text-gm-navy"} text-sm`}>
+                    <Text
+                      className={`ml-1 font-roboto-regular ${isDarkMode ? "text-gm-gold" : "text-gm-navy"} text-sm`}
+                    >
                       {post.likes_count}
                     </Text>
                   </TouchableOpacity>
                   <View className="flex-row items-center">
                     <MessageSquare size={18} color="#9ca3af" />
-                    <Text className={`ml-1 font-roboto-regular ${isDarkMode ? "text-gm-gold":"text-gm-navy"} text-sm`}>
+                    <Text
+                      className={`ml-1 font-roboto-regular ${isDarkMode ? "text-gm-gold" : "text-gm-navy"} text-sm`}
+                    >
                       {post.comments_count}
                     </Text>
                   </View>
                 </View>
                 <View className="flex-row items-center justify-between">
                   {post.image_url ? (
-                    <View className={`flex-row items-center mt-3 ${isDarkMode ? "bg-gm-charcoal":"bg-indigo-50"} self-start px-2 py-1 rounded-md`}>
+                    <View
+                      className={`flex-row items-center mt-3 ${isDarkMode ? "bg-gm-charcoal" : "bg-indigo-50"} self-start px-2 py-1 rounded-md`}
+                    >
                       <ImageIcon size={14} color="#4f46e5" />
-                      <Text className={`text-xs ml-1 font-roboto-regular ${isDarkMode ? "text-white":"text-gm-navy"}`}>
+                      <Text
+                        className={`text-xs ml-1 font-roboto-regular ${isDarkMode ? "text-white" : "text-gm-navy"}`}
+                      >
                         Image attached
                       </Text>
                     </View>
@@ -598,19 +639,23 @@ export default function Community() {
               }}
               disabled={loading || isRefreshing}
               className={`mb-4 w-16 h-16 rounded-full items-center justify-center shadow-lg border border-gray-100 ${
-                isRefreshing ? "bg-gray-100" : isDarkMode ? "bg-gray-500":"bg-white"
+                isRefreshing
+                  ? "bg-gray-100"
+                  : isDarkMode
+                    ? "bg-gray-500"
+                    : "bg-white"
               }`}
             >
               <RefreshCw
                 size={20}
-                color={isDarkMode ? "#ffffff":"#4f46e5"}
+                color={isDarkMode ? "#ffffff" : "#4f46e5"}
                 className={isRefreshing ? "animate-spin" : ""}
               />
             </TouchableOpacity>
 
             <TouchableOpacity
               onPress={() => setIsModalVisible(true)}
-              className={`${isDarkMode? "bg-gm-charcoal border border-white":"bg-gm-navy"} w-16 h-16 rounded-full items-center justify-center shadow-xl`}
+              className={`${isDarkMode ? "bg-gm-charcoal border border-white" : "bg-gm-navy"} w-16 h-16 rounded-full items-center justify-center shadow-xl`}
             >
               <Plus size={28} color="white" />
             </TouchableOpacity>
@@ -629,7 +674,7 @@ export default function Community() {
         setContent={setPostContent}
         setImageUrl={setPostImageUrl}
       />
-      
+
       <PostDetailModal
         isVisible={isDetailVisible}
         onClose={() => {
@@ -649,11 +694,19 @@ export default function Community() {
       />
 
       {/* Slide-Up Property Choice Sheets Workspace */}
-      <Modal visible={estatePickerVisible} animationType="slide" transparent={true}>
+      <Modal
+        visible={estatePickerVisible}
+        animationType="slide"
+        transparent={true}
+      >
         <View className="flex-1 justify-end bg-black/50">
-          <View className={`${isDarkMode ? "bg-slate-900" : "bg-white"} rounded-t-[2.5rem] p-6 max-h-[60%]`}>
+          <View
+            className={`${isDarkMode ? "bg-slate-900" : "bg-white"} rounded-t-[2.5rem] p-6 max-h-[60%]`}
+          >
             <View className="w-12 h-1 bg-slate-300 rounded-full self-center mb-6 mx-auto" />
-            <Text className={`text-xl font-bold mb-4 ${isDarkMode ? "text-white" : "text-slate-900"}`}>
+            <Text
+              className={`text-xl font-bold mb-4 ${isDarkMode ? "text-white" : "text-slate-900"}`}
+            >
               Select Active Property Context
             </Text>
             <FlatList
@@ -668,12 +721,19 @@ export default function Community() {
                   className={`p-4 rounded-2xl mb-3 border flex-row items-center ${
                     selectedEstateId === item.id
                       ? "border-indigo-500 bg-indigo-50/40"
-                      : isDarkMode ? "border-slate-800 bg-slate-800/40" : "border-slate-100 bg-slate-50"
+                      : isDarkMode
+                        ? "border-slate-800 bg-slate-800/40"
+                        : "border-slate-100 bg-slate-50"
                   }`}
                 >
-                  <MapPin size={20} color={selectedEstateId === item.id ? "#4f46e5" : "#94a3b8"} />
+                  <MapPin
+                    size={20}
+                    color={selectedEstateId === item.id ? "#4f46e5" : "#94a3b8"}
+                  />
                   <View className="ml-3 flex-1">
-                    <Text className={`font-bold text-sm ${isDarkMode ? "text-white" : "text-slate-800"}`}>
+                    <Text
+                      className={`font-bold text-sm ${isDarkMode ? "text-white" : "text-slate-800"}`}
+                    >
                       {item.name}
                     </Text>
                   </View>

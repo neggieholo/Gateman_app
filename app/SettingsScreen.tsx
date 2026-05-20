@@ -496,9 +496,9 @@ export default function ResidentSettings() {
                 onPress={() => handleRequestOtp(profile.email, "email")}
               >
                 {otpLoading && verifyingField === "email" ? (
-                  <ActivityIndicator size="small" color="#4f46e5" />
+                  <ActivityIndicator size="small" color={theme.accent} />
                 ) : (
-                  <Text className="bg-indigo-600 font-bold text-sm m-2 rounded-sm p-2 text-white">
+                  <Text className="bg-indigo-600 font-roboto-regular text-sm m-2 rounded-sm p-2 text-white">
                     Verify
                   </Text>
                 )}
@@ -584,9 +584,9 @@ export default function ResidentSettings() {
                 onPress={() => handleRequestOtp(profile.phone, "phone")}
               >
                 {otpLoading && verifyingField === "phone" ? (
-                  <ActivityIndicator size="small" color="#4f46e5" />
+                  <ActivityIndicator size="small" color={theme.accent} />
                 ) : (
-                  <Text className="bg-indigo-600 font-bold text-sm m-2 rounded-sm p-2 text-white">
+                  <Text className="bg-indigo-600 font-roboto-regular text-sm m-2 rounded-sm p-2 text-white">
                     Verify
                   </Text>
                 )}
@@ -693,6 +693,7 @@ export default function ResidentSettings() {
       isDarkMode,
       selectedEstateId,
       user,
+      activeEstateContext,
     ],
   );
 
@@ -709,71 +710,109 @@ export default function ResidentSettings() {
       {/* 🏛️ MULTI-ESTATE SELECTOR BOTTOM MODAL DIALOG CONTAINER */}
       <Modal
         visible={estateDropdownVisible}
-        animationType="slide"
+        animationType="fade"
         transparent={true}
       >
-        <View className="flex-1 justify-end bg-black/50">
+        <TouchableOpacity
+          className="flex-1 justify-center bg-black/40 p-5"
+          activeOpacity={1}
+          onPress={() => setEstateDropdownVisible(false)}
+        >
+          {/* Clean, fully-rounded self-contained floating card container */}
           <View
-            className={`${isDarkMode ? "bg-slate-900" : "bg-white"} rounded-t-[2.5rem] p-6 max-h-[70%]`}
+            className={`${
+              isDarkMode ? "bg-gm-charcoal border border-gm-gold" : "bg-white"
+            } rounded-3xl p-5 max-h-[70%] w-full shadow-2xl`}
+            // Prevent clicks inside the card from accidentally triggering the backdrop close
+            onTouchStart={(e) => e.stopPropagation()}
           >
-            <View className="w-12 h-1 bg-slate-300 rounded-full align-self-center mb-6 mx-auto" />
+            {/* Removed the bottom sheet handle bar since it doesn't slide anymore */}
+
             <Text
-              className={`text-xl font-montserrat-bold mb-4 ${isDarkMode ? "text-white" : "text-gm-navy"}`}
+              className={`text-lg font-montserrat-bold mb-4 text-center ${
+                isDarkMode ? "text-gm-gold" : "text-gm-navy"
+              }`}
             >
               Switch Estate Context View
             </Text>
+
             <FlatList
               data={user?.estates || []}
               keyExtractor={(item) => item.id}
+              showsVerticalScrollIndicator={false}
               renderItem={({ item }) => (
                 <TouchableOpacity
                   onPress={() => {
                     setSelectedEstateId(item.id);
                     setEstateDropdownVisible(false);
                   }}
-                  className={`p-4 rounded-2xl mb-3 border flex-row items-center ${
+                  className={`p-4 rounded-xl mb-2.5 border flex-row items-center ${
                     selectedEstateId === item.id
-                      ? "border-indigo-500 bg-indigo-50/40"
-                      : isDarkMode
-                        ? "border-slate-800 bg-slate-800/40"
-                        : "border-slate-100 bg-slate-50"
+                      ? isDarkMode
+                        ? "border-gm-gold bg-slate-800/40"
+                        : "border-indigo-500 bg-indigo-50/40"
+                      : "border-slate-100 bg-slate-50"
                   }`}
                 >
                   <MapPin
-                    size={20}
-                    color={selectedEstateId === item.id ? "#4f46e5" : "#94a3b8"}
+                    size={18}
+                    color={
+                      selectedEstateId === item.id
+                        ? isDarkMode
+                          ? "#D4AF37"
+                          : "#4f46e5"
+                        : "#94a3b8"
+                    }
                   />
                   <View className="ml-3 flex-1">
                     <Text
-                      className={`font-bold text-sm ${isDarkMode ? "text-white" : "text-slate-800"}`}
+                      className={`font-oswald-semibold text-sm ${
+                        isDarkMode ? "text-gm-gold" : "text-slate-800"
+                      }`}
                     >
                       {item.name}
                     </Text>
-                    <Text className="text-xs text-slate-400 font-roboto-regular mt-0.5">
+                    <Text
+                      className={`text-xs ${
+                        isDarkMode ? "text-gray-400" : "text-gm-navy"
+                      } font-roboto-regular mt-0.5`}
+                      numberOfLines={1}
+                    >
                       {item.address}, {item.town}
                     </Text>
                   </View>
                 </TouchableOpacity>
               )}
             />
+
             <TouchableOpacity
               onPress={() => setEstateDropdownVisible(false)}
-              className="mt-4 p-4 bg-slate-200 rounded-2xl items-center"
+              className={`mt-2 p-3.5 rounded-xl items-center ${
+                isDarkMode ? "border border-gm-gold" : "bg-slate-100"
+              }`}
             >
-              <Text className="text-slate-700 font-bold">Close</Text>
+              <Text
+                className={`${isDarkMode ? "text-gm-gold" : "text-slate-700"} font-bold text-sm`}
+              >
+                Cancel
+              </Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </TouchableOpacity>
       </Modal>
 
       {/* OTP Verification Modal */}
       <Modal visible={showOtpInput} animationType="fade" transparent={true}>
         <View className="flex-1 justify-center items-center bg-black/60 px-6">
-          <View className="bg-white w-full rounded-[2.5rem] p-8 items-center shadow-2xl">
-            <Text className="text-2xl font-black text-slate-900 mb-2">
+          <View
+            className={`${isDarkMode ? "bg-gm-charcoal border border-gm-gold" : "bg-white"} w-full rounded-[2.5rem] p-8 items-center shadow-2xl`}
+          >
+            <Text
+              className={`text-2xl font-montserrat-bold ${isDarkMode ? "text-gm-gold" : "text-gm-navy"} mb-2`}
+            >
               Confirm Code
             </Text>
-            <Text className="text-slate-500 text-center mb-8">
+            <Text className="text-slate-500 font-roboto-regular text-center mb-8">
               Enter the code sent to your {verifyingField}
             </Text>
             <View className="flex-row justify-between w-full mb-8">
@@ -781,7 +820,7 @@ export default function ResidentSettings() {
                 <TextInput
                   key={index}
                   ref={inputRefs[index]}
-                  className="w-12 h-14 border-2 border-slate-100 bg-slate-50 rounded-xl text-center text-xl font-bold focus:border-indigo-500"
+                  className={`w-12 h-14 border-2 ${isDarkMode ? "border-gm-gold focus:border-gray-300 text-gray-200" : "border-slate-100 bg-slate-50 focus:border-indigo-500"} rounded-xl text-center text-xl font-roboto-regular `}
                   keyboardType="number-pad"
                   maxLength={1}
                   value={digit}
@@ -802,10 +841,10 @@ export default function ResidentSettings() {
               ))}
             </View>
             {verifyingOtp ? (
-              <Text className="text-blue-500 font-bold mb-4">Verifying...</Text>
+              <Text className={`${isDarkMode ? "text-gm-gold":"text-gm-navy"} font-oswald-semibold mb-4`}>Verifying...</Text>
             ) : (
               <TouchableOpacity onPress={handleCancelOtp} disabled={otpLoading}>
-                <Text className="text-red-500 font-bold">Cancel</Text>
+                <Text className="text-red-500 font-oswald-semibold">Cancel</Text>
               </TouchableOpacity>
             )}
             {error ? (

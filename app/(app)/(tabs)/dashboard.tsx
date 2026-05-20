@@ -150,7 +150,7 @@ export default function Dashboard() {
           <Text
             className={`text-xl font-bold ${isDarkMode ? "text-white" : "text-gm-navy"} mt-4 text-center`}
           >
-            Security Access Restricted
+            Access Restricted
           </Text>
           <Text
             className={`text-sm ${isDarkMode ? "text-slate-400" : "text-gray-500"} mt-2 text-center px-4 max-w-[280px]`}
@@ -170,11 +170,11 @@ export default function Dashboard() {
   }
 
   if (loading)
-    return <ActivityIndicator className="flex-1" color={theme.accent} />;
+  return <ActivityIndicator className={`flex-1 ${isDarkMode? 'bg-slate-950':''}`} color={theme.accent} />;
 
   return (
     <SafeAreaView
-      className={`flex-1 ${isDarkMode ? "bg-gm-navy/20" : "bg-gray-50 "}`}
+      className={`flex-1 ${isDarkMode ? "bg-slate-950" : "bg-gray-50 "}`}
     >
       <Modal
         animationType="fade"
@@ -225,12 +225,12 @@ export default function Dashboard() {
         <View className="flex-row items-center justify-between mb-6">
           <View className="flex-1 mr-2">
             <Text
-              className={`${isDarkMode ? "text-gm-charcoal" : "text-gray-400"} font-roboto-regular`}
+              className={`${isDarkMode ? "text-gray-400" : "text-gray-400"} font-roboto-regular`}
             >
               Welcome back,
             </Text>
             <Text
-              className={`text-2xl font-montserrat-extrabold text-gray-900`}
+              className={`text-2xl font-montserrat-extrabold d ${isDarkMode? "text-gray-200":"text-gm-navy"}`}
               numberOfLines={1}
             >
               {user.name ? user.name.split(" ")[0] : "Resident"}
@@ -262,7 +262,7 @@ export default function Dashboard() {
         {/* --- 2. Quick Guest Stats (The "Expected" Section) --- */}
         <View className="mb-6">
           <View className="flex-row justify-between items-end mb-4">
-            <Text className="text-lg font-oswald-semibold text-gray-800">
+            <Text className={`text-lg font-oswald-semibold ${isDarkMode? "text-gray-300":"text-gm-navy"}`}>
               Today&apos;s Guests
             </Text>
             <TouchableOpacity onPress={() => router.push("/guests")}>
@@ -375,7 +375,7 @@ export default function Dashboard() {
 
         {/* --- 5. Upcoming Events --- */}
         <View className="mb-10">
-          <Text className="text-lg font-oswald-semibold text-gray-800 mb-4">
+          <Text className={`text-lg font-oswald-semibold ${isDarkMode? "text-gray-300":"text-gm-navy"} mb-4`}>
             Upcoming Events
           </Text>
           {mainEvent ? (

@@ -25,10 +25,16 @@ import {
 } from "react-native";
 import { deleteReport, getMyReports } from "./services/api";
 import { EstateReport } from "./services/interfaces";
+import { useUser } from "./UserContext";
 
 type StatusType = "ALL" | "PENDING" | "REVIEWED" | "RESOLVED";
 
-export default function PaymentReportsHistory({estate_id}:{estate_id:string}) {
+export default function PaymentReportsHistory({
+  estate_id,
+}: {
+  estate_id: string;
+}) {
+  const { user, theme, isDarkMode } = useUser();
   const [reports, setReports] = useState<EstateReport[]>([]);
   const [fetching, setFetching] = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusType>("ALL");
@@ -117,13 +123,13 @@ export default function PaymentReportsHistory({estate_id}:{estate_id:string}) {
   // --- DETAIL VIEW ---
   if (selectedReport) {
     return (
-      <View className="flex-1 bg-white p-6 pb-20">
+      <View className="flex-1 p-6 pb-20">
         <View className="flex-row justify-between items-center mb-8">
           <TouchableOpacity
             onPress={() => setSelectedReport(null)}
             className="p-2 -ml-2"
           >
-            <ArrowLeft size={24} color="#0f172a" />
+            <ArrowLeft size={24} color={theme.accent} />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => handleDelete(selectedReport.id)}
@@ -142,34 +148,38 @@ export default function PaymentReportsHistory({estate_id}:{estate_id:string}) {
               onPress={() => {
                 setResponseModal(true);
               }}
-              className="bg-indigo-600 p-2 rounded-2xl flex-row items-center"
+              className={`${isDarkMode ? "bg-gray-400" : "bg-indigo-600"} p-2 rounded-2xl flex-row items-center`}
             >
               <MessageSquare size={12} color="white" />
-              <Text className="ml-2 text-white font-bold text-[11px] uppercase">
+              <Text className={`${isDarkMode ? "text--gray-400" : "text-white "} ml-2 font-oswald-semibold text-[11px] uppercase`}>
                 View Response
               </Text>
             </TouchableOpacity>
           )}
         </View>
 
-        <Text className="text-3xl font-black text-slate-900 mb-6">
+        <Text className={`text-3xl font-montserrat-bold ${isDarkMode ? 'text-gray-400':'text-gm-navy'} mb-6`}>
           {selectedReport.subject}
         </Text>
 
         <View className="flex-row items-center gap-4 mb-8">
-          <View className="flex-row items-center bg-slate-50 px-3 py-2 rounded-xl">
-            <Calendar size={16} color="#94a3b8" />
-            <Text className="ml-2 text-slate-500 text-xs font-bold">
+          <View className={`flex-row items-center  ${isDarkMode ? "bg-gm-charcoal" : "bg-slate-50 "} px-3 py-2 rounded-xl`}>
+            <Calendar size={16} color={isDarkMode ? "#D4AF37":"#94a3b8"} />
+            <Text
+              className={`ml-2 text-xs font-oswald-semibold ${isDarkMode ? "text-gm-gold" : "text-slate-500 "}`}
+            >
               {new Date(selectedReport.created_at).toLocaleDateString()}
             </Text>
           </View>
         </View>
 
-        <Text className="text-slate-400 text-[10px] uppercase font-black tracking-widest mb-3">
+        <Text
+          className={`${isDarkMode ? "text-slate-500" : "text-slate-400"} text-[10px] uppercase font-oswald-semibold tracking-widest mb-3`}
+        >
           Description
         </Text>
         <ScrollView>
-          <Text className="text-slate-700 text-lg font-medium leading-7 mb-6">
+          <Text className="text-slate-700 text-lg font-roboto-regular leading-7 mb-6">
             {selectedReport.description}
           </Text>
         </ScrollView>
@@ -206,8 +216,8 @@ export default function PaymentReportsHistory({estate_id}:{estate_id:string}) {
   }
 
   return (
-    <View className="flex-1 bg-slate-50">
-      <View className="py-4">
+    <View className="flex-1 px-2">
+      <View className="p-4">
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -217,10 +227,10 @@ export default function PaymentReportsHistory({estate_id}:{estate_id:string}) {
             <TouchableOpacity
               key={`status-${s}`}
               onPress={() => setStatusFilter(s as StatusType)}
-              className={`px-5 py-2 rounded-full border ${statusFilter === s ? "bg-slate-900 border-slate-900" : "bg-white border-slate-200"}`}
+              className={`px-5 py-2 rounded-full border ${statusFilter === s ? (isDarkMode ? "bg-gm-navy border-gm-gold" : "bg-gm-navy border-gray-200") : isDarkMode ? "" : "bg-white border-slate-200"}`}
             >
               <Text
-                className={`text-[10px] font-black ${statusFilter === s ? "text-white" : "text-slate-500"}`}
+                className={`text-[10px] font-black ${statusFilter === s ? (isDarkMode ? "text-gm-gold" : "text-white") : "text-slate-500"}`}
               >
                 {s}
               </Text>
@@ -237,13 +247,13 @@ export default function PaymentReportsHistory({estate_id}:{estate_id:string}) {
         renderItem={({ item }) => (
           <TouchableOpacity
             onPress={() => setSelectedReport(item)}
-            className="bg-white p-5 rounded-[30px] mb-4 border border-slate-100 shadow-sm flex-row items-center justify-between"
+            className={`p-5 rounded-[30px] mb-4 border shadow-sm flex-row items-center justify-between ${isDarkMode ? "bg-gm-navy" : "bg-white border-slate-100 "}`}
           >
             <View className="flex-1 mr-4">
               <View className="flex-row items-center mb-1 justify-between">
                 <View className="flex-1">
                   <Text
-                    className="text-base font-black text-slate-900 flex-shrink"
+                    className={`text-base font-oswald-semibold ${isDarkMode ? "text-gm-gold" : "text-gm-navy"} flex-shrink`}
                     numberOfLines={1}
                     ellipsizeMode="tail"
                   >
@@ -268,8 +278,10 @@ export default function PaymentReportsHistory({estate_id}:{estate_id:string}) {
 
                   {/* Mail Icon if Admin Response exists */}
                   {item.admin_response && (
-                    <View className="bg-indigo-100 p-1.5 rounded-full">
-                      <Mail size={12} color="#4f46e5" strokeWidth={3} />
+                    <View
+                      className={`${isDarkMode ? "bg-gm-charcoal" : "bg-indigo-100"} p-1.5 rounded-full`}
+                    >
+                      <Mail size={12} color={theme.accent} strokeWidth={3} />
                     </View>
                   )}
                 </View>
@@ -283,7 +295,7 @@ export default function PaymentReportsHistory({estate_id}:{estate_id:string}) {
             </View>
 
             {/* Right-side Arrow for better UX */}
-            <ChevronRight size={20} color="#cbd5e1" />
+            <ChevronRight size={20} color={theme.accent} />
           </TouchableOpacity>
         )}
         ListEmptyComponent={

@@ -1,5 +1,11 @@
-import { FileText, History, MapPin, ChevronDown, Send } from "lucide-react-native";
-import React, { useState, useEffect, useMemo } from "react";
+import {
+  ChevronDown,
+  FileText,
+  History,
+  MapPin,
+  Send,
+} from "lucide-react-native";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -15,12 +21,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import ReportsHistory from "./components/ReportsHistory";
-import { useUser } from "./UserContext"; // Added User Context hook
 import { submitEstateReport } from "./services/api";
 import { SubmitReportPayload } from "./services/interfaces";
+import { useUser } from "./UserContext";
 
 export default function ResolutionCenter() {
-  const { user, isDarkMode } = useUser(); // Pull user details and theme state
+  const { user, isDarkMode } = useUser();
   const [activeTab, setActiveTab] = useState<"REPORT" | "HISTORY">("REPORT");
   const [loading, setLoading] = useState(false);
 
@@ -32,7 +38,6 @@ export default function ResolutionCenter() {
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
 
-  // Set initial fallback estate context on mount
   useEffect(() => {
     if (user?.estate_ids && user.estate_ids.length > 0) {
       setSelectedEstateId(user.estate_ids[0]);
@@ -76,24 +81,28 @@ export default function ResolutionCenter() {
   };
 
   return (
-    <SafeAreaView className={`flex-1 ${isDarkMode ? "bg-gm-navy/20" : "bg-slate-50"}`}>
+    <SafeAreaView
+      className={`flex-1 ${isDarkMode ? "bg-slate-950" : "bg-slate-50"}`}
+    >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         className="flex-1"
       >
-        {/* 🔄 Dynamic Estate Context Selector for multi-property configurations */}
+        {/* Dynamic Estate Context Selector */}
         {user?.estate_ids && user.estate_ids.length > 1 && (
           <TouchableOpacity
             onPress={() => setEstatePickerVisible(true)}
-            className={`mx-5 mb-4 flex-row items-center justify-between p-4 rounded-2xl border ${
-              isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100"
-            }`}
+            className={`mx-5 mb-4 flex-row items-center justify-between p-4 rounded-3xl border ${
+              isDarkMode
+                ? "bg-gm-navy border-gm-gold"
+                : "bg-white border-slate-100"
+            } shadow-sm`}
           >
             <View className="flex-row items-center flex-1">
-              <MapPin size={14} color="#6366f1" />
+              <MapPin size={14} color={isDarkMode ? "#D4AF37" : "#6366f1"} />
               <Text
                 className={`ml-2 text-xs font-black uppercase tracking-wider ${
-                  isDarkMode ? "text-slate-300" : "text-slate-600"
+                  isDarkMode ? "text-white" : "text-slate-600"
                 } flex-1`}
                 numberOfLines={1}
               >
@@ -110,16 +119,36 @@ export default function ResolutionCenter() {
             onPress={() => setActiveTab("REPORT")}
             className={`flex-1 p-4 rounded-3xl border-2 flex-row items-center justify-center ${
               activeTab === "REPORT"
-                ? "bg-indigo-600 border-indigo-600"
-                : isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100"
+                ? isDarkMode
+                  ? "bg-gm-navy border-gm-gold"
+                  : "bg-indigo-600 border-indigo-600"
+                : isDarkMode
+                  ? "bg-gm-charcoal border-slate-800"
+                  : "bg-white border-slate-100"
             }`}
           >
             <FileText
               size={18}
-              color={activeTab === "REPORT" ? "white" : "#64748b"}
+              color={
+                activeTab === "REPORT"
+                  ? isDarkMode
+                    ? "#D4AF37"
+                    : "white"
+                  : isDarkMode
+                    ? "#A0AEC0"
+                    : "#64748b"
+              }
             />
             <Text
-              className={`ml-2 font-bold ${activeTab === "REPORT" ? "text-white" : "text-slate-500"}`}
+              className={`ml-2 font-oswald-semibold text-xs ${
+                activeTab === "REPORT"
+                  ? isDarkMode
+                    ? "text-gm-gold"
+                    : "text-white"
+                  : isDarkMode
+                    ? "text-slate-400"
+                    : "text-slate-500"
+              }`}
             >
               New Report
             </Text>
@@ -129,16 +158,36 @@ export default function ResolutionCenter() {
             onPress={() => setActiveTab("HISTORY")}
             className={`flex-1 p-4 rounded-3xl border-2 flex-row items-center justify-center ${
               activeTab === "HISTORY"
-                ? "bg-indigo-600 border-indigo-600"
-                : isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100"
+                ? isDarkMode
+                  ? "bg-gm-navy border-gm-gold"
+                  : "bg-indigo-600 border-indigo-600"
+                : isDarkMode
+                  ? "bg-gm-charcoal border-slate-800"
+                  : "bg-white border-slate-100"
             }`}
           >
             <History
               size={18}
-              color={activeTab === "HISTORY" ? "white" : "#64748b"}
+              color={
+                activeTab === "HISTORY"
+                  ? isDarkMode
+                    ? "#D4AF37"
+                    : "white"
+                  : isDarkMode
+                    ? "#A0AEC0"
+                    : "#64748b"
+              }
             />
             <Text
-              className={`ml-2 font-bold ${activeTab === "HISTORY" ? "text-white" : "text-slate-500"}`}
+              className={`ml-2 font-oswald-semibold text-xs ${
+                activeTab === "HISTORY"
+                  ? isDarkMode
+                    ? "text-gm-gold"
+                    : "text-white"
+                  : isDarkMode
+                    ? "text-slate-400"
+                    : "text-slate-500"
+              }`}
             >
               History
             </Text>
@@ -147,17 +196,26 @@ export default function ResolutionCenter() {
 
         {activeTab === "REPORT" ? (
           <ScrollView showsVerticalScrollIndicator={false} className="px-5">
-            <View className={`p-4 rounded-2xl mb-6 border ${
-              isDarkMode ? "bg-indigo-950/40 border-indigo-900/50" : "bg-indigo-50/50 border-indigo-100"
-            }`}>
-              <Text className="text-indigo-600 text-xs font-bold leading-5 text-center">
-                Suggest improvements or report infrastructure issues within the estate.
+            <View
+              className={`p-4 rounded-2xl mb-6 border ${
+                isDarkMode
+                  ? "bg-gm-navy border-slate-800"
+                  : "bg-indigo-50/50 border-indigo-100"
+              }`}
+            >
+              <Text
+                className={`text-xs font-bold leading-5 text-center ${isDarkMode ? "text-gm-gold" : "text-indigo-600"}`}
+              >
+                Suggest improvements or report infrastructure issues within the
+                estate.
               </Text>
             </View>
 
             <View className="gap-y-5">
               <View>
-                <Text className="text-slate-400 text-[10px] uppercase tracking-[0.2em] font-black mb-2 ml-1">
+                <Text
+                  className={`text-[10px] uppercase tracking-[0.2em] font-oswald-semibold mb-2 ml-1 ${isDarkMode ? "text-gm-gold" : "text-slate-400"}`}
+                >
                   Subject
                 </Text>
                 <TextInput
@@ -165,14 +223,18 @@ export default function ResolutionCenter() {
                   onChangeText={setSubject}
                   placeholder="e.g., Street light out, Broken pipe..."
                   placeholderTextColor={isDarkMode ? "#475569" : "#cbd5e1"}
-                  className={`p-5 rounded-2xl border text-slate-800 font-bold ${
-                    isDarkMode ? "bg-slate-900 border-slate-800 text-white" : "bg-white border-slate-200"
+                  className={`p-5 rounded-3xl border text-base font-bold ${
+                    isDarkMode
+                      ? "bg-gm-navy border-slate-800 text-white"
+                      : "bg-white border-slate-200 text-slate-800"
                   }`}
                 />
               </View>
 
               <View>
-                <Text className="text-slate-400 text-[10px] uppercase tracking-[0.2em] font-black mb-2 ml-1">
+                <Text
+                  className={`text-[10px] uppercase tracking-[0.2em] font-oswald-semibold mb-2 ml-1 ${isDarkMode ? "text-gm-gold" : "text-slate-400"}`}
+                >
                   Detailed Description
                 </Text>
                 <TextInput
@@ -183,8 +245,10 @@ export default function ResolutionCenter() {
                   multiline
                   numberOfLines={6}
                   textAlignVertical="top"
-                  className={`p-5 rounded-[30px] border text-slate-800 min-h-[180px] font-medium ${
-                    isDarkMode ? "bg-slate-900 border-slate-800 text-white" : "bg-white border-slate-200"
+                  className={`p-5 rounded-[40px] border text-base min-h-[180px] font-medium ${
+                    isDarkMode
+                      ? "bg-gm-navy border-slate-800 text-white"
+                      : "bg-white border-slate-200 text-slate-800"
                   }`}
                 />
               </View>
@@ -192,14 +256,18 @@ export default function ResolutionCenter() {
               <TouchableOpacity
                 onPress={handleSubmit}
                 disabled={loading}
-                className={`flex-row p-5 rounded-[25px] mt-2 items-center justify-center shadow-lg ${
+                className={`flex-row p-5 rounded-3xl mt-2 items-center justify-center border shadow-sm ${
                   loading
-                    ? "bg-slate-300 shadow-none"
-                    : "bg-indigo-600 shadow-indigo-200"
+                    ? isDarkMode
+                      ? "bg-gm-navy border-slate-800"
+                      : "bg-slate-300"
+                    : isDarkMode
+                      ? "bg-gm-charcoal border-gm-gold"
+                      : "bg-slate-900 border-transparent"
                 }`}
               >
                 {loading ? (
-                  <ActivityIndicator color="white" />
+                  <ActivityIndicator color={isDarkMode ? "#D4AF37" : "white"} />
                 ) : (
                   <>
                     <Text className="text-white font-black text-lg mr-2">
@@ -212,58 +280,87 @@ export default function ResolutionCenter() {
               <View className="h-10" />
             </View>
           </ScrollView>
+        ) : selectedEstateId ? (
+          <View className="flex-1">
+            <ReportsHistory estate_id={selectedEstateId} />
+          </View>
         ) : (
-          /* Guard check prevents loading history template queries matching null props */
-          selectedEstateId ? (
-            <View className="flex-1">
-              <ReportsHistory estate_id={selectedEstateId} />
-            </View>
-          ) : (
-            <View className="flex-1 items-center justify-center p-5">
-              <Text className="text-slate-400 font-bold">Please select an estate context</Text>
-            </View>
-          )
+          <View className="flex-1 items-center justify-center p-5">
+            <Text className="text-slate-400 font-bold">
+              Please select an estate context
+            </Text>
+          </View>
         )}
       </KeyboardAvoidingView>
 
       {/* Slide-Up Estate Workspace Picker Sheet */}
-      <Modal visible={estatePickerVisible} animationType="slide" transparent={true}>
+      <Modal
+        visible={estatePickerVisible}
+        animationType="slide"
+        transparent={true}
+      >
         <View className="flex-1 justify-end bg-black/50">
-          <View className={`${isDarkMode ? "bg-slate-900" : "bg-white"} rounded-t-[2.5rem] p-6 max-h-[60%]`}>
+          <View
+            className={`${isDarkMode ? "bg-slate-900 border-t border-gm-gold" : "bg-white"} rounded-t-[2.5rem] p-6 max-h-[60%]`}
+          >
             <View className="w-12 h-1 bg-slate-300 rounded-full self-center mb-6 mx-auto" />
-            <Text className={`text-xl font-bold mb-4 ${isDarkMode ? "text-white" : "text-slate-900"}`}>
+            <Text
+              className={`text-xl font-bold mb-4 ${isDarkMode ? "text-gm-gold" : "text-slate-900"}`}
+            >
               Select Active Property Context
             </Text>
             <FlatList
               data={user?.estates || []}
               keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  onPress={() => {
-                    setSelectedEstateId(item.id);
-                    setEstatePickerVisible(false);
-                  }}
-                  className={`p-4 rounded-2xl mb-3 border flex-row items-center ${
-                    selectedEstateId === item.id
-                      ? "border-indigo-500 bg-indigo-50/40"
-                      : isDarkMode ? "border-slate-800 bg-slate-800/40" : "border-slate-100 bg-slate-50"
-                  }`}
-                >
-                  <MapPin size={20} color={selectedEstateId === item.id ? "#4f46e5" : "#94a3b8"} />
-                  <View className="ml-3 flex-1">
-                    <Text className={`font-bold text-sm ${isDarkMode ? "text-white" : "text-slate-800"}`}>
-                      {item.name}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              )}
+              renderItem={({ item }) => {
+                const isSelected = selectedEstateId === item.id;
+                return (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setSelectedEstateId(item.id);
+                      setEstatePickerVisible(false);
+                    }}
+                    className={`p-4 rounded-2xl mb-3 border flex-row items-center ${
+                      isSelected
+                        ? isDarkMode
+                          ? "border-gm-gold bg-gm-navy"
+                          : "border-indigo-500 bg-indigo-50/40"
+                        : isDarkMode
+                          ? "border-slate-800 bg-slate-800/40"
+                          : "border-slate-100 bg-slate-50"
+                    }`}
+                  >
+                    <MapPin
+                      size={20}
+                      color={
+                        isSelected
+                          ? isDarkMode
+                            ? "#D4AF37"
+                            : "#4f46e5"
+                          : "#94a3b8"
+                      }
+                    />
+                    <View className="ml-3 flex-1">
+                      <Text
+                        className={`font-bold text-sm ${isSelected && isDarkMode ? "text-gm-gold" : isDarkMode ? "text-white" : "text-slate-800"}`}
+                      >
+                        {item.name}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              }}
             />
             {selectedEstateId && (
               <TouchableOpacity
                 onPress={() => setEstatePickerVisible(false)}
-                className="mt-2 p-4 bg-slate-200 rounded-2xl items-center"
+                className={`mt-2 p-4 rounded-2xl items-center ${isDarkMode ? "bg-gm-charcoal border border-slate-800" : "bg-slate-200"}`}
               >
-                <Text className="text-slate-700 font-bold">Cancel</Text>
+                <Text
+                  className={`font-bold ${isDarkMode ? "text-slate-300" : "text-slate-700"}`}
+                >
+                  Cancel
+                </Text>
               </TouchableOpacity>
             )}
           </View>

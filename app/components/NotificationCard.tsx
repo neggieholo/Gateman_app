@@ -17,7 +17,7 @@ interface Props {
 }
 
 export default function NotificationCard({ item }: Props) {
-  const { user } = useUser();
+  const { user, isDarkMode } = useUser();
 
   // 📍 Dynamically resolve the estate name by matching layout ids safely
   const resolvedEstateName = React.useMemo(() => {
@@ -40,7 +40,7 @@ export default function NotificationCard({ item }: Props) {
       case "entry":
         return { color: "#10b981", icon: CheckCircle, label: "Entry Alert" };
       case "invite":
-        return { color: "#3b82f6", icon: Bell, label: "Guest Invite" };
+        return { color: isDarkMode ? "#D4AF37" : "#3b82f6", icon: Bell, label: "Guest Invite" };
       case "announcement":
         return { color: "#6366f1", icon: Megaphone, label: "Announcement" };
       default:
@@ -58,7 +58,9 @@ export default function NotificationCard({ item }: Props) {
 
   return (
     <View
-      className="bg-white mx-4 my-2 p-5 rounded-3xl shadow-sm border-l-8"
+      className={`mx-4 my-2 p-5 rounded-3xl shadow-sm border-l-8 ${
+        isDarkMode ? "bg-gm-navy border-slate-800" : "bg-white border-transparent"
+      }`}
       style={{ borderLeftColor: theme.color }}
     >
       <View className="flex-row justify-between items-center mb-2">
@@ -75,7 +77,7 @@ export default function NotificationCard({ item }: Props) {
         </View>
 
         <View className="flex-row items-center">
-          <Clock size={12} color="#94a3b8" style={{ marginRight: 4 }} />
+          <Clock size={12} color={isDarkMode ? "#64748b" : "#94a3b8"} style={{ marginRight: 4 }} />
           <Text className="text-gray-400 text-[10px]">
             {formatDate(item.created_at)}
           </Text>
@@ -84,25 +86,27 @@ export default function NotificationCard({ item }: Props) {
 
       {/* 📍 Condition: Only display the location badge context if layout resolves perfectly */}
       {resolvedEstateName && (
-        <View className="flex-row items-center mt-1 mb-2 bg-slate-50 border border-slate-100 self-start px-2.5 py-1 rounded-md">
-          <MapPin size={11} color="#4f46e5" />
-          <Text className="text-indigo-900 font-black tracking-wide uppercase text-[9px] ml-1">
+        <View className={`flex-row items-center mt-1 mb-2 border self-start px-2.5 py-1 rounded-md ${
+          isDarkMode ? "bg-slate-900/40 border-slate-800" : "bg-slate-50 border-slate-100"
+        }`}>
+          <MapPin size={11} color={isDarkMode ? "#D4AF37" : "#4f46e5"} />
+          <Text className={`font-black tracking-wide uppercase text-[9px] ml-1 ${isDarkMode ? "text-gm-gold" : "text-indigo-900"}`}>
             {resolvedEstateName}
           </Text>
         </View>
       )}
 
-      <Text className="text-lg font-bold text-gray-800 mb-1 leading-6">
+      <Text className={`text-lg font-bold mb-1 leading-6 ${isDarkMode ? "text-white" : "text-gray-800"}`}>
         {item.title}
       </Text>
 
-      <View className="mt-2 p-3 rounded-xl flex-row items-start bg-gray-50">
+      <View className={`mt-2 p-3 rounded-xl flex-row items-start ${isDarkMode ? "bg-slate-950" : "bg-gray-50"}`}>
         <Info
           size={16}
-          color="#94a3b8"
+          color={isDarkMode ? "#475569" : "#94a3b8"}
           style={{ marginTop: 2, marginRight: 8 }}
         />
-        <Text className="text-gray-600 text-sm flex-1 leading-5">
+        <Text className={`text-sm flex-1 leading-5 ${isDarkMode ? "text-slate-300" : "text-gray-600"}`}>
           {item.message}
         </Text>
       </View>

@@ -17,6 +17,7 @@ interface ServiceItemProps {
   icon: React.ElementType;
   color: string;
   onPress: () => void;
+  isDarkMode: boolean;
 }
 
 const ServiceListItem: React.FC<ServiceItemProps> = ({
@@ -25,11 +26,12 @@ const ServiceListItem: React.FC<ServiceItemProps> = ({
   icon: Icon,
   color,
   onPress,
+  isDarkMode
 }) => (
   <TouchableOpacity
     onPress={onPress}
     activeOpacity={0.7}
-    className="flex-row items-center justify-between p-5 bg-white rounded-3xl mb-3 shadow-sm border border-slate-100"
+    className={`flex-row items-center justify-between p-5 ${isDarkMode ? 'bg-gm-navy border-gm-gold':'bg-white border-slate-100' } rounded-3xl mb-3 shadow-sm border`}
   >
     <View className="flex-row items-center flex-1">
       <View
@@ -39,8 +41,8 @@ const ServiceListItem: React.FC<ServiceItemProps> = ({
         <Icon size={22} color={color} />
       </View>
       <View>
-        <Text className="text-slate-900 font-bold text-base">{title}</Text>
-        <Text className="text-slate-500 text-xs">{subtitle}</Text>
+        <Text className={`${isDarkMode ? 'text-gm-gold':'text-gm-navy'} font-oswald-semibold text-base`}>{title}</Text>
+        <Text className={`${isDarkMode ? 'text-slate-400':'text-slate-500 '} font-roboto-regular text-xs`}>{subtitle}</Text>
       </View>
     </View>
     <ChevronRight size={18} color="#cbd5e1" />
@@ -63,7 +65,7 @@ export default function EstateServicesScreen() {
           <Text
             className={`text-xl font-bold ${isDarkMode ? "text-white" : "text-gm-navy"} mt-4 text-center`}
           >
-            Security Access Restricted
+            Access Restricted
           </Text>
           <Text
             className={`text-sm ${isDarkMode ? "text-slate-400" : "text-gray-500"} mt-2 text-center px-4 max-w-[280px]`}
@@ -83,14 +85,13 @@ export default function EstateServicesScreen() {
   }
 
   return (
-    <View className="flex-1 bg-slate-50">
+    <View className={`flex-1 ${isDarkMode ? "bg-slate-950" : "bg-gray-50 "}`}>
       <ScrollView
         className="flex-1 px-4 mt-5"
         showsVerticalScrollIndicator={false}
       >
         <View className="mb-6">
-          <Text className="text-3xl font-black text-slate-900">Services</Text>
-          <Text className="text-slate-500 font-bold">
+          <Text className={`${isDarkMode ? 'text-gray-300':'text-slate-500 '} font-oswald-semibold`}>
             Utilities, payments, and security info
           </Text>
         </View>
@@ -100,10 +101,11 @@ export default function EstateServicesScreen() {
           title="Utility & Dues"
           subtitle="Redirect to estate payment portal"
           icon={Zap}
-          color="#4f46e5" // Indigo 600
+          color="#6366f1"
           onPress={() => {
             router.push("/UtilityPayment" as any);
           }}
+          isDarkMode={isDarkMode}
         />
 
         <ServiceListItem
@@ -114,6 +116,7 @@ export default function EstateServicesScreen() {
           onPress={() => {
             router.push("/PaymentHistory" as any);
           }}
+          isDarkMode={isDarkMode}
         />
 
         {/* SECURITY - Emerald/Green */}
@@ -125,6 +128,7 @@ export default function EstateServicesScreen() {
           onPress={() => {
             router.push("/SecurityPersonnels" as any);
           }}
+          isDarkMode={isDarkMode}
         />
 
         {/* SUPPORT & HELP - Amber/Orange */}
@@ -136,6 +140,7 @@ export default function EstateServicesScreen() {
           onPress={() => {
             router.push("/ResolutionCenter" as any);
           }}
+          isDarkMode={isDarkMode}
         />
 
         {/* EMERGENCY - Rose/Red */}
@@ -147,6 +152,7 @@ export default function EstateServicesScreen() {
           onPress={() => {
             router.push("/EmergencyContactsPage" as any);
           }}
+          isDarkMode={isDarkMode}
         />
 
         <View className="h-20" />

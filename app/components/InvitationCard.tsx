@@ -45,7 +45,7 @@ export const InvitationCard = ({
 
   return (
     /* We keep it contained for the capture layout */
-    <View className="my-4 items-center">
+    <View className="my-4 items-center" style={{ position: "absolute", left: -1000, top: -1000 }}>
       <ViewShot ref={viewShotRef} options={{ format: "png", quality: 1 }}>
         <View
           className="bg-white p-8 rounded-[50px] border-[6px] border-[#D4AF37] relative overflow-hidden"

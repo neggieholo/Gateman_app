@@ -780,6 +780,9 @@ export const submitEstateReport = async (payload: SubmitReportPayload) => {
 export const getMyReports = async (estate_id: string) => {
   try {
     const res = await fetch(`${BASE_URL}/security/my-reports`, {
+      headers: {
+        "Content-Type": "application/json",
+      },
       method: "POST",
       body: JSON.stringify({ estate_id }),
     });
@@ -799,8 +802,12 @@ export const deleteReport = async (id: string) => {
 export const getEstatePaymentSettings = async (
   id: string,
 ): Promise<PaymentSettingsResponse> => {
+  // console.log('Payment settings ID:', id)
   try {
     const res = await fetch(`${BASE_URL}/admin/payment-settings`, {
+      headers: {
+        "Content-Type": "application/json",
+      },
       method: "POST",
       body: JSON.stringify({ id }),
       credentials: "include",
@@ -854,6 +861,9 @@ export const getPaymentHistory = async (
     console.log("History dates:", query);
     const res = await fetch(`${BASE_URL}/payment/history${query}`, {
       method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({ id }),
       credentials: "include",
     });
