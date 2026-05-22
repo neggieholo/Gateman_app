@@ -308,33 +308,6 @@ export default function AllEventsScreen() {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-              <TouchableOpacity
-                className="p-5 border-b border-slate-800/20 flex-row items-center justify-between"
-                onPress={() => {
-                  setSelectedEstateId(null);
-                  setShowEstateFilterModal(false);
-                }}
-              >
-                <Text
-                  className={`font-bold text-base ${
-                    selectedEstateId === null
-                      ? isDarkMode
-                        ? "text-gm-gold"
-                        : "text-indigo-600"
-                      : isDarkMode
-                        ? "text-slate-400"
-                        : "text-slate-700"
-                  }`}
-                >
-                  Current Estate
-                </Text>
-                {selectedEstateId === null && (
-                  <View
-                    className={`w-2 h-2 rounded-full ${isDarkMode ? "bg-gm-gold" : "bg-indigo-600"}`}
-                  />
-                )}
-              </TouchableOpacity>
-
               {(user?.estates || []).map((estate) => {
                 const isSelected = selectedEstateId === estate.id.toString();
                 return (

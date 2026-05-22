@@ -23,6 +23,11 @@ export interface Apartment {
   walletBalance: number;
 }
 
+export interface ChatSettings {
+  read_receipts: boolean;
+  visible: boolean;
+}
+
 export interface EstateProfile {
   id: string;
   name: string;
@@ -63,6 +68,7 @@ export interface User {
 
   estates: EstateProfile[];
   sub_users: string[];
+  parent_account_id: string;
 
   wallet_balance?: string | number;
   avatar?: string | null;
@@ -74,6 +80,7 @@ export interface User {
   chatToken?: string;
   push_token?: string;
   last_notification_read_at: string;
+  chat_settings: ChatSettings;
 }
 
 export interface KYCSelection {
@@ -141,6 +148,7 @@ export interface IFileMessage extends IMessage {
     type: string;
   };
   pending?: boolean;
+  receivedByServer?: boolean;
   isDeleted?: boolean;
 }
 
@@ -310,6 +318,7 @@ export interface EstateEvent {
   ticket_price: string; // Decimal comes as string from Postgres
   subaccount_id: string | null;
   ref_code: string;
+  booked_dates: string[];
 
   is_approved: boolean;
   is_rejected: boolean;
@@ -342,7 +351,7 @@ export interface CreateEventRequest {
   end_date: string;
   start_time: string;
   end_time: string;
-  venue_detail?: string;
+  venue_detail?: number;
   expected_guests: number;
   registered_guests?: number;
   is_paid: boolean;
@@ -350,6 +359,7 @@ export interface CreateEventRequest {
   bank_code: string;
   bank_name?: string; // Temporary fields used for subaccount creation
   account_number?: string;
+  booked_dates_list: string[];
 }
 
 /**
@@ -407,4 +417,22 @@ export interface DashboardStats {
     likes_on_my_posts: number;
     comments_on_my_posts: number;
   };
+}
+
+
+export interface EstateLocation {
+  id: number;
+  estate_id: string;
+  name: string;
+  location_in_estate: string | null;
+  permitted_days: number[];
+  event_booked_on: Record<
+    string,
+    {
+      event_banner_url: string;
+      dates: string[];
+    }
+  >;
+  capacity?: number;
+  created_at: string;
 }

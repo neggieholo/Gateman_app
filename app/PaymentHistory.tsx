@@ -2,9 +2,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
 import {
   Calendar,
-  CheckCircle,
   ChevronDown,
-  Clock,
   FileText,
   History,
   MapPin,
@@ -338,23 +336,6 @@ const PaymentHistory = () => {
     ]);
   };
 
-  if (!selectedEstateId && user?.estate_ids && user.estate_ids.length > 1) {
-    return (
-      <View
-        className={`flex-1 justify-center items-center p-6 ${isDarkMode ? "bg-slate-950" : "bg-slate-50"}`}
-      >
-        <TouchableOpacity
-          onPress={() => setEstatePickerVisible(true)}
-          className="bg-slate-900 px-8 py-4 rounded-3xl border border-gm-gold shadow-sm"
-        >
-          <Text className="text-white font-black text-base">
-            Select An Estate to Continue
-          </Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
   return (
     <SafeAreaView
       className={`flex-1 ${isDarkMode ? "bg-slate-950" : "bg-slate-50"}`}
@@ -484,7 +465,7 @@ const PaymentHistory = () => {
 
                   {/* Method Selector */}
                   <View
-                    className={`p-4 rounded-3xl ${isDarkMode ? "bg-gm-navy border border-slate-800" : "border border-slate-100 bg-slate-50"}`}
+                    className={`p-4 rounded-3xl mb-2 ${isDarkMode ? "bg-gm-navy border border-slate-800" : "border border-slate-100 bg-slate-50"}`}
                   >
                     <Text
                       className={`text-[10px] font-oswald-semibold uppercase mb-2 ${isDarkMode ? "text-gm-gold" : "text-slate-400"}`}
@@ -557,7 +538,7 @@ const PaymentHistory = () => {
 
                   {/* Date Input Box */}
                   <View
-                    className={`p-4 rounded-3xl ${isDarkMode ? "bg-gm-navy border border-slate-800" : "border border-slate-100 bg-slate-50"}`}
+                    className={`p-4 rounded-3xl mb-2 ${isDarkMode ? "bg-gm-navy border border-slate-800" : "border border-slate-100 bg-slate-50"}`}
                   >
                     <Text
                       className={`text-[10px] font-oswald-semibold uppercase mb-1.5 ${isDarkMode ? "text-gm-gold" : "text-slate-400"}`}
@@ -566,7 +547,7 @@ const PaymentHistory = () => {
                     </Text>
                     <TouchableOpacity
                       onPress={() => setShowDatePicker("form")}
-                      className={`p-4 rounded-2xl ${isDarkMode ? "bg-gm-charcoal border border-slate-800" : "bg-white border-slate-100"}`}
+                      className={`p-4 rounded-2xl ${isDarkMode ? "bg-gm-navy border border-slate-800" : "bg-white border-slate-100"}`}
                     >
                       <Text
                         className={`${isDarkMode ? "text-white" : "text-gm-navy"} font-roboto-regular text-sm`}
@@ -583,7 +564,7 @@ const PaymentHistory = () => {
                     multiline
                     numberOfLines={4}
                     textAlignVertical="top"
-                    className={`h-32 text-base font-bold p-4 ${isDarkMode ? "text-white" : "text-slate-800"}`}
+                    className={`h-32 text-base font-bold p-4 ${isDarkMode ? "text-white border border-slate-800" : "text-slate-800"}`}
                     value={form.notes}
                     onChangeText={(v: string) => setForm({ ...form, notes: v })}
                     isDarkMode={isDarkMode}
@@ -748,7 +729,7 @@ const PaymentHistory = () => {
                   ))
                 ) : (
                   <Text className="text-center text-slate-400 mt-10 font-medium">
-                    No records found for this estate context.
+                    No records found for this estate.
                   </Text>
                 )}
               </ScrollView>
@@ -818,11 +799,10 @@ const PaymentHistory = () => {
           animationType="slide"
           transparent={true}
         >
-          <View className="flex-1 justify-end bg-black/50">
+          <View className="flex-1 justify-center px-4 bg-black/50">
             <View
-              className={`${isDarkMode ? "bg-slate-900 border-t border-gm-gold" : "bg-white"} rounded-t-[2.5rem] p-6 max-h-[60%]`}
+              className={`${isDarkMode ? "bg-slate-900" : "bg-white"} p-6 max-h-[65%]`}
             >
-              <View className="w-12 h-1 bg-slate-300 rounded-full align-self-center mb-6 mx-auto" />
               <Text
                 className={`text-xl font-bold mb-4 ${isDarkMode ? "text-gm-gold" : "text-slate-900"}`}
               >
@@ -870,18 +850,12 @@ const PaymentHistory = () => {
                   );
                 }}
               />
-              {selectedEstateId && (
-                <TouchableOpacity
-                  onPress={() => setEstatePickerVisible(false)}
-                  className={`mt-2 p-4 rounded-2xl items-center ${isDarkMode ? "bg-gm-charcoal border border-slate-800" : "bg-slate-200"}`}
-                >
-                  <Text
-                    className={`font-bold ${isDarkMode ? "text-slate-300" : "text-slate-700"}`}
-                  >
-                    Cancel
-                  </Text>
-                </TouchableOpacity>
-              )}
+              <TouchableOpacity
+                onPress={() => setEstatePickerVisible(false)}
+                className="mt-2 p-4 bg-slate-200 rounded-2xl items-center"
+              >
+                <Text className="text-slate-700 font-bold">Cancel</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </Modal>

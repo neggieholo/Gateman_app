@@ -13,7 +13,7 @@ import {
   Settings,
   X,
 } from "lucide-react-native";
-import { Image, Text, TouchableOpacity, View } from "react-native";
+import { Alert, Image, Text, TouchableOpacity, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { postLogout } from "../services/api";
 import { useState } from "react";
@@ -23,33 +23,29 @@ function CustomDrawerContent(props: any) {
   const [loggingOut, setLoggingOut] = useState(false);
   const router = useRouter();
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
+    Alert.alert("Logout", "Are you sure you want to end your session?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Logout", style: "destructive", onPress: () => logOut() },
+    ]);
+  };
+  const logOut = async () => {
     setLoggingOut(true);
     try {
-      if (socket) {
-        console.log("🔌 Disconnecting socket...");
-        socket.disconnect(); 
-      }
-
-      if (auth().currentUser) {
-        await auth().signOut();
-        console.log("Firebase signed out");
-      }
-
+      if (socket) socket.disconnect();
+      if (auth().currentUser) await auth().signOut();
       try {
-        await postLogout(); // This hits your /api/logout route
-        console.log("🖥️ Backend session destroyed");
+        await postLogout();
       } catch (apiErr) {
-        console.warn("Backend logout failed, clearing cookies anyway", apiErr);
+        console.warn("Backend logout failed", apiErr);
       }
       await CookieManager.clearAll();
-
-      if (setSessionId) {
-        setSessionId("");
-      }
-      setUser(null);
-
       router.replace("/");
+
+      setTimeout(() => {
+        if (setSessionId) setSessionId("");
+        setUser(null);
+      }, 100);
     } catch (e) {
       console.error("Logout failed", e);
     } finally {

@@ -132,11 +132,10 @@ const EmergencyContactsPage = () => {
 
       {/* Slide-Up Context Picker Sheet */}
       <Modal visible={estatePickerVisible} animationType="slide" transparent={true}>
-        <View className="flex-1 justify-end bg-black/50">
-          <View className={`${isDarkMode ? "bg-slate-900" : "bg-white"} rounded-t-[2.5rem] p-6 max-h-[60%]`}>
-            <View className="w-12 h-1 bg-slate-300 rounded-full self-center mb-6 mx-auto" />
+        <View className="flex-1 justify-center px-4 bg-black/50">
+          <View className={`${isDarkMode ? "bg-slate-900" : "bg-white"} p-6 max-h-[60%]`}>
             <Text className={`text-xl font-bold mb-4 ${isDarkMode ? "text-white" : "text-slate-900"}`}>
-              Select Active Property Context
+              Select Active Estate
             </Text>
             <FlatList
               data={user?.estates || []}

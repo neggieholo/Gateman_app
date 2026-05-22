@@ -42,7 +42,7 @@ export default function UtilityPaymentRouter() {
       setSelectedEstateId(singleId);
       fetchPaymentInfo(singleId);
     } else {
-      // Multiple Estates: Open context modal picker dynamically
+      setLoading(false);
       setEstatePickerVisible(true);
     }
   }, [user?.estate_ids]);
@@ -120,22 +120,22 @@ export default function UtilityPaymentRouter() {
       </View>
     );
 
-  if (!selectedEstateId && user?.estate_ids && user.estate_ids.length > 1) {
-    return (
-      <View
-        className={`flex-1 justify-center items-center p-6 ${isDarkMode ? "bg-slate-950" : "bg-slate-50"}`}
-      >
-        <TouchableOpacity
-          onPress={() => setEstatePickerVisible(true)}
-          className="bg-gm-navy px-8 py-4 rounded-3xl shadow-sm"
-        >
-          <Text className="text-white font-black text-base">
-            Select An Estate to Continue
-          </Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+  // if (!selectedEstateId && user?.estate_ids && user.estate_ids.length > 1) {
+  //   return (
+  //     <View
+  //       className={`flex-1 justify-center items-center p-6 ${isDarkMode ? "bg-slate-950" : "bg-slate-50"}`}
+  //     >
+  //       <TouchableOpacity
+  //         onPress={() => setEstatePickerVisible(true)}
+  //         className="bg-gm-navy px-8 py-4 rounded-3xl shadow-sm"
+  //       >
+  //         <Text className="text-white font-black text-base">
+  //           Select An Estate to Continue
+  //         </Text>
+  //       </TouchableOpacity>
+  //     </View>
+  //   );
+  // }
 
   return (
     <ScrollView
@@ -259,15 +259,14 @@ export default function UtilityPaymentRouter() {
         animationType="slide"
         transparent={true}
       >
-        <View className="flex-1 justify-end bg-black/50">
+        <View className="flex-1 justify-center px-4 bg-black/50">
           <View
-            className={`${isDarkMode ? "bg-slate-900" : "bg-white"} rounded-t-[2.5rem] p-6 max-h-[60%]`}
+            className={`${isDarkMode ? "bg-slate-900" : "bg-white"} p-6 max-h-[65%]`}
           >
-            <View className="w-12 h-1 bg-slate-300 rounded-full align-self-center mb-6 mx-auto" />
             <Text
               className={`text-xl font-bold mb-4 ${isDarkMode ? "text-white" : "text-gm-navy"}`}
             >
-              Select Property Estate Context
+              Select Estate
             </Text>
 
             <FlatList
@@ -298,14 +297,12 @@ export default function UtilityPaymentRouter() {
                 </TouchableOpacity>
               )}
             />
-            {selectedEstateId && (
-              <TouchableOpacity
+            <TouchableOpacity
                 onPress={() => setEstatePickerVisible(false)}
                 className="mt-2 p-4 bg-slate-200 rounded-2xl items-center"
               >
                 <Text className="text-slate-700 font-bold">Cancel</Text>
               </TouchableOpacity>
-            )}
           </View>
         </View>
       </Modal>

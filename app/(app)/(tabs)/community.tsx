@@ -701,15 +701,14 @@ export default function Community() {
         animationType="slide"
         transparent={true}
       >
-        <View className="flex-1 justify-end bg-black/50">
+        <View className="flex-1 justify-center bg-black/50 px-4">
           <View
-            className={`${isDarkMode ? "bg-slate-900" : "bg-white"} rounded-t-[2.5rem] p-6 max-h-[60%]`}
+            className={`${isDarkMode ? "bg-slate-900" : "bg-white"} p-6 max-h-[65%]`}
           >
-            <View className="w-12 h-1 bg-slate-300 rounded-full self-center mb-6 mx-auto" />
             <Text
               className={`text-xl font-bold mb-4 ${isDarkMode ? "text-white" : "text-slate-900"}`}
             >
-              Select Active Property Context
+              Select Active Estate
             </Text>
             <FlatList
               data={user?.estates || []}

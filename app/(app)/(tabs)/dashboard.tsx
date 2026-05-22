@@ -143,6 +143,7 @@ export default function Dashboard() {
   const mainEvent = hasEvents ? stats.events[0] : null;
   const extraEventsCount = hasEvents ? stats.events.length - 1 : 0;
   const hasNoEstates = !user?.estate_ids || user.estate_ids.length === 0;
+  
 
   if (hasNoEstates) {
     return (
@@ -458,17 +459,15 @@ export default function Dashboard() {
         </View>
       </ScrollView>
 
-      {/* Slide-Up Property Sheets Modal Selection Area */}
       <Modal
         visible={estatePickerVisible}
         animationType="slide"
         transparent={true}
       >
-        <View className="flex-1 justify-end bg-black/50">
+        <View className="flex-1 justify-center bg-black/50 px-4">
           <View
-            className={`${isDarkMode ? "bg-slate-900" : "bg-white"} rounded-t-[2.5rem] p-6 max-h-[60%]`}
+            className={`${isDarkMode ? "bg-slate-900" : "bg-white"} p-6 max-h-[60%]`}
           >
-            <View className="w-12 h-1 bg-slate-300 rounded-full self-center mb-6 mx-auto" />
             <Text
               className={`text-xl font-bold mb-4 ${isDarkMode ? "text-white" : "text-slate-900"}`}
             >

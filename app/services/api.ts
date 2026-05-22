@@ -10,6 +10,7 @@ import {
   EmergencyContact,
   Estate,
   EstateEvent,
+  EstateLocation,
   FetchNotificationsResponse,
   Invitation,
   PaymentSettingsResponse,
@@ -397,6 +398,7 @@ export default async function registerForPushNotificationsAsync() {
 export const fetchAllTenants = async (estate_id: string) => {
   const res = await fetch(`${BASE_URL}/admin/tenant/tenants`, {
     method: "POST",
+    headers: { "Content-type": "application/json" },
     body: JSON.stringify({ estate_id }),
     credentials: "include",
   });
@@ -521,6 +523,72 @@ export const notifyGroupPush = async (data: any) => {
     });
   } catch (e) {
     console.warn("Group push trigger failed", e);
+  }
+};
+
+export const createSubUser = async (payload: object) => {
+  try {
+    const res = await fetch(`${BASE_URL}/resident/create-subuser`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      return {
+        success: false,
+        message: data.error || "Failed to provision sub-account registration.",
+      };
+    }
+
+    return { success: true, ...data };
+  } catch (err) {
+    console.log("Create Sub-User Network Error:", err);
+    return {
+      success: false,
+      message: "Network connection failed. Check server log routes.",
+    };
+  }
+};
+
+export const deleteSubUser = async (subUserId: string) => {
+  try {
+    const res = await fetch(
+      `${BASE_URL}/resident/delete-subuser/${subUserId}`,
+      {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      },
+    );
+    const data = await res.json();
+    return data;
+  } catch (err) {
+    console.error("Delete Sub-User Network Error:", err);
+    return { success: false, message: "Network connectivity error." };
+  }
+};
+
+export const leaveEstate = async (estateId: string) => {
+  try {
+    const res = await fetch(
+      `${process.env.EXPO_PUBLIC_BASE_URL}/api/resident/leave-estate/${estateId}`,
+      {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      },
+    );
+    const data = await res.json();
+    return data;
+  } catch (err) {
+    console.error("Leave Estate Network Error:", err);
+    return { success: false, message: "Network connectivity error." };
   }
 };
 
@@ -754,6 +822,7 @@ export const getSecurityColleagues = async (estate_id: string) => {
   try {
     const res = await fetch(`${BASE_URL}/security/tenant/all`, {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ estate_id }),
       credentials: "include",
     });
@@ -898,6 +967,7 @@ export const getEmergencyContacts = async (
   try {
     const res = await fetch(`${BASE_URL}/admin/emergency-contacts`, {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ estate_id }),
       credentials: "include",
     });
@@ -931,13 +1001,24 @@ export const createEvent = async (
   return data.event;
 };
 
+export const toggleChatsReadReceipts = async (val: boolean) => {
+  console.log("Read receipts val:", val);
+  const response = await fetch(`${BASE_URL}/resident/chat-settings`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ read_receipts: val }),
+  });
+  const data = await handleResponse(response);
+  return data;
+};
+
 export const getOrganizerEvents = async (
   estate_id: string,
 ): Promise<EstateEvent[]> => {
   // console.log("Fetching events for:", estate_id)
   const response = await fetch(`${BASE_URL}/event/organizer/all`, {
     method: "POST",
-    headers: { "Content-type": "application/json" },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ estate_id }),
   });
   return await handleResponse(response);
@@ -998,11 +1079,21 @@ export const getEventDateLabel = (dateString: string): string => {
   const todayDate = new Date(todayStr);
   const targetDate = new Date(dateString);
 
-  // Calculate difference in days cleanly
   const diffTime = targetDate.getTime() - todayDate.getTime();
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
   if (diffDays === 1) return "1 day left";
   if (diffDays > 1) return `${diffDays} days left`;
-  return dateString; // Fallback to raw string if it's somehow in the past
+  return dateString;
+};
+
+export const getAllLocations = async (
+  estate_id: string,
+): Promise<EstateLocation[]> => {
+  const response = await fetch(`${BASE_URL}/event/locations/tenant/all`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ estate_id }),
+  });
+  return await handleResponse(response);
 };

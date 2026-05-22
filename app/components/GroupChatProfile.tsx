@@ -21,6 +21,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useUser } from "../UserContext";
 import { GroupUserProfileModal } from "./ChatProfile";
 import { AddMembersModal } from "./CreateChatGroupModal";
 
@@ -43,6 +44,7 @@ const GroupProfileModal = ({
   estateId,
   setSelectedTenant,
 }: GroupProfileProps) => {
+  const { isDarkMode } = useUser();
   const [isAddingMembers, setIsAddingMembers] = useState(false);
   const [selectedParticipant, setSelectedParticipant] = useState<any>(null);
   const [isEditingName, setIsEditingName] = useState(false);
@@ -52,23 +54,17 @@ const GroupProfileModal = ({
     group.name?.length > 10 ? `${group.name.substring(0, 14)}...` : group.name;
   const [isShowingFullName, setIsShowingFullName] = useState<boolean>(false);
   const [memberSearchQuery, setMemberSearchQuery] = useState("");
+
   const filteredParticipants = useMemo(() => {
     const query = memberSearchQuery.toLowerCase().trim();
     const allMembers = group.members || [];
 
-    // If no search query, show everyone
     if (!query) return allMembers;
 
     return allMembers.filter((member: any) => {
-      // 1. Get the ID (handling both object and string formats)
       const memberId = member.user_id || member;
-
-      // 2. Find the actual resident data from the tenants prop
       const resident = tenants.find((t) => t.id?.toString() === memberId);
-
-      // 3. Only search the name
       const name = resident?.name?.toLowerCase() || "";
-
       return name.includes(query);
     });
   }, [group.members, tenants, memberSearchQuery]);
@@ -86,12 +82,10 @@ const GroupProfileModal = ({
       .collection("groups")
       .doc(group._id);
 
-    // FIX: Use a resolved date instead of the serverTimestamp sentinel
     const now = new Date();
-
     const newMemberObjects = newlySelectedIds.map((id) => ({
       user_id: id,
-      clearedAt: now, // This is now a concrete value Firestore can handle in an array
+      clearedAt: now,
     }));
 
     try {
@@ -144,7 +138,6 @@ const GroupProfileModal = ({
                 .collection("groups")
                 .doc(group._id);
 
-              // Finding the exact object to remove from the array
               const currentMemberObj = group.members.find(
                 (m: any) => (m.user_id || m) === targetId,
               );
@@ -182,11 +175,9 @@ const GroupProfileModal = ({
                 .collection("groups")
                 .doc(group._id);
 
-              // Note: In a production app, you'd also delete the 'messages' sub-collection
               await groupRef.delete();
-
-              onClose(); // Close modal
-              setSelectedTenant(null); // Close chat
+              onClose();
+              setSelectedTenant(null);
               Alert.alert("Success", "Group deleted.");
             } catch (err) {
               Alert.alert("Error", "Failed to delete group.");
@@ -199,7 +190,7 @@ const GroupProfileModal = ({
 
   const handleToggleAdmin = async (
     targetId: string,
-    targetName: string, // Added targetName for a better alert message
+    targetName: string,
     isCurrentlyAdmin: boolean,
   ) => {
     if (!isCreator) {
@@ -284,7 +275,7 @@ const GroupProfileModal = ({
       mediaTypes: "images",
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.7, // Compress a bit for mobile
+      quality: 0.7,
     });
 
     if (result.canceled) return;
@@ -315,7 +306,6 @@ const GroupProfileModal = ({
       const imageUrl = data.secure_url;
 
       await handleUpdateGroup("avatar", imageUrl);
-
       Alert.alert("Success", "Group avatar updated!");
     } catch (error) {
       console.error(error);
@@ -334,21 +324,32 @@ const GroupProfileModal = ({
         onRequestClose={onClose}
       >
         <View className="flex-1 bg-black/60 justify-end">
-          <View className="bg-white rounded-t-[40px] h-[90%] overflow-hidden">
-            <View className="flex-row justify-between items-center px-6 pt-6 pb-4 border-b border-gray-50">
+          <View
+            className={`rounded-t-[40px] h-[90%] overflow-hidden ${isDarkMode ? "bg-slate-900" : "bg-white"}`}
+          >
+            {/* Modal Header */}
+            <View
+              className={`flex-row justify-between items-center px-6 pt-6 pb-4 border-b ${
+                isDarkMode
+                  ? "bg-slate-950 border-slate-800"
+                  : "bg-white border-gray-50"
+              }`}
+            >
               <TouchableOpacity
                 onPress={onClose}
-                className="bg-gray-100 p-2 rounded-full"
+                className={`p-2 rounded-full ${isDarkMode ? "bg-slate-800" : "bg-gray-100"}`}
               >
-                <X size={24} color="#000" />
+                <X size={24} color={isDarkMode ? "#f8fafc" : "#000"} />
               </TouchableOpacity>
-              <Text className="text-lg font-bold text-gray-800">
+              <Text
+                className={`text-lg font-bold ${isDarkMode ? "text-slate-100" : "text-gray-800"}`}
+              >
                 Group Info
               </Text>
               {isCreator ? (
                 <TouchableOpacity
                   onPress={handleDeleteGroup}
-                  className="bg-red-50 p-2 rounded-full"
+                  className={`p-2 rounded-full ${isDarkMode ? "bg-red-950/40" : "bg-red-50"}`}
                 >
                   <Trash2 size={22} color="#ef4444" />
                 </TouchableOpacity>
@@ -358,13 +359,20 @@ const GroupProfileModal = ({
             </View>
 
             <View className="px-4">
+              {/* Profile Avatar & Info Block */}
               <View className="items-center mt-6 mb-8">
                 <TouchableOpacity
                   onPress={handleUpdateAvatar}
                   disabled={isUploading}
                   className="relative"
                 >
-                  <View className="w-32 h-32 rounded-full bg-indigo-100 items-center justify-center border-4 border-indigo-50 overflow-hidden">
+                  <View
+                    className={`w-32 h-32 rounded-full items-center justify-center border-4 overflow-hidden ${
+                      isDarkMode
+                        ? "bg-indigo-950/50 border-slate-800"
+                        : "bg-indigo-100 border-indigo-50"
+                    }`}
+                  >
                     {isUploading ? (
                       <ActivityIndicator color="#4f46e5" />
                     ) : group.avatar ? (
@@ -377,9 +385,12 @@ const GroupProfileModal = ({
                     )}
                   </View>
 
-                  {/* Camera Icon Overlay */}
                   {(isCreator || isAdmin) && (
-                    <View className="absolute bottom-1 right-1 bg-indigo-600 p-2 rounded-full border-4 border-white">
+                    <View
+                      className={`absolute bottom-1 right-1 bg-indigo-600 p-2 rounded-full border-4 ${
+                        isDarkMode ? "border-slate-900" : "border-white"
+                      }`}
+                    >
                       <Pencil size={14} color="white" />
                     </View>
                   )}
@@ -392,7 +403,7 @@ const GroupProfileModal = ({
                   >
                     <Text
                       numberOfLines={1}
-                      className="text-2xl font-black text-gray-900"
+                      className={`text-2xl font-black ${isDarkMode ? "text-slate-100" : "text-gray-900"}`}
                     >
                       {displayName}
                     </Text>
@@ -403,15 +414,22 @@ const GroupProfileModal = ({
                         setNewName(group.name);
                         setIsEditingName(true);
                       }}
-                      className="ml-2 bg-gray-100 p-1.5 rounded-full"
+                      className={`ml-2 p-1.5 rounded-full ${isDarkMode ? "bg-slate-800" : "bg-gray-100"}`}
                     >
-                      <Pencil size={14} color="#6b7280" />
+                      <Pencil
+                        size={14}
+                        color={isDarkMode ? "#94a3b8" : "#6b7280"}
+                      />
                     </TouchableOpacity>
                   )}
                 </View>
 
-                <View className="flex-row items-center mt-2 bg-gray-100 px-4 py-1.5 rounded-full">
-                  <Text className="text-gray-500 text-[10px] font-bold uppercase tracking-widest">
+                <View
+                  className={`flex-row items-center mt-2 px-4 py-1.5 rounded-full ${isDarkMode ? "bg-slate-950" : "bg-gray-100"}`}
+                >
+                  <Text
+                    className={`text-[10px] font-bold uppercase tracking-widest ${isDarkMode ? "text-slate-400" : "text-gray-500"}`}
+                  >
                     Created by{" "}
                     {isCreator
                       ? "You"
@@ -422,12 +440,21 @@ const GroupProfileModal = ({
                 </View>
               </View>
 
+              {/* Quick Counter Grid */}
               <View className="flex-row justify-between mb-8">
-                <View className="bg-gray-50 flex-1 rounded-2xl p-4 items-center mr-2 border border-gray-100">
+                <View
+                  className={`flex-1 rounded-2xl p-4 items-center mr-2 border ${
+                    isDarkMode
+                      ? "bg-slate-950 border-slate-800"
+                      : "bg-gray-50 border-gray-100"
+                  }`}
+                >
                   <Text className="text-indigo-600 font-black text-xl">
                     {group.members?.length || 0}
                   </Text>
-                  <Text className="text-gray-400 text-[10px] font-bold uppercase">
+                  <Text
+                    className={`text-[10px] font-bold uppercase ${isDarkMode ? "text-slate-500" : "text-gray-400"}`}
+                  >
                     Members
                   </Text>
                 </View>
@@ -445,31 +472,47 @@ const GroupProfileModal = ({
                 )}
               </View>
 
-              {/* Member List Header */}
+              {/* List Section Header */}
               <View className="mb-2 flex-row justify-between items-center">
-                <Text className="text-gray-900 font-black text-lg">
+                <Text
+                  className={`font-black text-lg ${isDarkMode ? "text-slate-100" : "text-gray-900"}`}
+                >
                   Participants
                 </Text>
               </View>
             </View>
+
+            {/* Inline Sub-Member Finder Bar */}
             <View className="px-6 mb-4">
-              <View className="flex-row items-center bg-gray-50 border border-gray-100 rounded-2xl px-3 py-1">
-                <Search size={18} color="#9ca3af" />
+              <View
+                className={`flex-row items-center border rounded-2xl px-3 py-1 ${
+                  isDarkMode
+                    ? "bg-slate-950 border-slate-800"
+                    : "bg-gray-50 border-gray-100"
+                }`}
+              >
+                <Search size={18} color={isDarkMode ? "#64748b" : "#9ca3af"} />
                 <TextInput
                   placeholder="Find a member..."
-                  className="flex-1 h-10 ml-2 text-gray-800 font-medium"
+                  className={`flex-1 h-10 ml-2 font-medium ${isDarkMode ? "text-slate-200" : "text-gray-800"}`}
                   value={memberSearchQuery}
                   onChangeText={setMemberSearchQuery}
                   autoCorrect={false}
+                  placeholderTextColor={isDarkMode ? "#64748b" : "#9ca3af"}
                 />
                 {memberSearchQuery.length > 0 && (
                   <TouchableOpacity onPress={() => setMemberSearchQuery("")}>
-                    <X size={14} color="#9ca3af" className="mr-2" />
+                    <X
+                      size={14}
+                      color={isDarkMode ? "#64748b" : "#9ca3af"}
+                      className="mr-2"
+                    />
                   </TouchableOpacity>
                 )}
               </View>
             </View>
 
+            {/* Scrollable Members Body */}
             <ScrollView showsVerticalScrollIndicator={false} className="px-6">
               <View className="space-y-3 pb-24">
                 {filteredParticipants.length > 0 ? (
@@ -485,7 +528,11 @@ const GroupProfileModal = ({
                     return (
                       <View
                         key={memberId}
-                        className="flex-row items-center bg-white p-4 rounded-3xl border border-gray-100 shadow-sm shadow-gray-50 mb-3"
+                        className={`flex-row items-center p-4 rounded-3xl border mb-3 shadow-sm ${
+                          isDarkMode
+                            ? "bg-slate-950 border-slate-800 shadow-black/20"
+                            : "bg-white border-gray-100 shadow-gray-50"
+                        }`}
                       >
                         <TouchableOpacity
                           onPress={() =>
@@ -500,11 +547,13 @@ const GroupProfileModal = ({
                                 resident?.avatar ||
                                 "https://via.placeholder.com/50",
                             }}
-                            className="w-12 h-12 rounded-full bg-gray-200"
+                            className={`w-12 h-12 rounded-full ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}
                           />
 
                           <View className="ml-4 flex-1">
-                            <Text className="font-bold text-gray-800">
+                            <Text
+                              className={`font-bold ${isDarkMode ? "text-slate-100" : "text-gray-800"}`}
+                            >
                               {isMe
                                 ? "You"
                                 : resident?.name || "Unknown Resident"}
@@ -515,7 +564,9 @@ const GroupProfileModal = ({
                                   ? "text-amber-600"
                                   : isTargetAdmin
                                     ? "text-indigo-600"
-                                    : "text-gray-400"
+                                    : isDarkMode
+                                      ? "text-slate-500"
+                                      : "text-gray-400"
                               }`}
                             >
                               {isTargetCreator
@@ -540,13 +591,23 @@ const GroupProfileModal = ({
                                 }
                                 className={`p-2 rounded-full ${
                                   isTargetAdmin
-                                    ? "bg-indigo-100"
-                                    : "bg-gray-100"
+                                    ? isDarkMode
+                                      ? "bg-indigo-950/60"
+                                      : "bg-indigo-100"
+                                    : isDarkMode
+                                      ? "bg-slate-800"
+                                      : "bg-gray-100"
                                 }`}
                               >
                                 <ShieldCheck
                                   size={20}
-                                  color={isTargetAdmin ? "#4f46e5" : "#9ca3af"}
+                                  color={
+                                    isTargetAdmin
+                                      ? "#4f46e5"
+                                      : isDarkMode
+                                        ? "#64748b"
+                                        : "#9ca3af"
+                                  }
                                 />
                               </TouchableOpacity>
 
@@ -557,7 +618,7 @@ const GroupProfileModal = ({
                                     resident?.name || "Resident",
                                   )
                                 }
-                                className="p-2 bg-red-50 rounded-full"
+                                className={`p-2 rounded-full ${isDarkMode ? "bg-red-950/40" : "bg-red-50"}`}
                               >
                                 <Trash2 size={18} color="#ef4444" />
                               </TouchableOpacity>
@@ -576,7 +637,7 @@ const GroupProfileModal = ({
                                     resident?.name || "Resident",
                                   )
                                 }
-                                className="p-2 bg-red-50 rounded-full"
+                                className={`p-2 rounded-full ${isDarkMode ? "bg-red-950/40" : "bg-red-50"}`}
                               >
                                 <Trash2 size={18} color="#ef4444" />
                               </TouchableOpacity>
@@ -587,7 +648,9 @@ const GroupProfileModal = ({
                   })
                 ) : (
                   <View className="items-center py-10">
-                    <Text className="text-gray-400 font-bold">
+                    <Text
+                      className={`font-bold ${isDarkMode ? "text-slate-500" : "text-gray-400"}`}
+                    >
                       No members found
                     </Text>
                   </View>
@@ -597,6 +660,7 @@ const GroupProfileModal = ({
           </View>
         </View>
       </Modal>
+
       <AddMembersModal
         isVisible={isAddingMembers}
         onClose={() => setIsAddingMembers(false)}
@@ -605,6 +669,7 @@ const GroupProfileModal = ({
         onAdd={handleAddMembers}
         insets={{ top: 50 }}
       />
+
       <GroupUserProfileModal
         isVisible={!!selectedParticipant}
         onClose={() => setSelectedParticipant(null)}
@@ -612,11 +677,13 @@ const GroupProfileModal = ({
         isAdminView={isCreator || isAdmin}
         onRemoveUser={(id: string, name: string) => {
           handleRemoveMember(id, name);
-          setSelectedParticipant(null); // Close profile after removal
+          setSelectedParticipant(null);
         }}
         onStartCall={(u) => console.log("Calling", u.name)}
-        isOnline={true} // Map this from your presence state
+        isOnline={true}
       />
+
+      {/* Group Name Editing Sub-Modal Overlay */}
       <Modal
         visible={isEditingName}
         transparent
@@ -624,8 +691,12 @@ const GroupProfileModal = ({
         onRequestClose={() => setIsEditingName(false)}
       >
         <View className="flex-1 bg-black/40 justify-center items-center px-6">
-          <View className="bg-white w-full rounded-3xl p-6 shadow-xl">
-            <Text className="text-xl font-black text-gray-900 mb-4">
+          <View
+            className={`w-full rounded-3xl p-6 shadow-xl ${isDarkMode ? "bg-slate-900" : "bg-white"}`}
+          >
+            <Text
+              className={`text-xl font-black mb-4 ${isDarkMode ? "text-slate-100" : "text-gray-900"}`}
+            >
               Edit Group Name
             </Text>
 
@@ -633,16 +704,25 @@ const GroupProfileModal = ({
               value={newName}
               onChangeText={setNewName}
               placeholder="Enter group name"
-              className="bg-gray-100 p-4 rounded-2xl text-gray-800 font-bold mb-6"
+              className={`p-4 rounded-2xl font-bold mb-6 ${
+                isDarkMode
+                  ? "bg-slate-950 text-slate-100"
+                  : "bg-gray-100 text-gray-800"
+              }`}
+              placeholderTextColor={isDarkMode ? "#64748b" : "#9ca3af"}
               autoFocus
             />
 
             <View className="flex-row space-x-3 px-2">
               <TouchableOpacity
                 onPress={() => setIsEditingName(false)}
-                className="flex-1 bg-gray-200 p-4 rounded-2xl items-center mx-2"
+                className={`flex-1 p-4 rounded-2xl items-center mx-2 ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}
               >
-                <Text className="text-gray-600 font-bold">Cancel</Text>
+                <Text
+                  className={isDarkMode ? "text-slate-300" : "text-gray-600"}
+                >
+                  Cancel
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -655,6 +735,8 @@ const GroupProfileModal = ({
           </View>
         </View>
       </Modal>
+
+      {/* Full Screen Header Identity Inspector Popover */}
       <Modal
         visible={isShowingFullName}
         transparent
@@ -662,13 +744,22 @@ const GroupProfileModal = ({
         onRequestClose={() => setIsShowingFullName(false)}
       >
         <View className="flex-1 bg-black/50 justify-center items-center px-10">
-          <View className="bg-white w-full rounded-[35px] p-8 shadow-2xl items-center border border-gray-100">
-            <Text className="text-gray-400 text-[10px] font-black uppercase tracking-[2px] mb-3">
+          <View
+            className={`w-full rounded-[35px] p-8 shadow-2xl items-center border ${
+              isDarkMode
+                ? "bg-slate-900 border-slate-800"
+                : "bg-white border-gray-100"
+            }`}
+          >
+            <Text
+              className={`text-[10px] font-black uppercase tracking-[2px] mb-3 ${isDarkMode ? "text-slate-500" : "text-gray-400"}`}
+            >
               Full Group Name
             </Text>
 
-            {/* This displays the ACTUAL full name without any limits */}
-            <Text className="text-xl font-black text-gray-900 text-center mb-8 leading-7">
+            <Text
+              className={`text-xl font-black text-center mb-8 leading-7 ${isDarkMode ? "text-slate-100" : "text-gray-900"}`}
+            >
               {group.name}
             </Text>
 

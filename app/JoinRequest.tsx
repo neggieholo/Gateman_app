@@ -44,7 +44,6 @@ export default function JoinRequestForm() {
   const [estates, setEstates] = useState<Estate[]>([]);
   const [selectorOpen, setSelectorOpen] = useState<boolean>(false);
 
-  // Structural Groupings Nested Array State
   const [locations, setLocations] = useState<BlockNode[]>([
     { block: "", units: [""] }
   ]);
@@ -53,14 +52,12 @@ export default function JoinRequestForm() {
     selfie: true, rent_contract: true, ids: false, utility_bill: false
   });
 
-  // KYC Asset Upload URI Stores
   const [selfie, setSelfie] = useState<string | null>(null);
   const [idType, setIdType] = useState<IDType>("nin");
   const [idFront, setIdFront] = useState<string | null>(null);
   const [idBack, setIdBack] = useState<string | null>(null);
   const [utilityBill, setUtilityBill] = useState<string | null>(null);
 
-  // Flattened local tracker managing individual files per assigned housing unit
   const [contracts, setContracts] = useState<(ContractFileMeta | null)[]>([]);
 
   const { user, triggerRefresh } = useContext(UserContext);
@@ -219,7 +216,7 @@ export default function JoinRequestForm() {
   const areAllContractsUploaded = contracts.every(c => c !== null);
 
   return (
-    <ScrollView className="flex-1 bg-[#121826] p-4">
+    <ScrollView className="flex-1 bg-[#121826] px-3">
       {/* Step Tracker Header */}
       <View className="mb-6 mt-2 flex-row justify-between items-center bg-[#1e293b] p-4 rounded-xl border border-[#334155]">
         <Text className="text-sm font-bold text-slate-400">APPLICATION STATUS</Text>
@@ -228,7 +225,7 @@ export default function JoinRequestForm() {
 
       {/* STEP 1: ESTATE DETAILS & INTERACTIVE NESTED ALLOCATION FIELDS */}
       {currentViewKey === "estate_details" && (
-        <View className="bg-[#1e293b] p-5 rounded-2xl border border-[#334155] mb-8">
+        <View className="bg-[#1e293b] p-5 rounded-2xl border border-[#334155] mb-8 pb-10">
           <Text className="text-lg font-bold mb-4 text-white">Select Property Hub</Text>
           
           <View className="mb-6">

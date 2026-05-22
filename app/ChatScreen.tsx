@@ -19,6 +19,8 @@ import {
   ChevronDown,
   ChevronLeft,
   Download,
+  Eye,
+  EyeOff,
   LogOut,
   MapPin,
   MoreVertical,
@@ -72,8 +74,15 @@ import {
   getCloudinaryUrl,
   notifyGroupPush,
   sendPushNotification,
+  toggleChatsReadReceipts,
 } from "./services/api";
-import { ChatGroup, ChatRoom, IFileMessage, User } from "./services/interfaces";
+import {
+  ChatGroup,
+  ChatRoom,
+  IFileMessage,
+  LocationPair,
+  User,
+} from "./services/interfaces";
 
 const ChatManager = () => {
   const insets = useSafeAreaInsets();
@@ -86,12 +95,14 @@ const ChatManager = () => {
   const [isGroupNameModalVisible, setGroupNameModalVisible] = useState(false);
   const {
     user,
+    setUser,
     onlineUsers,
     socket,
     remoteTyping,
     privateUnread,
     groupUnread,
     isDarkMode,
+    theme,
   } = useUser();
 
   const [isInitialLoading, setIsInitialLoading] = useState(true);
@@ -100,7 +111,7 @@ const ChatManager = () => {
   const [selectedTenant, setSelectedTenant] = useState<
     Partial<User> | ChatGroup | null
   >(null);
-  const [messages, setMessages] = useState<IMessage[]>([]);
+  const [messages, setMessages] = useState<IFileMessage[]>([]);
   const [otherUserLastRead, setOtherUserLastRead] =
     useState<FirebaseFirestoreTypes.Timestamp | null>(null);
 
@@ -476,6 +487,7 @@ const ChatManager = () => {
               image: mData.image || null,
               audio: mData.audio || null,
               video: mData.video || null,
+              receivedByServer: mData.receivedByServer ?? false,
               file: mData.file
                 ? {
                     url: mData.file.url,
@@ -505,6 +517,8 @@ const ChatManager = () => {
             (newMsg) =>
               !updatedMessages.some((oldMsg) => oldMsg._id === newMsg._id),
           );
+
+          console.log("Curentmessage:", uniqueNewMessages)
 
           // 3. Append the new ones to the filtered list
           return GiftedChat.append(updatedMessages, uniqueNewMessages);
@@ -548,6 +562,7 @@ const ChatManager = () => {
         image: messageToSend.image || null,
         audio: messageToSend.audio || null,
         video: messageToSend.video || null,
+        receivedByServer: true,
         file: messageToSend.file
           ? {
               url: messageToSend.file.url,
@@ -701,6 +716,32 @@ const ChatManager = () => {
       markAsRead();
     }
   }, [selectedTenant, messages.length, selectedEstateId]);
+
+  const handleToggleReadReceipts = async () => {
+    if (!user || !user.chat_settings) return;
+
+    const nextVal = !user.chat_settings.read_receipts;
+
+    try {
+      const data = await toggleChatsReadReceipts(nextVal);
+
+      setUser({
+        ...user,
+        chat_settings: {
+          ...user.chat_settings,
+          // Fallback to nextVal just in case data.chatSettings isn't structured as expected
+          read_receipts: data?.chatSettings?.read_receipts ?? nextVal,
+          visible: data?.chatSettings?.visible ?? user.chat_settings.visible,
+        },
+      });
+    } catch (error) {
+      console.error("Failed to toggle settings:", error);
+      Alert.alert(
+        "Setting Update Failed",
+        typeof error === "string" ? error : "Could not update read receipts.",
+      );
+    }
+  };
 
   const handleBlockUser = async (targetId: string) => {
     if (!user?.id || !selectedEstateId) return;
@@ -1649,12 +1690,15 @@ const ChatManager = () => {
       residentName: selectedTenant?.name,
     });
   };
+
   const renderItem = ({ item }: { item: any }) => {
     const itemName =
       item.name && item.name.length > 10
         ? `${item.name.substring(0, 15)}...`
         : item?.name || "Chat";
     let unreadCount = 0;
+    const estateLocations: LocationPair[] =
+      item.locations?.[selectedEstateId!] || [];
 
     if (currentTab === "residents") {
       const roomId = [user?.id, item.id].sort().join("_");
@@ -1667,7 +1711,13 @@ const ChatManager = () => {
       );
       unreadCount = myMemberData?.unreadCount || 0;
     }
+
+    // --- RESIDENTS TAB CARD ---
     if (currentTab === "residents") {
+      const isSelected = selectedGroupMembers.includes(
+        item.id?.toString() || "",
+      );
+
       return (
         <TouchableOpacity
           onPress={() => {
@@ -1683,40 +1733,82 @@ const ChatManager = () => {
             }
           }}
           className={`flex-row items-center p-4 m-2 rounded-2xl border ${
-            selectedGroupMembers.includes(item.id?.toString() || "")
-              ? "bg-indigo-50 border-indigo-500"
-              : "bg-white border-indigo-50"
+            isSelected
+              ? isDarkMode
+                ? "bg-indigo-950/40 border-indigo-500"
+                : "bg-indigo-50 border-indigo-500"
+              : isDarkMode
+                ? "bg-slate-950 border-slate-800"
+                : "bg-white border-indigo-50"
           }`}
         >
           <Image
             source={{
               uri: item.avatar || "https://via.placeholder.com/50",
             }}
-            className="w-12 h-12 rounded-full bg-gray-200"
+            className={`w-12 h-12 rounded-full ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}
           />
           <View className="ml-4">
-            <Text className="font-bold text-gray-800">{itemName}</Text>
-            <Text className="text-gray-400 text-xs">
-              Block {item.block} • Unit {item.unit}
+            <Text
+              className={`font-bold ${isDarkMode ? "text-slate-100" : "text-gray-800"}`}
+            >
+              {itemName}
             </Text>
-            <Text className="text-green-500 italic text-xs">
+            <View className="mt-0.5 space-y-0.5">
+              {estateLocations.map((loc: LocationPair, idx: number) => {
+                const unitString =
+                  loc.unit && loc.unit.length > 0 ? loc.unit.join(", ") : "—";
+
+                return (
+                  <Text
+                    key={`loc-${idx}`}
+                    className={`text-xs font-medium ${isDarkMode ? "text-slate-500" : "text-gray-400"}`}
+                  >
+                    Block {loc.block} • Unit {unitString}
+                  </Text>
+                );
+              })}
+
+              {estateLocations.length === 0 && (
+                <Text
+                  className={`text-xs italic ${isDarkMode ? "text-slate-600" : "text-gray-400"}`}
+                >
+                  No Location Assigned
+                </Text>
+              )}
+            </View>
+            <Text
+              className={`italic text-xs ${isDarkMode ? "text-green-400" : "text-green-500"}`}
+            >
               {remoteTyping[item.id?.toString()] ? "typing" : ""}
             </Text>
           </View>
-          {onlineUsers.includes(item.id?.toString() || "") && (
-            <View className="absolute right-4 w-3 h-3 bg-green-500 rounded-full" />
-          )}
+
+          {onlineUsers.includes(item.id?.toString() || "") &&
+            item.chat_settings?.visible !== false && (
+              <View
+                className={`absolute right-4 w-3 h-3 bg-green-500 rounded-full border ${isDarkMode ? "border-slate-950" : "border-white"}`}
+              />
+            )}
+
           {isCreateGroupMode && (
             <View
               className={`ml-auto w-6 h-6 rounded-full border-2 ${
-                selectedGroupMembers.includes(item.id?.toString() || "")
-                  ? "bg-indigo-500 border-indigo-500"
-                  : "border-gray-300"
+                isSelected
+                  ? isDarkMode
+                    ? "bg-indigo-500 border-indigo-500"
+                    : "bg-indigo-500 border-indigo-500"
+                  : isDarkMode
+                    ? "border-slate-700"
+                    : "border-gray-300"
               }`}
             />
           )}
+
           {unreadCount > 0 && (
-            <View className="absolute -top-1 -right-1 bg-red-500 w-7 h-7 rounded-full items-center justify-center border-2 border-white">
+            <View
+              className={`absolute -top-1 -right-1 bg-red-500 w-7 h-7 rounded-full items-center justify-center border-2 ${isDarkMode ? "border-slate-950" : "border-white"}`}
+            >
               <Text className="text-white text-[9px] font-black">
                 {unreadCount}
               </Text>
@@ -1726,27 +1818,45 @@ const ChatManager = () => {
       );
     }
 
+    // --- GROUPS TAB CARD ---
     return (
       <TouchableOpacity
         onPress={() => setSelectedTenant(item)}
-        className="flex-row items-center p-4 m-2 rounded-2xl border bg-white border-indigo-50"
+        className={`flex-row items-center p-4 m-2 rounded-2xl border ${
+          isDarkMode
+            ? "bg-slate-950 border-slate-800"
+            : "bg-white border-indigo-50"
+        }`}
       >
-        <View className="w-12 h-12 rounded-full bg-indigo-100 items-center justify-center">
+        <View
+          className={`w-12 h-12 rounded-full items-center justify-center ${isDarkMode ? "bg-indigo-950/50" : "bg-indigo-100"}`}
+        >
           <Users size={24} color="#4f46e5" />
         </View>
+
         <View className="ml-4 flex-1">
-          <Text className="font-bold text-gray-800">{itemName}</Text>
-          <Text className="text-gray-400 text-xs">
+          <Text
+            className={`font-bold ${isDarkMode ? "text-slate-100" : "text-gray-800"}`}
+          >
+            {itemName}
+          </Text>
+          <Text
+            className={`text-xs ${isDarkMode ? "text-slate-500" : "text-gray-400"}`}
+          >
             {item.members?.length || 0} Members
           </Text>
         </View>
+
         <ChevronLeft
           size={20}
-          color="#cbd5e1"
+          color={isDarkMode ? "#64748b" : "#cbd5e1"}
           style={{ transform: [{ rotate: "180deg" }] }}
         />
+
         {unreadCount > 0 && (
-          <View className="absolute -top-1 -right-1 bg-red-500 w-7 h-7 rounded-full items-center justify-center border-2 border-white">
+          <View
+            className={`absolute -top-1 -right-1 bg-red-500 w-7 h-7 rounded-full items-center justify-center border-2 ${isDarkMode ? "border-slate-950" : "border-white"}`}
+          >
             <Text className="text-white text-[9px] font-black">
               {unreadCount}
             </Text>
@@ -1780,7 +1890,9 @@ const ChatManager = () => {
 
   if (!selectedEstateId) {
     return (
-      <View className="flex-1 justify-center items-center bg-white p-6">
+      <View
+        className={`flex-1 justify-center items-center ${isDarkMode ? "bg-slate-950" : "bg-white"} p-6`}
+      >
         <Text className="text-gray-400 text-center font-medium">
           You must join an estate to send and receive messages.
         </Text>
@@ -1788,793 +1900,918 @@ const ChatManager = () => {
     );
   }
 
-  if (loading) {
+  if (loading)
     return (
-      <View className="flex-1 justify-center items-center bg-white">
-        <ActivityIndicator size="large" color="#4f46e5" />
+      <ActivityIndicator
+        className={`flex-1 ${isDarkMode ? "bg-slate-950" : ""}`}
+        color={theme.accent}
+      />
+    );
+
+  if (selectedTenant) {
+    return (
+      <View
+        className={`flex-1 ${isDarkMode ? "bg-slate-950" : "bg-white"}`}
+        style={{ paddingBottom: insets.bottom }}
+      >
+        <CallOverlay />
+        <Modal
+          visible={isImageModalVisible}
+          transparent={true}
+          onRequestClose={() => setImageModalVisible(false)}
+        >
+          <TouchableOpacity
+            className="flex-1 bg-black/95 justify-center items-center"
+            activeOpacity={1}
+            onPress={() => setImageModalVisible(false)}
+          >
+            <Image
+              source={{
+                uri: selectedTenant.avatar || "https://via.placeholder.com/300",
+              }}
+              className="w-full h-[500px]"
+              resizeMode="contain"
+            />
+          </TouchableOpacity>
+        </Modal>
+        <CreateGroupModal
+          isVisible={isForwardModalVisible}
+          onClose={() => setForwardModalVisible(false)}
+          tenants={combinedForwardList}
+          selectedMembers={selectedForForward}
+          onToggleMember={toggleForwardMember}
+          onNext={() => handleForwardMessage(selectedForForward)}
+          insets={insets}
+          buttonText="Send"
+          header="Forward Message"
+          count={0}
+        />
+
+        {/* --- Chat Header --- */}
+        <View
+          className={`flex-row items-center p-4 border-b ${isDarkMode ? "border-slate-800 bg-slate-900" : "border-gray-100 bg-white"}`}
+        >
+          <TouchableOpacity
+            onPress={() => {
+              setSelectedTenant(null);
+              setShowMenu(false);
+            }}
+            className="pr-2 mr-12"
+          >
+            <ChevronLeft size={28} color={isDarkMode ? "#f8fafc" : "#000000"} />
+          </TouchableOpacity>
+
+          <View className="flex-1 flex-row justify-center items-center">
+            {!isGroupChat && (
+              <TouchableOpacity onPress={() => setImageModalVisible(true)}>
+                <Image
+                  source={{
+                    uri:
+                      selectedTenant.avatar || "https://via.placeholder.com/50",
+                  }}
+                  className={`w-10 h-10 rounded-full ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}
+                />
+              </TouchableOpacity>
+            )}
+
+            {isGroupChat && (
+              <TouchableOpacity onPress={() => setImageModalVisible(true)}>
+                {selectedTenant.avatar ? (
+                  <Image
+                    source={{ uri: selectedTenant.avatar }}
+                    className={`w-10 h-10 rounded-full ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}
+                  />
+                ) : (
+                  <View
+                    className={`w-10 h-10 rounded-full items-center justify-center ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}
+                  >
+                    <Users size={24} color="#4f46e5" />
+                  </View>
+                )}
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              className="ml-3 flex-1"
+              onPress={() => setIsProfileVisible(true)}
+            >
+              <Text
+                className={`font-bold text-lg ${isDarkMode ? "text-slate-100" : "text-gray-900"}`}
+              >
+                {displayName}
+              </Text>
+              {!isGroupChat &&
+                selectedEstateId &&
+                selectedTenant?.locations?.[selectedEstateId]?.[0] && (
+                  <Text
+                    className={`${isDarkMode ? "text-slate-500" : "text-gray-400"} text-[10px] font-bold uppercase`}
+                  >
+                    Block {selectedTenant.locations[selectedEstateId][0].block}{" "}
+                    • Unit{" "}
+                    {selectedTenant.locations[selectedEstateId][0].unit.join(
+                      ", ",
+                    )}
+                  </Text>
+                )}
+              {onlineUsers.includes(selectedTenant.id?.toString() || "") &&
+                !isGroupChat &&
+                selectedTenant.chat_settings?.visible !== false && (
+                  <View className="absolute right-5 top-5 w-3 h-3 bg-green-500 rounded-full" />
+                )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setShowMenu(!showMenu)}
+              className="ml-3 p-2"
+            >
+              <MoreVertical
+                size={24}
+                color={isDarkMode ? "#f8fafc" : "#000000"}
+              />
+            </TouchableOpacity>
+
+            {/* --- Chat Options Popover --- */}
+            {showMenu && (
+              <>
+                <TouchableOpacity
+                  className="absolute inset-0 z-40"
+                  onPress={() => setShowMenu(false)}
+                />
+                <View
+                  className={`absolute right-4 top-16 rounded-xl shadow-lg border z-50 py-1 w-44 ${
+                    isDarkMode
+                      ? "bg-slate-900 border-slate-800 shadow-black/40"
+                      : "bg-white border-gray-100"
+                  }`}
+                  style={{ elevation: 5 }}
+                >
+                  <TouchableOpacity
+                    className={`flex-row items-center px-4 py-3 border-b ${isDarkMode ? "border-slate-800" : "border-gray-50"}`}
+                    onPress={() => {
+                      setShowMenu(false);
+                      handleStartCall();
+                    }}
+                  >
+                    <Phone size={18} color="#4f46e5" />
+                    <Text
+                      className={`ml-3 font-medium ${isDarkMode ? "text-slate-300" : "text-gray-700"}`}
+                    >
+                      Call
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    className="flex-row items-center px-4 py-3"
+                    onPress={() => {
+                      setShowMenu(false);
+                      handleClearChat();
+                    }}
+                  >
+                    <Trash2 size={18} color="#ef4444" />
+                    <Text className="ml-3 font-medium text-red-500">
+                      Clear Chat
+                    </Text>
+                  </TouchableOpacity>
+
+                  {isGroupChat && (
+                    <>
+                      <TouchableOpacity
+                        className={`flex-row items-center px-4 py-3 border-t ${isDarkMode ? "border-slate-800" : "border-gray-50"}`}
+                        onPress={() => {
+                          setShowMenu(false);
+                          toggleGroupMute();
+                        }}
+                      >
+                        {isMuted ? (
+                          <>
+                            <Bell
+                              size={18}
+                              color={isDarkMode ? "#94a3b8" : "#6b7280"}
+                            />
+                            <Text
+                              className={`ml-3 font-medium ${isDarkMode ? "text-slate-300" : "text-gray-600"}`}
+                            >
+                              Unmute Notifications
+                            </Text>
+                          </>
+                        ) : (
+                          <>
+                            <BellOff
+                              size={18}
+                              color={isDarkMode ? "#94a3b8" : "#6b7280"}
+                            />
+                            <Text
+                              className={`ml-3 font-medium ${isDarkMode ? "text-slate-300" : "text-gray-600"}`}
+                            >
+                              Mute Notifications
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        className={`flex-row items-center px-4 py-3 border-t ${isDarkMode ? "border-slate-800" : "border-gray-50"}`}
+                        onPress={() => {
+                          setShowMenu(false);
+                          handleExitGroup();
+                        }}
+                      >
+                        <LogOut size={18} color="#ef4444" />
+                        <Text className="ml-3 font-medium text-red-500">
+                          Exit Group
+                        </Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+
+        <KeyboardAvoidingView
+          className="flex-1"
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+        >
+          <GiftedChat
+            messages={messages}
+            renderMessage={renderMessage}
+            onSend={onSend}
+            messagesContainerRef={flatListRef}
+            user={{ _id: user?.id?.toString() || "0", name: user?.name }}
+            renderAvatar={(props) => {
+              const { user: messageUser } = props.currentMessage;
+              if (isGroupChat && messageUser) {
+                return (
+                  <Avatar
+                    {...props}
+                    imageStyle={{
+                      left: { width: 40, height: 40, borderRadius: 20 },
+                    }}
+                  />
+                );
+              }
+              return null;
+            }}
+            renderActions={(props) =>
+              renderActions({
+                props,
+                showActionSheet: showActionSheetWithOptions,
+                onTakePhoto: takePhoto,
+                onPickImage: pickImage,
+                onPickDocument: pickDocument,
+                onPickVideo: pickVideo,
+                onStartRecording: startAudioRecording,
+                onStopRecording: stopAudioRecording,
+                isRecording: !!recording,
+              })
+            }
+            renderChatFooter={renderChatFooter}
+            renderLoading={renderLoading}
+            renderMessageAudio={RenderMessageAudio}
+            renderMessageVideo={(props) => (
+              <RenderMessageVideoComponent
+                {...props}
+                onOpen={(url: any) => {
+                  setSelectedMedia({ url, type: "video" });
+                }}
+              />
+            )}
+            renderMessageImage={(props) => (
+              <RenderMessageImage
+                {...props}
+                onOpen={(url: any) => setSelectedMedia({ url, type: "image" })}
+              />
+            )}
+            renderCustomView={renderCustomView}
+            isUsernameVisible={isGroupChat}
+            renderUsername={(user) => {
+              if (!user || !user.name) return null;
+
+              return (
+                <Text className="text-[#6366f1] text-[10px] mb-[2px] ml-[10px] font-bold">
+                  {user.name}
+                </Text>
+              );
+            }}
+            keyboardAvoidingViewProps={{ keyboardVerticalOffset: headerHeight }}
+            textInputProps={{
+              onChangeText: (text) => handleTyping(text),
+            }}
+            isTyping={remoteTyping[selectedTenant.id?.toString() || ""]}
+            renderMessageText={(props) => {
+              const currentMessage = props.currentMessage as any;
+              const { position } = props;
+
+              if (currentMessage.file) {
+                return null;
+              }
+
+              return (
+                <View className="px-2 py-1">
+                  {currentMessage.isForwarded && (
+                    <View className="flex-row items-center mb-1 opacity-60 ml-1">
+                      <Ionicons
+                        name="arrow-redo"
+                        size={12}
+                        color={
+                          position === "right"
+                            ? "white"
+                            : isDarkMode
+                              ? "#94a3b8"
+                              : "#4b5563"
+                        }
+                      />
+                      <Text
+                        className={`text-[10px] italic ml-1 font-medium ${
+                          position === "right"
+                            ? "text-white"
+                            : isDarkMode
+                              ? "text-slate-400"
+                              : "text-gray-500"
+                        }`}
+                      >
+                        Forwarded
+                      </Text>
+                    </View>
+                  )}
+                  <MessageText {...props} />
+                </View>
+              );
+            }}
+            renderBubble={(props) => {
+              // const message = props.currentMessage;
+              // console.log("Props.currentMessage:", message)
+              return (
+                <Bubble
+                  {...props}
+                  renderTicks={(currentMessage) => {
+                    // console.log("Curentmessage:", currentMessage)
+                    const message = currentMessage as IFileMessage;
+                    if (message.user._id !== String(user?.id)) return null;
+                    if (isGroupChat)
+                      return (
+                        <Text
+                          style={{
+                            color: isDarkMode ? "#64748b" : "#9ca3af",
+                            fontSize: 10,
+                          }}
+                        >
+                          ✓
+                        </Text>
+                      );
+                    const lastReadDate = otherUserLastRead?.toDate
+                      ? otherUserLastRead.toDate()
+                      : null;
+                    const messageDate =
+                      message.createdAt instanceof Date
+                        ? message.createdAt
+                        : new Date(message.createdAt);
+
+                    const isDelivered = message.receivedByServer === true;
+
+                    const hasBeenRead =
+                      lastReadDate && messageDate <= lastReadDate;
+                    const canShowBlueTicks =
+                      user?.chat_settings?.read_receipts !== false &&
+                      selectedTenant?.chat_settings?.read_receipts !== false;
+
+                    const isRead = hasBeenRead && canShowBlueTicks;
+
+                    return (
+                      <View className="mx-2">
+                        <Text
+                          style={{
+                            color: isRead
+                              ? "#3b82f6"
+                              : isDarkMode
+                                ? "#64748b"
+                                : "#9ca3af",
+                            fontSize: 10,
+                            fontWeight: "bold",
+                          }}
+                        >
+                          {isDelivered ? "✓✓" : "✓"}
+                        </Text>
+                      </View>
+                    );
+                  }}
+                  wrapperStyle={{
+                    right: { backgroundColor: "#4f46e5" },
+                    left: {
+                      backgroundColor: isDarkMode ? "#1e293b" : "#f3f4f6",
+                    },
+                  }}
+                />
+              );
+            }}
+            reply={{
+              swipe: {
+                isEnabled: true,
+                direction: "right",
+                onSwipe: (msg) => {
+                  const fileMsg = msg as IFileMessage;
+                  setReplyMessage({
+                    _id: fileMsg._id,
+                    text: fileMsg.text || "",
+                    user: fileMsg.user,
+                    createdAt: fileMsg.createdAt,
+                    image: fileMsg.image || undefined,
+                    audio: fileMsg.audio || undefined,
+                    video: fileMsg.video || undefined,
+                    file: fileMsg.file || undefined,
+                  });
+                },
+              },
+              message: replyMessage,
+              onClear: () => setReplyMessage(null),
+
+              renderPreview: (props) => {
+                if (!replyMessage) return null;
+
+                const getDisplayContent = () => {
+                  if (replyMessage.text) return replyMessage.text;
+                  if (replyMessage.file) return `📄 ${replyMessage.file.name}`;
+                  if (replyMessage.audio) return "🎤 Voice Note";
+                  if (replyMessage.image) return "📷 Image";
+                  if (replyMessage.video) return "🎥 Video";
+                  return "Media Message";
+                };
+
+                return (
+                  <View
+                    className={`border-l-4 border-[#6366f1] px-4 py-2 flex-row justify-between items-center ${
+                      isDarkMode ? "bg-slate-900" : "bg-gray-100"
+                    }`}
+                  >
+                    <View className="flex-1">
+                      {isGroupChat && replyMessage.user?.name && (
+                        <Text className="text-[#6366f1] font-bold text-[11px] mb-1">
+                          Replying to {replyMessage.user.name}
+                        </Text>
+                      )}
+                      <Text
+                        numberOfLines={1}
+                        className={`text-[13px] ${isDarkMode ? "text-slate-400" : "text-gray-600"}`}
+                      >
+                        {getDisplayContent()}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => setReplyMessage(null)}
+                      className="p-1"
+                    >
+                      <Ionicons
+                        name="close-circle"
+                        size={22}
+                        color={isDarkMode ? "#94a3b8" : "#4b5563"}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                );
+              },
+              renderMessageReply: (props: any) => {
+                const { replyMessage } = props;
+                if (!replyMessage) return null;
+                const handleScrollToOriginal = () => {
+                  const index = messages.findIndex(
+                    (m) => m._id === replyMessage._id,
+                  );
+                  if (index > -1) {
+                    flatListRef.current?.scrollToIndex({
+                      index,
+                      animated: true,
+                    });
+                  }
+                };
+                return (
+                  <TouchableOpacity onPress={handleScrollToOriginal}>
+                    <View
+                      className={`p-2 border-l-4 border-indigo-200 ${isDarkMode ? "bg-white/5" : "bg-white/10"}`}
+                    >
+                      {isGroupChat && replyMessage.user && (
+                        <Text className="text-indigo-400 text-[10px] font-bold mb-1">
+                          {replyMessage.user}
+                        </Text>
+                      )}
+                      {replyMessage.audio ? (
+                        <View className="flex-row items-center">
+                          <Ionicons
+                            name="mic-outline"
+                            size={14}
+                            color="#6366f1"
+                          />
+                          <Text className="text-white ml-2 text-[11px] font-bold">
+                            Voice Note
+                          </Text>
+                        </View>
+                      ) : replyMessage?.file ? (
+                        <View className="flex-row items-center">
+                          <Ionicons
+                            name="document-outline"
+                            size={14}
+                            color="#6366f1"
+                          />
+                          <Text
+                            className={`ml-2 text-[11px] font-bold ${isDarkMode ? "text-slate-200" : "text-black"}`}
+                            numberOfLines={1}
+                          >
+                            doc{replyMessage.file.name}
+                          </Text>
+                        </View>
+                      ) : (
+                        <Text
+                          className={`text-[11px] ${isDarkMode ? "text-slate-300" : "text-black"}`}
+                          numberOfLines={2}
+                        >
+                          {replyMessage.text}
+                        </Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              },
+            }}
+            onLongPressMessage={(context: any, message: IFileMessage) => {
+              const options = ["Reply", "Copy", "Forward", "Delete", "Cancel"];
+              const cancelButtonIndex = 4;
+              context.actionSheet().showActionSheetWithOptions(
+                {
+                  options,
+                  cancelButtonIndex,
+                },
+                (buttonIndex?: number) => {
+                  if (buttonIndex === 0) setReplyMessage(message);
+                  if (buttonIndex === 1)
+                    Clipboard.setString(message.text || "");
+                  if (buttonIndex === 2) {
+                    setMessageToForward(message);
+                    setForwardModalVisible(true);
+                  }
+                  if (buttonIndex === 3) confirmDelete(message);
+                },
+              );
+            }}
+            onPressMessage={() => {}}
+          />
+
+          {/* --- Media Viewer Modal --- */}
+          <Modal
+            visible={!!selectedMedia}
+            animationType="fade"
+            transparent={false}
+          >
+            <View className="flex-1 bg-black/95 justify-center items-center">
+              <TouchableOpacity
+                onPress={() => setSelectedMedia(null)}
+                className="absolute top-12 right-6 z-20 bg-white/20 p-2 rounded-full"
+              >
+                <X size={24} color="white" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() =>
+                  handleSaveMedia(selectedMedia!.url, selectedMedia!.type)
+                }
+                disabled={isSavingImage}
+                className="absolute top-12 left-6 z-20 bg-indigo-600 p-2 rounded-full"
+              >
+                {isSavingImage ? (
+                  <ActivityIndicator size="small" color="white" />
+                ) : (
+                  <Download size={24} color="white" />
+                )}
+              </TouchableOpacity>
+
+              {selectedMedia?.type === "image" && (
+                <Image
+                  source={{ uri: selectedMedia.url }}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    resizeMode: "contain",
+                  }}
+                />
+              )}
+
+              {selectedMedia?.type === "video" && (
+                <Video
+                  source={{ uri: selectedMedia.url }}
+                  style={{ width: "100%", height: "80%" }}
+                  useNativeControls
+                  resizeMode={ResizeMode.CONTAIN}
+                  shouldPlay={true}
+                />
+              )}
+            </View>
+          </Modal>
+        </KeyboardAvoidingView>
+
+        {!isGroupChat && (
+          <UserProfileModal
+            isVisible={isProfileVisible}
+            onClose={() => setIsProfileVisible(false)}
+            user={selectedTenant}
+            openImageModal={() => setImageModalVisible(true)}
+            isOnline={onlineUsers.includes(selectedTenant.id?.toString() || "")}
+            onStartCall={(user: any) =>
+              alert(`Starting call with ${user.name}`)
+            }
+            onBlockUser={(userId: string) => handleBlockUser(userId)}
+            selectedEstateId={selectedEstateId}
+          />
+        )}
+
+        {isGroupChat && (
+          <GroupProfileModal
+            isVisible={isProfileVisible}
+            onClose={() => setIsProfileVisible(false)}
+            group={activeGroupData}
+            currentUser={user}
+            tenants={visibleTenants}
+            estateId={selectedEstateId}
+            setSelectedTenant={setSelectedTenant}
+          />
+        )}
       </View>
     );
   }
 
-  if (selectedTenant) {
+  // ==========================================
+  // --- TENANT / CONVERSATION LIST VIEW ---
+  // ==========================================
   return (
-    <View
-      className={`flex-1 ${isDarkMode ? "bg-slate-950" : "bg-white"}`}
-      style={{ paddingBottom: insets.bottom }}
-    >
-      <CallOverlay />
-      <Modal
-        visible={isImageModalVisible}
-        transparent={true}
-        onRequestClose={() => setImageModalVisible(false)}
+    <View className={`flex-1 ${isDarkMode ? "bg-slate-900" : "bg-gray-50"}`}>
+      {user?.estate_ids && user.estate_ids.length > 1 && (
+        <View
+          className={`px-4 pt-3 pb-1 border-b z-50 ${isDarkMode ? "bg-slate-950 border-slate-800" : "bg-white border-gray-100"}`}
+        >
+          <TouchableOpacity
+            onPress={() => setShowEstateMenu(!showEstateMenu)}
+            className={`flex-row items-center justify-between border px-4 py-2.5 rounded-xl ${
+              isDarkMode
+                ? "bg-slate-900 border-slate-800"
+                : "bg-slate-50 border-slate-200"
+            }`}
+          >
+            <View className="flex-row items-center flex-1">
+              <MapPin size={16} color="#4f46e5" />
+              <Text
+                className={`ml-2 font-bold text-sm flex-1 ${isDarkMode ? "text-slate-200" : "text-gray-800"}`}
+                numberOfLines={1}
+              >
+                Chatting in:{" "}
+                {user.estates?.find((e) => e.id.toString() === selectedEstateId)
+                  ?.name || "Select Estate"}
+              </Text>
+            </View>
+            <ChevronDown size={16} color={isDarkMode ? "#94a3b8" : "#64748b"} />
+          </TouchableOpacity>
+
+          {/* --- Multi-Estate Dropdown Overlay --- */}
+          {showEstateMenu && (
+            <View
+              className={`absolute left-4 right-4 top-[52px] rounded-xl shadow-xl border z-50 py-1 ${
+                isDarkMode
+                  ? "bg-slate-950 border-slate-800 shadow-black/50"
+                  : "bg-white border-gray-100"
+              }`}
+            >
+              {user.estates?.map((estate) => (
+                <TouchableOpacity
+                  key={estate.id}
+                  onPress={() => {
+                    setSelectedEstateId(estate.id.toString());
+                    setShowEstateMenu(false);
+                  }}
+                  className={`px-4 py-3 border-b flex-row items-center justify-between last:border-b-0 ${
+                    isDarkMode ? "border-slate-900" : "border-gray-50"
+                  } ${selectedEstateId === estate.id.toString() ? (isDarkMode ? "bg-indigo-950/40" : "bg-indigo-50/40") : ""}`}
+                >
+                  <Text
+                    className={`text-sm ${
+                      selectedEstateId === estate.id.toString()
+                        ? "text-indigo-600 font-bold"
+                        : isDarkMode
+                          ? "text-slate-300"
+                          : "text-gray-700"
+                    }`}
+                  >
+                    {estate.name}
+                  </Text>
+                  {selectedEstateId === estate.id.toString() && (
+                    <View className="w-2 h-2 rounded-full bg-indigo-600" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* --- Navigation Tabs --- */}
+      <View
+        className={`flex-row border-b px-4 pb-2 mt-2 ${isDarkMode ? "bg-slate-950 border-slate-800" : "bg-white border-gray-100"}`}
       >
         <TouchableOpacity
-          className="flex-1 bg-black/95 justify-center items-center"
-          activeOpacity={1}
-          onPress={() => setImageModalVisible(false)}
+          onPress={() => setCurrentTab("residents")}
+          className={`pb-2 mr-6 pr-5 ${currentTab === "residents" ? "border-b-2 border-indigo-500" : ""}`}
         >
-          <Image
-            source={{
-              uri: selectedTenant.avatar || "https://via.placeholder.com/300",
-            }}
-            className="w-full h-[500px]"
-            resizeMode="contain"
-          />
+          <Text
+            className={`font-bold ${currentTab === "residents" ? "text-indigo-600" : isDarkMode ? "text-slate-500" : "text-gray-400"}`}
+          >
+            Residents
+          </Text>
+          {privateUnread > 0 && (
+            <View
+              className="absolute -top-1 right-0 bg-red-500 rounded-full flex items-center justify-center"
+              style={{ minWidth: 18, height: 18 }}
+            >
+              <Text className="text-white text-[9px] font-bold">
+                {privateUnread}
+              </Text>
+            </View>
+          )}
         </TouchableOpacity>
-      </Modal>
+
+        <TouchableOpacity
+          onPress={() => setCurrentTab("groups")}
+          className={`pb-2 pr-5 ${currentTab === "groups" ? "border-b-2 border-indigo-500" : ""}`}
+        >
+          <Text
+            className={`font-bold ${currentTab === "groups" ? "text-indigo-600" : isDarkMode ? "text-slate-500" : "text-gray-400"}`}
+          >
+            Groups
+          </Text>
+          {groupUnread > 0 && (
+            <View
+              className="absolute -top-1 right-0 bg-red-500 rounded-full flex items-center justify-center"
+              style={{ minWidth: 18, height: 18 }}
+            >
+              <Text className="text-white text-[9px] font-bold">
+                {groupUnread}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* --- Search and Context Actions Toolbar --- */}
+      <View
+        className={`p-4 border-b flex-row items-center space-x-3 ${isDarkMode ? "bg-slate-950 border-slate-800" : "bg-white border-gray-100"}`}
+      >
+        <View
+          className={`flex-1 flex-row items-center rounded-xl px-3 py-2 ${isDarkMode ? "bg-slate-900" : "bg-gray-100"}`}
+        >
+          <Search size={20} color={isDarkMode ? "#64748b" : "#9ca3af"} />
+          <TextInput
+            placeholder="Search residents, blocks..."
+            className={`flex-1 ml-2 ${isDarkMode ? "text-slate-100" : "text-gray-900"}`}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholderTextColor={isDarkMode ? "#64748b" : "#9ca3af"}
+          />
+        </View>
+
+        <TouchableOpacity
+          onPress={() => setShowGlobalMenu(!showGlobalMenu)}
+          className="p-2"
+        >
+          <MoreVertical size={24} color={isDarkMode ? "#f8fafc" : "#000000"} />
+        </TouchableOpacity>
+      </View>
+
       <CreateGroupModal
-        isVisible={isForwardModalVisible}
-        onClose={() => setForwardModalVisible(false)}
-        tenants={combinedForwardList}
-        selectedMembers={selectedForForward}
-        onToggleMember={toggleForwardMember}
-        onNext={() => handleForwardMessage(selectedForForward)}
+        isVisible={isCreateGroupMode}
+        onClose={() => {
+          setIsCreateGroupMode(false);
+          setSelectedGroupMembers([]);
+        }}
+        tenants={visibleTenants}
+        selectedMembers={selectedGroupMembers}
+        onToggleMember={toggleMember}
+        onNext={() => setGroupNameModalVisible(true)}
         insets={insets}
-        buttonText="Send"
-        header="Forward Message"
+        buttonText="Next"
+        header="New Group"
+        count={1}
+      />
+
+      <GroupNameModal
+        isVisible={isGroupNameModalVisible}
+        onClose={() => setGroupNameModalVisible(false)}
+        groupName={groupName}
+        setGroupName={setGroupName}
+        onFinalize={handleFinalizeGroup}
+      />
+
+      <CreateGroupModal
+        isVisible={isBlockedModalVisible}
+        onClose={() => {
+          setBlockedModalVisible(false);
+          setSelectedForUnblock([]);
+        }}
+        tenants={blockedTenants}
+        selectedMembers={selectedForUnblock}
+        onToggleMember={toggleUnblockMember}
+        onNext={handleBulkUnblock}
+        insets={insets}
+        buttonText={selectedForUnblock.length > 0 ? "Unblock" : "Done"}
+        header="Blocked Residents"
         count={0}
       />
 
-      {/* --- Chat Header --- */}
-      <View className={`flex-row items-center p-4 border-b ${isDarkMode ? "border-slate-800 bg-slate-900" : "border-gray-100 bg-white"}`}>
-        <TouchableOpacity
-          onPress={() => {
-            setSelectedTenant(null);
-            setShowMenu(false);
-          }}
-          className="pr-2 mr-12"
-        >
-          <ChevronLeft size={28} color={isDarkMode ? "#f8fafc" : "#000000"} />
-        </TouchableOpacity>
-
-        <View className="flex-1 flex-row justify-center items-center">
-          {!isGroupChat && (
-            <TouchableOpacity onPress={() => setImageModalVisible(true)}>
-              <Image
-                source={{
-                  uri: selectedTenant.avatar || "https://via.placeholder.com/50",
-                }}
-                className={`w-10 h-10 rounded-full ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}
-              />
-            </TouchableOpacity>
-          )}
-
-          {isGroupChat && (
-            <TouchableOpacity onPress={() => setImageModalVisible(true)}>
-              {selectedTenant.avatar ? (
-                <Image
-                  source={{ uri: selectedTenant.avatar }}
-                  className={`w-10 h-10 rounded-full ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}
-                />
-              ) : (
-                <View className={`w-10 h-10 rounded-full items-center justify-center ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}>
-                  <Users size={24} color="#4f46e5" />
-                </View>
-              )}
-            </TouchableOpacity>
-          )}
-
+      {/* --- Global Context Popover Menu --- */}
+      {showGlobalMenu && (
+        <>
           <TouchableOpacity
-            className="ml-3 flex-1"
-            onPress={() => setIsProfileVisible(true)}
+            className="absolute inset-0 z-40"
+            onPress={() => setShowGlobalMenu(false)}
+          />
+          <View
+            className={`absolute right-4 top-20 rounded-xl shadow-lg border z-50 py-1 w-48 ${
+              isDarkMode
+                ? "bg-slate-950 border-slate-800 shadow-black/50"
+                : "bg-white border-gray-100"
+            }`}
+            style={{ elevation: 5 }}
           >
-            <Text className={`font-bold text-lg ${isDarkMode ? "text-slate-100" : "text-gray-900"}`}>
-              {displayName}
-            </Text>
-            {!isGroupChat &&
-              selectedEstateId &&
-              selectedTenant?.locations?.[selectedEstateId]?.[0] && (
-                <Text className={`${isDarkMode ? "text-slate-500" : "text-gray-400"} text-[10px] font-bold uppercase`}>
-                  Block {selectedTenant.locations[selectedEstateId][0].block}{" "}
-                  • Unit{" "}
-                  {selectedTenant.locations[selectedEstateId][0].unit.join(", ")}
-                </Text>
-              )}
-            {onlineUsers.includes(selectedTenant.id?.toString() || "") && (
-              <View className="absolute right-5 top-5 w-3 h-3 bg-green-500 rounded-full" />
-            )}
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            onPress={() => setShowMenu(!showMenu)}
-            className="ml-3 p-2"
-          >
-            <MoreVertical size={24} color={isDarkMode ? "#f8fafc" : "#000000"} />
-          </TouchableOpacity>
-          
-          {/* --- Chat Options Popover --- */}
-          {showMenu && (
-            <>
-              <TouchableOpacity
-                className="absolute inset-0 z-40"
-                onPress={() => setShowMenu(false)}
-              />
-              <View
-                className={`absolute right-4 top-16 rounded-xl shadow-lg border z-50 py-1 w-44 ${
-                  isDarkMode ? "bg-slate-900 border-slate-800 shadow-black/40" : "bg-white border-gray-100"
-                }`}
-                style={{ elevation: 5 }}
-              >
-                <TouchableOpacity
-                  className={`flex-row items-center px-4 py-3 border-b ${isDarkMode ? "border-slate-800" : "border-gray-50"}`}
-                  onPress={() => {
-                    setShowMenu(false);
-                    handleStartCall();
-                  }}
-                >
-                  <Phone size={18} color="#4f46e5" />
-                  <Text className={`ml-3 font-medium ${isDarkMode ? "text-slate-300" : "text-gray-700"}`}>Call</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  className="flex-row items-center px-4 py-3"
-                  onPress={() => {
-                    setShowMenu(false);
-                    handleClearChat();
-                  }}
-                >
-                  <Trash2 size={18} color="#ef4444" />
-                  <Text className="ml-3 font-medium text-red-500">
-                    Clear Chat
-                  </Text>
-                </TouchableOpacity>
-
-                {isGroupChat && (
-                  <>
-                    <TouchableOpacity
-                      className={`flex-row items-center px-4 py-3 border-t ${isDarkMode ? "border-slate-800" : "border-gray-50"}`}
-                      onPress={() => {
-                        setShowMenu(false);
-                        toggleGroupMute();
-                      }}
-                    >
-                      {isMuted ? (
-                        <>
-                          <Bell size={18} color={isDarkMode ? "#94a3b8" : "#6b7280"} />
-                          <Text className={`ml-3 font-medium ${isDarkMode ? "text-slate-300" : "text-gray-600"}`}>
-                            Unmute Notifications
-                          </Text>
-                        </>
-                      ) : (
-                        <>
-                          <BellOff size={18} color={isDarkMode ? "#94a3b8" : "#6b7280"} />
-                          <Text className={`ml-3 font-medium ${isDarkMode ? "text-slate-300" : "text-gray-600"}`}>
-                            Mute Notifications
-                          </Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      className={`flex-row items-center px-4 py-3 border-t ${isDarkMode ? "border-slate-800" : "border-gray-50"}`}
-                      onPress={() => {
-                        setShowMenu(false);
-                        handleExitGroup();
-                      }}
-                    >
-                      <LogOut size={18} color="#ef4444" />
-                      <Text className="ml-3 font-medium text-red-500">
-                        Exit Group
-                      </Text>
-                    </TouchableOpacity>
-                  </>
-                )}
-              </View>
-            </>
-          )}
-        </View>
-      </View>
-
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
-      >
-        <GiftedChat
-          messages={messages}
-          renderMessage={renderMessage}
-          onSend={onSend}
-          messagesContainerRef={flatListRef}
-          user={{ _id: user?.id?.toString() || "0", name: user?.name }}
-          renderAvatar={(props) => {
-            const { user: messageUser } = props.currentMessage;
-            if (isGroupChat && messageUser) {
-              return (
-                <Avatar
-                  {...props}
-                  imageStyle={{
-                    left: { width: 40, height: 40, borderRadius: 20 },
-                  }}
-                />
-              );
-            }
-            return null;
-          }}
-          renderActions={(props) =>
-            renderActions({
-              props,
-              showActionSheet: showActionSheetWithOptions,
-              onTakePhoto: takePhoto,
-              onPickImage: pickImage,
-              onPickDocument: pickDocument,
-              onPickVideo: pickVideo,
-              onStartRecording: startAudioRecording,
-              onStopRecording: stopAudioRecording,
-              isRecording: !!recording,
-            })
-          }
-          renderChatFooter={renderChatFooter}
-          renderLoading={renderLoading}
-          renderMessageAudio={RenderMessageAudio}
-          renderMessageVideo={(props) => (
-            <RenderMessageVideoComponent
-              {...props}
-              onOpen={(url: any) => {
-                setSelectedMedia({ url, type: "video" });
+            <TouchableOpacity
+              className={`flex-row items-center px-4 py-3 border-b ${isDarkMode ? "border-slate-900" : "border-gray-50"}`}
+              onPress={() => {
+                setShowGlobalMenu(false);
+                setIsCreateGroupMode(true);
               }}
-            />
-          )}
-          renderMessageImage={(props) => (
-            <RenderMessageImage
-              {...props}
-              onOpen={(url: any) => setSelectedMedia({ url, type: "image" })}
-            />
-          )}
-          renderCustomView={renderCustomView}
-          isUsernameVisible={isGroupChat}
-          renderUsername={(user) => {
-            if (!user || !user.name) return null;
-
-            return (
-              <Text className="text-[#6366f1] text-[10px] mb-[2px] ml-[10px] font-bold">
-                {user.name}
+            >
+              <Users size={18} color="#4f46e5" />
+              <Text
+                className={`ml-3 font-medium ${isDarkMode ? "text-slate-300" : "text-gray-700"}`}
+              >
+                Create Group
               </Text>
-            );
-          }}
-          keyboardAvoidingViewProps={{ keyboardVerticalOffset: headerHeight }}
-          textInputProps={{
-            onChangeText: (text) => handleTyping(text),
-          }}
-          isTyping={remoteTyping[selectedTenant.id?.toString() || ""]}
-          renderMessageText={(props) => {
-            const currentMessage = props.currentMessage as any;
-            const { position } = props;
+            </TouchableOpacity>
 
-            if (currentMessage.file) {
-              return null;
-            }
+            <TouchableOpacity
+              className="flex-row items-center px-4 py-3"
+              onPress={() => {
+                setShowGlobalMenu(false);
+                setBlockedModalVisible(true);
+              }}
+            >
+              <ShieldAlert size={18} color="#f59e0b" />
+              <Text
+                className={`ml-3 font-medium ${isDarkMode ? "text-slate-300" : "text-gray-700"}`}
+              >
+                Blocked List
+              </Text>
+            </TouchableOpacity>
 
-            return (
-              <View className="px-2 py-1">
-                {currentMessage.isForwarded && (
-                  <View className="flex-row items-center mb-1 opacity-60 ml-1">
-                    <Ionicons
-                      name="arrow-redo"
-                      size={12}
-                      color={position === "right" ? "white" : (isDarkMode ? "#94a3b8" : "#4b5563")}
-                    />
-                    <Text
-                      className={`text-[10px] italic ml-1 font-medium ${
-                        position === "right"
-                          ? "text-white"
-                          : (isDarkMode ? "text-slate-400" : "text-gray-500")
-                      }`}
-                    >
-                      Forwarded
-                    </Text>
-                  </View>
+            <TouchableOpacity
+              className="flex-row items-center justify-between px-4 py-3"
+              onPress={handleToggleReadReceipts}
+            >
+              <View className="flex-row items-center">
+                {user?.chat_settings?.read_receipts ? (
+                  <Eye size={18} color="#10b981" />
+                ) : (
+                  <EyeOff size={18} color="#94a3b8" />
                 )}
-                <MessageText {...props} />
+                <Text
+                  className={`ml-3 font-medium ${isDarkMode ? "text-slate-300" : "text-gray-700"}`}
+                >
+                  Read Receipts
+                </Text>
               </View>
-            );
-          }}
-          renderBubble={(props) => {
-            return (
-              <Bubble
-                {...props}
-                renderTicks={(currentMessage) => {
-                  if (currentMessage.user._id !== String(user?.id))
-                    return null;
-                  if (isGroupChat)
-                    return (
-                      <Text style={{ color: isDarkMode ? "#64748b" : "#9ca3af", fontSize: 10 }}>
-                        ✓
-                      </Text>
-                    );
-                  const lastReadDate = otherUserLastRead?.toDate
-                    ? otherUserLastRead.toDate()
-                    : null;
-                  const messageDate =
-                    currentMessage.createdAt instanceof Date
-                      ? currentMessage.createdAt
-                      : new Date(currentMessage.createdAt);
 
-                  const isRead = lastReadDate && messageDate <= lastReadDate;
-
-                  return (
-                    <View className="mx-2">
-                      <Text
-                        style={{
-                          color: isRead ? "#3b82f6" : (isDarkMode ? "#64748b" : "#9ca3af"),
-                          fontSize: 10,
-                          fontWeight: "bold",
-                        }}
-                      >
-                        {isRead ? "✓✓" : "✓"}
-                      </Text>
-                    </View>
-                  );
-                }}
-                wrapperStyle={{
-                  right: { backgroundColor: "#4f46e5" },
-                  left: { backgroundColor: isDarkMode ? "#1e293b" : "#f3f4f6" },
-                }}
-              />
-            );
-          }}
-          reply={{
-            swipe: {
-              isEnabled: true,
-              direction: "right",
-              onSwipe: (msg) => {
-                const fileMsg = msg as IFileMessage;
-                setReplyMessage({
-                  _id: fileMsg._id,
-                  text: fileMsg.text || "",
-                  user: fileMsg.user,
-                  createdAt: fileMsg.createdAt,
-                  image: fileMsg.image || undefined,
-                  audio: fileMsg.audio || undefined,
-                  video: fileMsg.video || undefined,
-                  file: fileMsg.file || undefined,
-                });
-              },
-            },
-            message: replyMessage,
-            onClear: () => setReplyMessage(null),
-
-            renderPreview: (props) => {
-              if (!replyMessage) return null;
-
-              const getDisplayContent = () => {
-                if (replyMessage.text) return replyMessage.text;
-                if (replyMessage.file) return `📄 ${replyMessage.file.name}`;
-                if (replyMessage.audio) return "🎤 Voice Note";
-                if (replyMessage.image) return "📷 Image";
-                if (replyMessage.video) return "🎥 Video";
-                return "Media Message";
-              };
-
-              return (
-                <View className={`border-l-4 border-[#6366f1] px-4 py-2 flex-row justify-between items-center ${
-                  isDarkMode ? "bg-slate-900" : "bg-gray-100"
-                }`}>
-                  <View className="flex-1">
-                    {isGroupChat && replyMessage.user?.name && (
-                      <Text className="text-[#6366f1] font-bold text-[11px] mb-1">
-                        Replying to {replyMessage.user.name}
-                      </Text>
-                    )}
-                    <Text
-                      numberOfLines={1}
-                      className={`text-[13px] ${isDarkMode ? "text-slate-400" : "text-gray-600"}`}
-                    >
-                      {getDisplayContent()}
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => setReplyMessage(null)}
-                    className="p-1"
-                  >
-                    <Ionicons name="close-circle" size={22} color={isDarkMode ? "#94a3b8" : "#4b5563"} />
-                  </TouchableOpacity>
-                </View>
-              );
-            },
-            renderMessageReply: (props: any) => {
-              const { replyMessage } = props;
-              if (!replyMessage) return null;
-              const handleScrollToOriginal = () => {
-                const index = messages.findIndex(
-                  (m) => m._id === replyMessage._id,
-                );
-                if (index > -1) {
-                  flatListRef.current?.scrollToIndex({
-                    index,
-                    animated: true,
-                  });
-                }
-              };
-              return (
-                <TouchableOpacity onPress={handleScrollToOriginal}>
-                  <View className={`p-2 border-l-4 border-indigo-200 ${isDarkMode ? "bg-white/5" : "bg-white/10"}`}>
-                    {isGroupChat && replyMessage.user && (
-                      <Text className="text-indigo-400 text-[10px] font-bold mb-1">
-                        {replyMessage.user}
-                      </Text>
-                    )}
-                    {replyMessage.audio ? (
-                      <View className="flex-row items-center">
-                        <Ionicons
-                          name="mic-outline"
-                          size={14}
-                          color="#6366f1"
-                        />
-                        <Text className="text-white ml-2 text-[11px] font-bold">
-                          Voice Note
-                        </Text>
-                      </View>
-                    ) : replyMessage?.file ? (
-                      <View className="flex-row items-center">
-                        <Ionicons
-                          name="document-outline"
-                          size={14}
-                          color="#6366f1"
-                        />
-                        <Text
-                          className={`ml-2 text-[11px] font-bold ${isDarkMode ? "text-slate-200" : "text-black"}`}
-                          numberOfLines={1}
-                        >
-                          doc{replyMessage.file.name}
-                        </Text>
-                      </View>
-                    ) : (
-                      <Text
-                        className={`text-[11px] ${isDarkMode ? "text-slate-300" : "text-black"}`}
-                        numberOfLines={2}
-                      >
-                        {replyMessage.text}
-                      </Text>
-                    )}
-                  </View>
-                </TouchableOpacity>
-              );
-            },
-          }}
-          onLongPressMessage={(context: any, message: IFileMessage) => {
-            const options = ["Reply", "Copy", "Forward", "Delete", "Cancel"];
-            const cancelButtonIndex = 4;
-            context.actionSheet().showActionSheetWithOptions(
-              {
-                options,
-                cancelButtonIndex,
-              },
-              (buttonIndex?: number) => {
-                if (buttonIndex === 0) setReplyMessage(message);
-                if (buttonIndex === 1)
-                  Clipboard.setString(message.text || "");
-                if (buttonIndex === 2) {
-                  setMessageToForward(message);
-                  setForwardModalVisible(true);
-                }
-                if (buttonIndex === 3) confirmDelete(message);
-              },
-            );
-          }}
-          onPressMessage={() => {}}
-        />
-        
-        {/* --- Media Viewer Modal --- */}
-        <Modal
-          visible={!!selectedMedia}
-          animationType="fade"
-          transparent={false}
-        >
-          <View className="flex-1 bg-black/95 justify-center items-center">
-            <TouchableOpacity
-              onPress={() => setSelectedMedia(null)}
-              className="absolute top-12 right-6 z-20 bg-white/20 p-2 rounded-full"
-            >
-              <X size={24} color="white" />
+              <View
+                className={`w-5 h-5 rounded-md border items-center justify-center ${
+                  user?.chat_settings?.read_receipts
+                    ? "bg-emerald-500 border-emerald-500"
+                    : isDarkMode
+                      ? "border-slate-700 bg-slate-900"
+                      : "border-gray-300 bg-gray-50"
+                }`}
+              >
+                {user?.chat_settings?.read_receipts && (
+                  <Text className="text-white text-[10px] font-black">✓</Text>
+                )}
+              </View>
             </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() =>
-                handleSaveMedia(selectedMedia!.url, selectedMedia!.type)
-              }
-              disabled={isSavingImage}
-              className="absolute top-12 left-6 z-20 bg-indigo-600 p-2 rounded-full"
-            >
-              {isSavingImage ? (
-                <ActivityIndicator size="small" color="white" />
-              ) : (
-                <Download size={24} color="white" />
-              )}
-            </TouchableOpacity>
-
-            {selectedMedia?.type === "image" && (
-              <Image
-                source={{ uri: selectedMedia.url }}
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  resizeMode: "contain",
-                }}
-              />
-            )}
-
-            {selectedMedia?.type === "video" && (
-              <Video
-                source={{ uri: selectedMedia.url }}
-                style={{ width: "100%", height: "80%" }}
-                useNativeControls
-                resizeMode={ResizeMode.CONTAIN}
-                shouldPlay={true}
-              />
-            )}
           </View>
-        </Modal>
-      </KeyboardAvoidingView>
-
-      {!isGroupChat && (
-        <UserProfileModal
-          isVisible={isProfileVisible}
-          onClose={() => setIsProfileVisible(false)}
-          user={selectedTenant}
-          openImageModal={() => setImageModalVisible(true)}
-          isOnline={onlineUsers.includes(selectedTenant.id?.toString() || "")}
-          onStartCall={(user: any) =>
-            alert(`Starting call with ${user.name}`)
-          }
-          onBlockUser={(userId: string) => handleBlockUser(userId)}
-        />
+        </>
       )}
 
-      {isGroupChat && (
-        <GroupProfileModal
-          isVisible={isProfileVisible}
-          onClose={() => setIsProfileVisible(false)}
-          group={activeGroupData}
-          currentUser={user}
-          tenants={visibleTenants}
-          estateId={selectedEstateId}
-          setSelectedTenant={setSelectedTenant}
-        />
-      )}
+      <FlatList
+        data={currentTab === "residents" ? filteredTenants : filteredGroups}
+        keyExtractor={(item) =>
+          item.id?.toString() ||
+          item._id?.toString() ||
+          Math.random().toString()
+        }
+        renderItem={renderItem}
+      />
     </View>
   );
-}
-
-// ==========================================
-// --- TENANT / CONVERSATION LIST VIEW ---
-// ==========================================
-return (
-  <View className={`flex-1 ${isDarkMode ? "bg-slate-900" : "bg-gray-50"}`}>
-    {user?.estate_ids && user.estate_ids.length > 1 && (
-      <View className={`px-4 pt-3 pb-1 border-b z-50 ${isDarkMode ? "bg-slate-950 border-slate-800" : "bg-white border-gray-100"}`}>
-        <TouchableOpacity
-          onPress={() => setShowEstateMenu(!showEstateMenu)}
-          className={`flex-row items-center justify-between border px-4 py-2.5 rounded-xl ${
-            isDarkMode ? "bg-slate-900 border-slate-800" : "bg-slate-50 border-slate-200"
-          }`}
-        >
-          <View className="flex-row items-center flex-1">
-            <MapPin size={16} color="#4f46e5" />
-            <Text
-              className={`ml-2 font-bold text-sm flex-1 ${isDarkMode ? "text-slate-200" : "text-gray-800"}`}
-              numberOfLines={1}
-            >
-              Chatting in:{" "}
-              {user.estates?.find((e) => e.id.toString() === selectedEstateId)
-                ?.name || "Select Estate"}
-            </Text>
-          </View>
-          <ChevronDown size={16} color={isDarkMode ? "#94a3b8" : "#64748b"} />
-        </TouchableOpacity>
-
-        {/* --- Multi-Estate Dropdown Overlay --- */}
-        {showEstateMenu && (
-          <View className={`absolute left-4 right-4 top-[52px] rounded-xl shadow-xl border z-50 py-1 ${
-            isDarkMode ? "bg-slate-950 border-slate-800 shadow-black/50" : "bg-white border-gray-100"
-          }`}>
-            {user.estates?.map((estate) => (
-              <TouchableOpacity
-                key={estate.id}
-                onPress={() => {
-                  setSelectedEstateId(estate.id.toString());
-                  setShowEstateMenu(false);
-                }}
-                className={`px-4 py-3 border-b flex-row items-center justify-between last:border-b-0 ${
-                  isDarkMode ? "border-slate-900" : "border-gray-50"
-                } ${selectedEstateId === estate.id.toString() ? (isDarkMode ? "bg-indigo-950/40" : "bg-indigo-50/40") : ""}`}
-              >
-                <Text
-                  className={`text-sm ${
-                    selectedEstateId === estate.id.toString()
-                      ? "text-indigo-600 font-bold"
-                      : (isDarkMode ? "text-slate-300" : "text-gray-700")
-                  }`}
-                >
-                  {estate.name}
-                </Text>
-                {selectedEstateId === estate.id.toString() && (
-                  <View className="w-2 h-2 rounded-full bg-indigo-600" />
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-      </View>
-    )}
-
-    {/* --- Navigation Tabs --- */}
-    <View className={`flex-row border-b px-4 pb-2 mt-2 ${isDarkMode ? "bg-slate-950 border-slate-800" : "bg-white border-gray-100"}`}>
-      <TouchableOpacity
-        onPress={() => setCurrentTab("residents")}
-        className={`pb-2 mr-6 pr-5 ${currentTab === "residents" ? "border-b-2 border-indigo-500" : ""}`}
-      >
-        <Text
-          className={`font-bold ${currentTab === "residents" ? "text-indigo-600" : (isDarkMode ? "text-slate-500" : "text-gray-400")}`}
-        >
-          Residents
-        </Text>
-        {privateUnread > 0 && (
-          <View
-            className="absolute -top-1 right-0 bg-red-500 rounded-full flex items-center justify-center"
-            style={{ minWidth: 18, height: 18 }}
-          >
-            <Text className="text-white text-[9px] font-bold">
-              {privateUnread}
-            </Text>
-          </View>
-        )}
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        onPress={() => setCurrentTab("groups")}
-        className={`pb-2 pr-5 ${currentTab === "groups" ? "border-b-2 border-indigo-500" : ""}`}
-      >
-        <Text
-          className={`font-bold ${currentTab === "groups" ? "text-indigo-600" : (isDarkMode ? "text-slate-500" : "text-gray-400")}`}
-        >
-          Groups
-        </Text>
-        {groupUnread > 0 && (
-          <View
-            className="absolute -top-1 right-0 bg-red-500 rounded-full flex items-center justify-center"
-            style={{ minWidth: 18, height: 18 }}
-          >
-            <Text className="text-white text-[9px] font-bold">
-              {groupUnread}
-            </Text>
-          </View>
-        )}
-      </TouchableOpacity>
-    </View>
-
-    {/* --- Search and Context Actions Toolbar --- */}
-    <View className={`p-4 border-b flex-row items-center space-x-3 ${isDarkMode ? "bg-slate-950 border-slate-800" : "bg-white border-gray-100"}`}>
-      <View className={`flex-1 flex-row items-center rounded-xl px-3 py-2 ${isDarkMode ? "bg-slate-900" : "bg-gray-100"}`}>
-        <Search size={20} color={isDarkMode ? "#64748b" : "#9ca3af"} />
-        <TextInput
-          placeholder="Search residents, blocks..."
-          className={`flex-1 ml-2 ${isDarkMode ? "text-slate-100" : "text-gray-900"}`}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholderTextColor={isDarkMode ? "#64748b" : "#9ca3af"}
-        />
-      </View>
-
-      <TouchableOpacity
-        onPress={() => setShowGlobalMenu(!showGlobalMenu)}
-        className="p-2"
-      >
-        <MoreVertical size={24} color={isDarkMode ? "#f8fafc" : "#000000"} />
-      </TouchableOpacity>
-    </View>
-
-    <CreateGroupModal
-      isVisible={isCreateGroupMode}
-      onClose={() => {
-        setIsCreateGroupMode(false);
-        setSelectedGroupMembers([]);
-      }}
-      tenants={visibleTenants}
-      selectedMembers={selectedGroupMembers}
-      onToggleMember={toggleMember}
-      onNext={() => setGroupNameModalVisible(true)}
-      insets={insets}
-      buttonText="Next"
-      header="New Group"
-      count={1}
-    />
-
-    <GroupNameModal
-      isVisible={isGroupNameModalVisible}
-      onClose={() => setGroupNameModalVisible(false)}
-      groupName={groupName}
-      setGroupName={setGroupName}
-      onFinalize={handleFinalizeGroup}
-    />
-
-    <CreateGroupModal
-      isVisible={isBlockedModalVisible}
-      onClose={() => {
-        setBlockedModalVisible(false);
-        setSelectedForUnblock([]);
-      }}
-      tenants={blockedTenants}
-      selectedMembers={selectedForUnblock}
-      onToggleMember={toggleUnblockMember}
-      onNext={handleBulkUnblock}
-      insets={insets}
-      buttonText={selectedForUnblock.length > 0 ? "Unblock" : "Done"}
-      header="Blocked Residents"
-      count={0}
-    />
-
-    {/* --- Global Context Popover Menu --- */}
-    {showGlobalMenu && (
-      <>
-        <TouchableOpacity
-          className="absolute inset-0 z-40"
-          onPress={() => setShowGlobalMenu(false)}
-        />
-        <View
-          className={`absolute right-4 top-20 rounded-xl shadow-lg border z-50 py-1 w-48 ${
-            isDarkMode ? "bg-slate-950 border-slate-800 shadow-black/50" : "bg-white border-gray-100"
-          }`}
-          style={{ elevation: 5 }}
-        >
-          <TouchableOpacity
-            className={`flex-row items-center px-4 py-3 border-b ${isDarkMode ? "border-slate-900" : "border-gray-50"}`}
-            onPress={() => {
-              setShowGlobalMenu(false);
-              setIsCreateGroupMode(true);
-            }}
-          >
-            <Users size={18} color="#4f46e5" />
-            <Text className={`ml-3 font-medium ${isDarkMode ? "text-slate-300" : "text-gray-700"}`}>
-              Create Group
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            className="flex-row items-center px-4 py-3"
-            onPress={() => {
-              setShowGlobalMenu(false);
-              setBlockedModalVisible(true);
-            }}
-          >
-            <ShieldAlert size={18} color="#f59e0b" />
-            <Text className={`ml-3 font-medium ${isDarkMode ? "text-slate-300" : "text-gray-700"}`}>
-              Blocked List
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </>
-    )}
-    
-    <FlatList
-      data={currentTab === "residents" ? filteredTenants : filteredGroups}
-      keyExtractor={(item) =>
-        item.id?.toString() ||
-        item._id?.toString() ||
-        Math.random().toString()
-      }
-      renderItem={renderItem}
-    />
-  </View>
-);
 };
 
 export default ChatManager;

@@ -45,7 +45,7 @@ export default function ResidentSettings() {
   const [otpLoading, setOtpLoading] = useState(false);
   const [verifyingOtp, setverifyingOtp] = useState(false);
   const connectedEstatesCount = user?.estate_ids?.length || 0;
-  const connectedUsersCount = user?.sub_users?.length || 1;
+  const connectedUsersCount = (user?.sub_users?.length || 0) + 1;
 
   const [selectedEstateId, setSelectedEstateId] = useState<string>("");
 
@@ -69,6 +69,7 @@ export default function ResidentSettings() {
     if (user?.estates && user.estates.length > 0) {
       setSelectedEstateId(user.estates[0].id);
     }
+    
   }, [user?.estates]);
 
   useEffect(() => {
@@ -91,28 +92,6 @@ export default function ResidentSettings() {
       user.estates.find((e) => e.id === selectedEstateId) || user.estates[0]
     );
   }, [selectedEstateId, user?.estates]);
-
-  const activeLocationContext = useMemo(() => {
-    if (!user?.locations || !selectedEstateId) return null;
-    const records = user.locations[selectedEstateId];
-
-    if (records && records.length > 0) {
-      const locationLines = records.map((rec) => {
-        const blockStr = rec.block ? `Block ${rec.block}` : "No Block";
-        const unitStr =
-          rec.unit && rec.unit.length > 0 ? `: ${rec.unit.join(", ")}` : "";
-
-        return `${blockStr}${unitStr}`;
-      });
-
-      return {
-        locationLines,
-        isMultiProperty: records.length > 1,
-      };
-    }
-
-    return { locationLines: ["N/A"], isMultiProperty: false };
-  }, [selectedEstateId, user?.locations]);
 
   const handleFieldChange = (field: "email", value: string) => {
     setProfile((prev) => ({
@@ -330,7 +309,7 @@ export default function ResidentSettings() {
 
         {/* 1. Residence Workspace Profiles Context Card */}
         <View
-          className={`${isDarkMode ? "bg-gm-navy" : "bg-white"} p-6 rounded-3xl border border-slate-100 shadow-sm mb-6`}
+          className={`${isDarkMode ? "bg-gm-navy" : "bg-white"} p-6 rounded-3xl border border-slate-100 mb-6`}
         >
           <View className="flex-row items-center mb-6">
             <Building size={20} color="#4f46e5" />
@@ -362,7 +341,7 @@ export default function ResidentSettings() {
           </View>
 
           <View
-            className={`${isDarkMode ? "bg-gm-navy border-gm-gold" : "bg-white border-slate-100"} p-6 rounded-3xl border shadow-sm mb-6`}
+            className={`${isDarkMode ? "bg-gm-navy border-gm-gold" : "bg-white border-slate-100"} p-6 rounded-3xl border mb-6`}
           >
             <View className="flex-row items-center mb-6">
               <Settings size={20} color="#4f46e5" />

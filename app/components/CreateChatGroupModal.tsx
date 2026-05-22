@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { User } from "../services/interfaces";
+import { useUser } from "../UserContext";
 
 interface CreateGroupModalProps {
   isVisible: boolean;
@@ -54,6 +55,7 @@ const CreateGroupModal = ({
   count,
 }: CreateGroupModalProps) => {
   const [searchQuery, setSearchQuery] = useState("");
+  const { isDarkMode } = useUser();
 
   const filteredTenants = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
@@ -78,14 +80,19 @@ const CreateGroupModal = ({
 
   return (
     <Modal visible={isVisible} animationType="slide" onRequestClose={onClose}>
-      <View className="flex-1 bg-white" style={{ paddingTop: insets.top }}>
+      <View 
+        className={`flex-1 ${isDarkMode ? "bg-slate-900" : "bg-white"}`} 
+        style={{ paddingTop: insets.top }}
+      >
         {/* Modal Header */}
-        <View className="p-4 flex-row justify-between items-center border-b border-gray-100">
+        <View className={`p-4 flex-row justify-between items-center border-b ${
+          isDarkMode ? "bg-slate-950 border-slate-800" : "bg-white border-gray-100"
+        }`}>
           <TouchableOpacity onPress={onClose}>
             <Text className="text-red-500 font-bold">Cancel</Text>
           </TouchableOpacity>
 
-          <Text className="text-lg font-black text-gray-900">{header}</Text>
+          <Text className={`text-lg font-black ${isDarkMode ? "text-slate-100" : "text-gray-900"}`}>{header}</Text>
 
           <TouchableOpacity
             onPress={onNext}
@@ -94,7 +101,7 @@ const CreateGroupModal = ({
             <Text
               className={`font-bold ${
                 selectedMembers.length <= count
-                  ? "text-gray-300"
+                  ? isDarkMode ? "text-slate-700" : "text-gray-300"
                   : "text-indigo-600"
               }`}
             >
@@ -103,24 +110,31 @@ const CreateGroupModal = ({
           </TouchableOpacity>
         </View>
 
-        <View className="px-4 py-2 bg-gray-50 border-b border-gray-100">
-          <View className="flex-row items-center bg-white border border-gray-200 rounded-xl px-3 py-1">
-            <Search size={18} color="#9ca3af" />
+        {/* Search Bar Container */}
+        <View className={`px-4 py-2 border-b ${
+          isDarkMode ? "bg-slate-900 border-slate-800" : "bg-gray-50 border-b border-gray-100"
+        }`}>
+          <View className={`flex-row items-center border rounded-xl px-3 py-1 ${
+            isDarkMode ? "bg-slate-950 border-slate-800" : "bg-white border-gray-200"
+          }`}>
+            <Search size={18} color={isDarkMode ? "#64748b" : "#9ca3af"} />
             <TextInput
               placeholder="Search by name or block..."
-              className="flex-1 h-10 ml-2 text-gray-800"
+              className={`flex-1 h-10 ml-2 ${isDarkMode ? "text-slate-200" : "text-gray-800"}`}
               value={searchQuery}
               onChangeText={setSearchQuery}
               autoCorrect={false}
+              placeholderTextColor={isDarkMode ? "#64748b" : "#9ca3af"}
             />
             {searchQuery.length > 0 && (
               <TouchableOpacity onPress={() => setSearchQuery("")}>
-                <Text className="text-gray-400 px-2 text-xs">Clear</Text>
+                <Text className={`px-2 text-xs ${isDarkMode ? "text-slate-400" : "text-gray-400"}`}>Clear</Text>
               </TouchableOpacity>
             )}
           </View>
         </View>
 
+        {/* Tenant Items List */}
         <FlatList
           data={filteredTenants}
           keyExtractor={(item) =>
@@ -133,24 +147,26 @@ const CreateGroupModal = ({
             return (
               <TouchableOpacity
                 onPress={() => onToggleMember(id)}
-                className={`flex-row items-center p-4 border-b border-gray-50 ${
-                  isSelected ? "bg-indigo-50" : "bg-white"
+                className={`flex-row items-center p-4 border-b ${
+                  isSelected 
+                    ? isDarkMode ? "bg-indigo-950/40 border-slate-800" : "bg-indigo-50 border-gray-50"
+                    : isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-gray-50"
                 }`}
               >
                 <Image
                   source={{
                     uri: item.avatar || "https://via.placeholder.com/50",
                   }}
-                  className="w-12 h-12 rounded-full bg-gray-200"
+                  className={`w-12 h-12 rounded-full ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}
                 />
                 <View className="ml-4 flex-1">
-                  <Text className="font-bold text-gray-800">{item.name}</Text>
+                  <Text className={`font-bold ${isDarkMode ? "text-slate-200" : "text-gray-800"}`}>{item.name}</Text>
                   {item.isGroup ? (
                     <Text className="text-indigo-500 text-[11px] font-bold">
                       COMMUNITY GROUP • {item.memberCount} MEMBERS
                     </Text>
                   ) : (
-                    <Text className="text-gray-400 text-xs">
+                    <Text className={`text-xs ${isDarkMode ? "text-slate-500" : "text-gray-400"}`}>
                       Block {item.block} • Unit {item.unit}
                     </Text>
                   )}
@@ -159,7 +175,7 @@ const CreateGroupModal = ({
                   className={`w-6 h-6 rounded-full border-2 ${
                     isSelected
                       ? "bg-indigo-500 border-indigo-500"
-                      : "border-gray-300"
+                      : isDarkMode ? "border-slate-700" : "border-gray-300"
                   }`}
                 >
                   {isSelected && (
@@ -173,7 +189,7 @@ const CreateGroupModal = ({
           }}
           ListEmptyComponent={
             <View className="p-10 items-center">
-              <Text className="text-gray-400">No residents available</Text>
+              <Text className={isDarkMode ? "text-slate-500" : "text-gray-400"}>No residents available</Text>
             </View>
           }
         />
@@ -189,6 +205,8 @@ export const GroupNameModal = ({
   setGroupName,
   onFinalize,
 }: GroupNameModalProps) => {
+  const { isDarkMode } = useUser();
+
   return (
     <Modal
       visible={isVisible}
@@ -197,17 +215,19 @@ export const GroupNameModal = ({
       onRequestClose={onClose}
     >
       <View className="flex-1 bg-black/50 justify-center items-center px-6">
-        <View className="bg-white w-full rounded-3xl p-6 shadow-xl">
-          <Text className="text-xl font-black text-gray-900 mb-2">
+        <View className={`w-full rounded-3xl p-6 shadow-xl ${isDarkMode ? "bg-slate-900" : "bg-white"}`}>
+          <Text className={`text-xl font-black mb-2 ${isDarkMode ? "text-slate-100" : "text-gray-900"}`}>
             Group Name
           </Text>
-          <Text className="text-gray-500 mb-4">
+          <Text className={`mb-4 ${isDarkMode ? "text-slate-400" : "text-gray-500"}`}>
             Give your community group a clear name (e.g., Block A Security).
           </Text>
 
           <TextInput
-            className="bg-gray-100 p-4 rounded-xl text-gray-900 font-bold mb-6"
-            placeholderTextColor="#9ca3af"
+            className={`p-4 rounded-xl font-bold mb-6 ${
+              isDarkMode ? "bg-slate-950 text-slate-100" : "bg-gray-100 text-gray-900"
+            }`}
+            placeholderTextColor={isDarkMode ? "#64748b" : "#9ca3af"}
             placeholder="Enter group name..."
             value={groupName}
             onChangeText={setGroupName}
@@ -217,19 +237,21 @@ export const GroupNameModal = ({
           <View className="flex-row space-x-3">
             <TouchableOpacity
               onPress={onClose}
-              className="flex-1 py-4 items-center rounded-xl bg-gray-50"
+              className={`flex-1 py-4 items-center rounded-xl ${isDarkMode ? "bg-slate-800" : "bg-gray-50"}`}
             >
-              <Text className="text-gray-500 font-bold">Back</Text>
+              <Text className={isDarkMode ? "text-slate-400" : "text-gray-500"}>Back</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               onPress={onFinalize}
               className={`flex-1 py-4 items-center rounded-xl ${
-                groupName.trim().length > 2 ? "bg-indigo-600" : "bg-indigo-300"
+                groupName.trim().length > 2 ? "bg-indigo-600" : isDarkMode ? "bg-indigo-950" : "bg-indigo-300"
               }`}
               disabled={groupName.trim().length <= 2}
             >
-              <Text className="text-white font-bold">Create Group</Text>
+              <Text className={`font-bold ${groupName.trim().length > 2 ? "text-white" : isDarkMode ? "text-indigo-900" : "text-white"}`}>
+                Create Group
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -248,8 +270,8 @@ export const AddMembersModal = ({
 }: AddMembersModalProps) => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const { isDarkMode } = useUser();
 
-  // Filter: Only show tenants who are NOT already in the group
   const availableTenants = useMemo(() => {
     return tenants.filter((t) => !existingMemberIds.includes(t.id?.toString()));
   }, [tenants, existingMemberIds]);
@@ -271,18 +293,23 @@ export const AddMembersModal = ({
 
   return (
     <Modal visible={isVisible} animationType="slide" onRequestClose={onClose}>
-      <View className="flex-1 bg-white" style={{ paddingTop: insets.top }}>
+      <View 
+        className={`flex-1 ${isDarkMode ? "bg-slate-900" : "bg-white"}`} 
+        style={{ paddingTop: insets.top }}
+      >
         {/* Header */}
-        <View className="px-6 py-4 flex-row justify-between items-center border-b border-gray-100">
+        <View className={`px-6 py-4 flex-row justify-between items-center border-b ${
+          isDarkMode ? "bg-slate-950 border-slate-800" : "bg-white border-gray-100"
+        }`}>
           <TouchableOpacity onPress={onClose} className="p-2 -ml-2">
-            <X size={24} color="#374151" />
+            <X size={24} color={isDarkMode ? "#94a3b8" : "#374151"} />
           </TouchableOpacity>
 
           <View className="items-center">
-            <Text className="text-lg font-black text-gray-900">
+            <Text className={`text-lg font-black ${isDarkMode ? "text-slate-100" : "text-gray-900"}`}>
               Add Members
             </Text>
-            <Text className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">
+            <Text className={`text-[10px] font-bold uppercase tracking-tighter ${isDarkMode ? "text-slate-500" : "text-gray-400"}`}>
               {selectedIds.length} Selected
             </Text>
           </View>
@@ -293,7 +320,9 @@ export const AddMembersModal = ({
           >
             <Text
               className={`font-bold ${
-                selectedIds.length === 0 ? "text-gray-300" : "text-indigo-600"
+                selectedIds.length === 0 
+                  ? isDarkMode ? "text-slate-700" : "text-gray-300" 
+                  : "text-indigo-600"
               }`}
             >
               {loading ? "Adding..." : "Done"}
@@ -301,7 +330,7 @@ export const AddMembersModal = ({
           </TouchableOpacity>
         </View>
 
-        {/* List */}
+        {/* List Content */}
         <FlatList
           data={availableTenants}
           keyExtractor={(item) =>
@@ -318,20 +347,20 @@ export const AddMembersModal = ({
                 activeOpacity={0.7}
                 className={`flex-row items-center p-4 mx-4 mt-2 rounded-2xl border ${
                   isSelected
-                    ? "bg-indigo-50 border-indigo-200"
-                    : "bg-white border-gray-50"
+                    ? isDarkMode ? "bg-indigo-950/40 border-indigo-900/60" : "bg-indigo-50 border-indigo-200"
+                    : isDarkMode ? "bg-slate-950 border-slate-800/80" : "bg-white border-gray-50"
                 }`}
               >
                 <Image
                   source={{
                     uri: item.avatar || "https://via.placeholder.com/50",
                   }}
-                  className="w-12 h-12 rounded-full bg-gray-100"
+                  className={`w-12 h-12 rounded-full ${isDarkMode ? "bg-slate-800" : "bg-gray-100"}`}
                 />
 
                 <View className="ml-4 flex-1">
-                  <Text className="font-bold text-gray-800">{item.name}</Text>
-                  <Text className="text-gray-400 text-xs">
+                  <Text className={`font-bold ${isDarkMode ? "text-slate-200" : "text-gray-800"}`}>{item.name}</Text>
+                  <Text className={`text-xs ${isDarkMode ? "text-slate-500" : "text-gray-400"}`}>
                     Block {item.block} • Unit {item.unit}
                   </Text>
                 </View>
@@ -340,7 +369,7 @@ export const AddMembersModal = ({
                   className={`w-6 h-6 rounded-full border-2 items-center justify-center ${
                     isSelected
                       ? "bg-indigo-600 border-indigo-600"
-                      : "border-gray-200"
+                      : isDarkMode ? "border-slate-800" : "border-gray-200"
                   }`}
                 >
                   {isSelected && (
@@ -352,7 +381,7 @@ export const AddMembersModal = ({
           }}
           ListEmptyComponent={
             <View className="p-20 items-center">
-              <Text className="text-gray-400 text-center font-medium">
+              <Text className={`text-center font-medium ${isDarkMode ? "text-slate-500" : "text-gray-400"}`}>
                 Everyone from your estate is already in this group!
               </Text>
             </View>
