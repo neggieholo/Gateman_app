@@ -1,0 +1,185 @@
+import { useUser } from "@/app/UserContext";
+import { router } from "expo-router";
+import {
+  Briefcase,
+  ChevronRight,
+  Clock,
+  PhoneCall,
+  Shield,
+  ShieldCheck,
+  Zap,
+} from "lucide-react-native";
+import React from "react";
+import { ScrollView, Text, TouchableOpacity, View } from "react-native";
+
+interface ServiceItemProps {
+  title: string;
+  subtitle: string;
+  icon: React.ElementType;
+  color: string;
+  onPress: () => void;
+  isDarkMode: boolean;
+}
+
+const ServiceListItem: React.FC<ServiceItemProps> = ({
+  title,
+  subtitle,
+  icon: Icon,
+  color,
+  onPress,
+  isDarkMode,
+}) => (
+  <TouchableOpacity
+    onPress={onPress}
+    activeOpacity={0.7}
+    className={`flex-row items-center justify-between p-5 ${isDarkMode ? "bg-gm-navy border-gm-gold" : "bg-white border-slate-100"} rounded-3xl mb-3 shadow-sm border`}
+  >
+    <View className="flex-row items-center flex-1">
+      <View
+        style={{ backgroundColor: `${color}15` }}
+        className="p-3 rounded-2xl mr-4"
+      >
+        <Icon size={22} color={color} />
+      </View>
+      <View>
+        <Text
+          className={`${isDarkMode ? "text-gm-gold" : "text-gm-navy"} font-oswald-semibold text-base`}
+        >
+          {title}
+        </Text>
+        <Text
+          className={`${isDarkMode ? "text-slate-400" : "text-slate-500 "} font-roboto-regular text-xs`}
+        >
+          {subtitle}
+        </Text>
+      </View>
+    </View>
+    <ChevronRight size={18} color="#cbd5e1" />
+  </TouchableOpacity>
+);
+
+export default function EstateServicesScreen() {
+  const { user, isDarkMode, theme } = useUser();
+  const hasNoEstates = !user?.estate_ids || user.estate_ids.length === 0;
+
+  if (hasNoEstates) {
+    return (
+      <View
+        className={`${isDarkMode ? "bg-slate-950" : "bg-slate-50"} flex-1 justify-center items-center p-6`}
+      >
+        <View
+          className={`${isDarkMode ? "bg-gm-navy border-slate-800" : "bg-white border-slate-100"} p-8 rounded-[2.5rem] shadow-sm items-center border`}
+        >
+          <ShieldCheck size={60} color={isDarkMode ? "#D4AF37" : "#0A1F44"} />
+          <Text
+            className={`text-xl font-bold ${isDarkMode ? "text-gm-gold" : "text-gm-navy"} mt-4 text-center`}
+          >
+            Access Restricted
+          </Text>
+          <Text
+            className={`text-sm ${isDarkMode ? "text-slate-400" : "text-slate-500"} mt-2 text-center px-4 max-w-[280px]`}
+          >
+            You are currently not attached to any active estates on GateMan.
+          </Text>
+          <TouchableOpacity
+            className={`w-full p-4 rounded-2xl shadow-sm mt-6 border items-center ${isDarkMode ? "bg-gm-charcoal border-gm-gold" : "bg-slate-900 border-transparent"}`}
+            onPress={() => router.push("/JoinRequest" as any)}
+          >
+            <Text className="text-white font-roboto-regular font-bold text-base">
+              Join an Estate
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View className={`flex-1 ${isDarkMode ? "bg-slate-950" : "bg-gray-50 "}`}>
+      <ScrollView
+        className="flex-1 px-4 mt-5"
+        showsVerticalScrollIndicator={false}
+      >
+        <View className="mb-6">
+          <Text
+            className={`${isDarkMode ? "text-gray-300" : "text-slate-500 "} font-oswald-semibold`}
+          >
+            Utilities, payments, and security info
+          </Text>
+        </View>
+
+        {/* FINANCIAL SERVICES - Blue/Indigo */}
+        <ServiceListItem
+          title="Utility & Dues"
+          subtitle="Redirect to estate payment portal"
+          icon={Zap}
+          color="#6366f1"
+          onPress={() => {
+            router.push("/UtilityPayment" as any);
+          }}
+          isDarkMode={isDarkMode}
+        />
+
+        <ServiceListItem
+          title="Payments History"
+          subtitle="View your past transactions"
+          icon={Clock}
+          color="#0ea5e9" // Sky 500
+          onPress={() => {
+            router.push("/PaymentHistory" as any);
+          }}
+          isDarkMode={isDarkMode}
+        />
+
+        {/* SECURITY - Emerald/Green */}
+        <ServiceListItem
+          title="Security Center"
+          subtitle="View security personnel"
+          icon={Shield}
+          color="#10b981" // Emerald 500
+          onPress={() => {
+            router.push("/SecurityPersonnels" as any);
+          }}
+          isDarkMode={isDarkMode}
+        />
+
+        {/* SUPPORT & HELP - Amber/Orange */}
+        <ServiceListItem
+          title="Suggestions and Complaints"
+          subtitle="Report your concerns"
+          icon={ShieldCheck} 
+          color="#f59e0b" 
+          onPress={() => {
+            router.push("/ResolutionCenter" as any);
+          }}
+          isDarkMode={isDarkMode}
+        />
+
+        {/* EMERGENCY - Rose/Red */}
+        <ServiceListItem
+          title="Emergency Contacts"
+          subtitle="Important Numbers"
+          icon={PhoneCall} 
+          color="#e11d48" 
+          onPress={() => {
+            router.push("/EmergencyContactsPage" as any);
+          }}
+          isDarkMode={isDarkMode}
+        />
+
+        <ServiceListItem
+          title="Requests"
+          subtitle="Order a service"
+          icon={Briefcase} 
+          color="#e11d48" 
+          onPress={() => {
+            router.push("/ServicesRequestScreen" as any);
+          }}
+          isDarkMode={isDarkMode}
+        />
+
+        <View className="h-20" />
+      </ScrollView>
+    </View>
+  );
+}

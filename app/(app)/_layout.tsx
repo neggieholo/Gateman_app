@@ -1,0 +1,182 @@
+import CookieManager from "@react-native-cookies/cookies";
+import auth from "@react-native-firebase/auth";
+import { DrawerContentScrollView, DrawerItem } from "@react-navigation/drawer";
+import { StatusBar } from 'expo-status-bar';
+import { DrawerActions } from "@react-navigation/native";
+import { router, usePathname, useRouter } from "expo-router";
+import { Drawer } from "expo-router/drawer";
+import { useUser } from "../UserContext";
+import {
+  Bell,
+  LogOut,
+  MessageSquare,
+  Settings,
+  X,
+} from "lucide-react-native";
+import { Alert, Image, Text, TouchableOpacity, View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { postLogout } from "../services/api";
+import { useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+function CustomDrawerContent(props: any) {
+  const { setUser, setSessionId, socket } = useUser();
+  const [loggingOut, setLoggingOut] = useState(false);
+  const router = useRouter();
+
+  const handleLogout = () => {
+    Alert.alert("Logout", "Are you sure you want to end your session?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Logout", style: "destructive", onPress: () => logOut() },
+    ]);
+  };
+  const logOut = async () => {
+    setLoggingOut(true);
+    try {
+      if (socket) socket.disconnect();
+      if (auth().currentUser) await auth().signOut();
+      try {
+        await postLogout();
+      } catch (apiErr) {
+        console.warn("Backend logout failed", apiErr);
+      }
+      await CookieManager.clearAll();
+      await AsyncStorage.removeItem("GM_READ_POST_IDS");
+      router.replace("/");
+
+      setTimeout(() => {
+        if (setSessionId) setSessionId("");
+        setUser(null);
+      }, 100);
+    } catch (e) {
+      console.error("Logout failed", e);
+    } finally {
+      setLoggingOut(false);
+    }
+  };
+
+  return (
+    <DrawerContentScrollView
+      {...props}
+      contentContainerStyle={{ paddingTop: 60 }}
+    >
+      <View className="w-full z-50 flex-row justify-end px-2">
+        <TouchableOpacity
+          onPress={() => props.navigation.dispatch(DrawerActions.closeDrawer())}
+          className="bg-black/20 p-2 rounded-full mb-4"
+        >
+          <X size={20} color="white" />
+        </TouchableOpacity>
+      </View>
+      <View className="flex items-center justify-start">
+        <Image
+          source={require("../../assets/images/splash-icon.png")}
+          style={{ borderRadius: 10 }}
+          className="w-full h-28 mb-4 mt-5"
+          resizeMode="contain"
+        />
+      </View>
+
+      <View className="h-16" />
+
+      <DrawerItem
+        label="Settings"
+        labelStyle={{ color: "#D4AF37", fontSize: 16, fontWeight: "bold" }}
+        icon={() => <Settings size={30} color="green" />}
+        onPress={() => {router.push("/SettingsScreen" as any); props.navigation.dispatch(DrawerActions.closeDrawer())}}
+      />
+
+      <DrawerItem
+        label={loggingOut ? "Logging Out..." : "Logout"}
+        labelStyle={{ color: "#D4AF37", fontSize: 16, fontWeight: "bold" }}
+        icon={() => <LogOut size={30} color="#ef4444" />}
+        onPress={handleLogout}
+      />
+    </DrawerContentScrollView>
+  );
+}
+
+export default function AppLayout() {
+  const pathname = usePathname();
+  const { badgeCount, totalUnread } = useUser();
+
+  const getHeaderTitle = () => {
+    if (pathname.includes("community")) return "Community";
+    if (pathname.includes("bookings")) return "Bookings";
+    if (pathname.includes("guests")) return "Guests";
+    if (pathname.includes("services")) return "Services";
+    return "";
+  };
+  const isDashboard = pathname.includes("dashboard");
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>      
+      <Drawer
+        drawerContent={(props) => <CustomDrawerContent {...props} />}
+        screenOptions={{
+          headerShown: true,
+          drawerStyle: { width: 260, backgroundColor: "#0A1F44" },
+          headerTitleAlign: "center",
+          headerTitle: getHeaderTitle(),
+          headerStyle: {
+            backgroundColor: "#0A1F44",
+          },
+          headerTintColor: "#D4AF37",
+          headerTitleStyle: {
+            fontFamily: "Montserrat-ExtraBold",
+            color: "#D4AF37",
+          },
+          headerRight: () => {
+            if (isDashboard) {
+              return (
+                <View className="flex-row items-center mr-4">
+                  <TouchableOpacity
+                    onPress={() => router.push("/ChatScreen")} 
+                    className="mr-10"
+                  >
+                    <MessageSquare size={24} color="#D4AF37" />
+                    {totalUnread > 0 && (
+                      <View
+                        className="absolute -top-1 -right-1 bg-red-500 rounded-full flex items-center justify-center border-2 border-[#2563eb]"
+                        style={{ minWidth: 18, height: 18 }}
+                      >
+                        <Text className="text-white text-[9px] font-bold">
+                          {totalUnread}
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+
+                  {/* Notification Bell */}
+                  <TouchableOpacity
+                    onPress={() => router.push("/NotificationsPage")}
+                  >
+                    <Bell size={24} color="#D4AF37" />
+                    {badgeCount > 0 && (
+                      <View
+                        className="absolute -top-1 -right-1 bg-red-500 rounded-full flex items-center justify-center border-2 border-[#2563eb]"
+                        style={{ minWidth: 18, height: 18 }}
+                      >
+                        <Text className="text-white text-[9px] font-bold">
+                          {badgeCount}
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              );
+            }
+            return <View style={{ width: 40, marginRight: 16 }} />;
+          },
+        }}
+      >
+        <Drawer.Screen
+          name="(tabs)"
+          options={{
+            drawerItemStyle: { display: "none" },
+          }}
+        />
+      </Drawer>
+    </GestureHandlerRootView>
+  );
+}

@@ -1,0 +1,60 @@
+import { Tabs } from "expo-router";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+
+export default function TenantTabsLayout() {
+  return (
+    <SafeAreaProvider>
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          headerStyle: { backgroundColor: "#f9fafb" },
+          headerTitleAlign: "center",
+          tabBarStyle: { backgroundColor: "#0A1F44" },
+          tabBarActiveTintColor: "#BFDBFE",
+          tabBarInactiveTintColor: "#D4AF37",
+        }}
+      >
+        {/* Dashboard is hidden */}
+        <Tabs.Screen
+          name="dashboard"
+          options={{
+            tabBarIcon: ({ color, size }) => <Ionicons name="home" size={size} color={color} />,
+          }}
+        />
+
+        <Tabs.Screen
+          name="community"
+          options={{
+            title: "Community",
+            tabBarIcon: ({ color, size }) => <Ionicons name="list" size={size} color={color} />,
+          }}
+        />
+
+        <Tabs.Screen
+          name="guests"
+          options={{
+            title: "Guests",
+            tabBarIcon: ({ color, size }) => <Ionicons name="people" size={size} color={color} />,
+          }}
+        />
+
+        <Tabs.Screen
+          name="bookings"
+          options={{
+            title: "Bookings",
+            tabBarIcon: ({ color, size }) => <Ionicons name="calendar" size={size} color={color} />,
+          }}
+        />
+
+        <Tabs.Screen
+          name="services"
+          options={{
+            title: "Services",
+            tabBarIcon: ({ color, size }) => <Ionicons name="grid" size={size} color={color} />,
+          }}
+        />
+      </Tabs>
+    </SafeAreaProvider>
+  );
+}
