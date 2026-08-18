@@ -13,6 +13,7 @@ import {
   Estate,
   EstateFacility,
   FetchNotificationsResponse,
+  FetchPaymentItemsResponse,
   Invitation,
   LocationBooking,
   PaymentSettingsResponse,
@@ -1198,6 +1199,48 @@ export const formatDate = (dateStr: string) => {
   return `${day}-${month}-${year}`;
 };
 
+export const formatPaymentDate = (dateInput?: any) => {
+  if (!dateInput) return "N/A";
+
+  try {
+    // 1. Extract string representation safely
+    const rawString =
+      typeof dateInput === "string"
+        ? dateInput.trim()
+        : dateInput instanceof Date
+          ? dateInput.toISOString()
+          : String(dateInput); // 2. Extract basic YYYY-MM-DD pattern directly via Regex
+
+    const match = rawString.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!match) return "N/A";
+
+    const [, year, month, day] = match;
+
+    const monthNames = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
+
+    const monthIndex = parseInt(month, 10) - 1;
+    if (monthIndex < 0 || monthIndex > 11) return "N/A";
+
+    return `${parseInt(day, 10)} ${monthNames[monthIndex]} ${year}`;
+  } catch (error) {
+    console.error("Format Date Error:", error);
+    return "N/A";
+  }
+};
+
 /**
  * Safely parses a PostgreSQL timestamp string into a Unix millisecond value.
  * Tailored to handle React Native Hermes engine strict parsing rules safely
@@ -1320,10 +1363,6 @@ export const submitBookingPayment = async (id: string, payload: any) => {
   }
 };
 
-interface UploadResult {
-  fileUrl: string;
-}
-
 export async function getS3UploadedUrl(
   fileUri: string,
   folder: string = "uploads",
@@ -1423,5 +1462,38 @@ export const cleanupLocalFile = async (uri: string | null) => {
     }
   } catch (err) {
     console.warn("Failed to delete local cache file:", err);
+  }
+};
+
+export const getResidentPaymentItemsApi = async (
+  estateId: string,
+): Promise<FetchPaymentItemsResponse> => {
+  try {
+    const response = await fetch(
+      `${BASE_URL}/resident/payment-items/${estateId}`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      },
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return {
+        success: false,
+        error: data.error || "Failed to retrieve payment items list.",
+      };
+    }
+
+    return data;
+  } catch (error) {
+    console.error("API Error [getResidentPaymentItemsApi]:", error);
+    return {
+      success: false,
+      error: "Unable to connect. Check network connection.",
+    };
   }
 };

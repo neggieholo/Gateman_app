@@ -461,3 +461,9 @@ export interface ServiceRequest {
   is_completed: boolean;
   requested_at: string;
 }
+
+export interface FetchPaymentItemsResponse {
+  success: boolean;
+  payment_items?: string[];
+  error?: string;
+}

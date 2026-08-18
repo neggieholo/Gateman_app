@@ -29,7 +29,7 @@ import { useUser } from "./UserContext";
 import { sendPofileChangeOtpApi } from "./services/api";
 
 export default function ResidentSettings() {
-  const { user, isDarkMode, theme } = useUser();
+  const { user, setUser, isDarkMode, theme } = useUser();
   const BASE_URL = `${process.env.EXPO_PUBLIC_BASE_URL}/api`;
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -275,11 +275,17 @@ export default function ResidentSettings() {
       if (data.success) {
         if (profile.email !== user?.email) {
           await SecureStore.setItemAsync("user_email", profile.email);
+          setUser({ ...user, email: profile.email });
+        }
+        if (profile.phone !== user?.phone) {
+          setUser({ ...user, phone: profile.phone });
         }
         if (profile.biometric_login) {
           await AsyncStorage.setItem("biometrics_active", "true");
+          setUser({ ...user, biometric_login: true });
         } else {
           await AsyncStorage.setItem("biometrics_active", "false");
+          setUser({ ...user, biometric_login: false });
         }
         Alert.alert("Success", "Profile updated successfully");
         setIsEditing(false);

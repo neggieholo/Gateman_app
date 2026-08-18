@@ -13,7 +13,7 @@ import {
   UploadCloud,
   XCircle,
 } from "lucide-react-native";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -33,8 +33,11 @@ import PaymentReportsHistory from "./PaymentReportsHistory";
 import { useUser } from "./UserContext";
 import {
   deletePaymentLog,
-  getS3UploadedUrl,
+  formatDate,
+  formatPaymentDate,
   getPaymentHistory,
+  getResidentPaymentItemsApi,
+  getS3UploadedUrl,
   submitEstateReport,
   uploadPaymentLog,
 } from "./services/api";
@@ -115,11 +118,12 @@ const PaymentHistory = () => {
   const [reportSubject, setReportSubject] = useState("");
   const [reportDescription, setReportDescription] = useState("");
   const [submittingReport, setSubmittingReport] = useState(false);
+  const [paymentItems, setPaymentItems] = useState<string[]>([]);
+  const [isItemModalVisible, setIsItemModalVisible] = useState(false);
 
   const [form, setForm] = useState({
     amount: "",
     category: "",
-    transaction_reference: "",
     notes: "",
     receipt_url: "",
     payment_date: new Date(),
@@ -134,14 +138,14 @@ const PaymentHistory = () => {
     } else if (!selectedEstateId) {
       setEstatePickerVisible(true);
     }
-  }, [user?.estate_ids]);
+  }, [user?.estate_ids, selectedEstateId]);
 
   const activeEstateName = useMemo(() => {
     if (!user?.estates || !selectedEstateId) return "";
     return user.estates.find((e) => e.id === selectedEstateId)?.name || "";
   }, [selectedEstateId, user?.estates]);
 
-  const fetchHistory = async () => {
+  const fetchHistory = useCallback(async () => {
     if (!selectedEstateId) return;
 
     if (!dates.start && !dates.end) {
@@ -149,6 +153,7 @@ const PaymentHistory = () => {
       try {
         const res = await getPaymentHistory(selectedEstateId);
         if (res.success) setHistory(res.history);
+        console.log('Date Check:',res.history[0].payment_date)
       } finally {
         setLoading(false);
       }
@@ -185,13 +190,27 @@ const PaymentHistory = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedEstateId, dates.start, dates.end]);
 
   useEffect(() => {
-    if (activeTab === "HISTORY" && selectedEstateId) {
+    if (activeTab === "HISTORY") {
       fetchHistory();
     }
-  }, [activeTab, selectedEstateId]);
+  }, [activeTab, fetchHistory]);
+
+  const fetchPaymentItems = useCallback(async () => {
+    if (!selectedEstateId) return;
+    const res = await getResidentPaymentItemsApi(selectedEstateId);
+    if (res.success && res.payment_items) {
+      setPaymentItems(res.payment_items);
+    } else {
+      Alert.alert("Failed tofetch payment items list");
+    }
+  }, [selectedEstateId]);
+
+  useEffect(() => {
+    fetchPaymentItems();
+  }, [fetchPaymentItems]);
 
   const openReportModal = (payment: any) => {
     setSelectedPayment(payment);
@@ -225,7 +244,10 @@ const PaymentHistory = () => {
 
       if (!result.canceled && result.assets[0].uri) {
         setUploadingImage(true);
-        const cloudUrl = await getS3UploadedUrl(result.assets[0].uri, "payment-receipts");
+        const cloudUrl = await getS3UploadedUrl(
+          result.assets[0].uri,
+          "payment-receipts",
+        );
         if (cloudUrl) {
           setForm((prev) => ({ ...prev, receipt_url: cloudUrl }));
         }
@@ -261,7 +283,6 @@ const PaymentHistory = () => {
         setForm({
           amount: "",
           category: "",
-          transaction_reference: "",
           notes: "",
           receipt_url: "",
           payment_date: new Date(),
@@ -452,16 +473,46 @@ const PaymentHistory = () => {
                     }
                     isDarkMode={isDarkMode}
                   />
-                  <InputField
-                    label="Payment For"
-                    placeholder="e.g. Waste Management"
-                    placeholderTextColor="#94a3b8"
-                    value={form.category}
-                    onChangeText={(v: string) =>
-                      setForm({ ...form, category: v })
-                    }
-                    isDarkMode={isDarkMode}
-                  />
+                  <View className="mb-4">
+                    <Text
+                      className={`text-[10px] font-oswald-semibold uppercase mb-2 ${isDarkMode ? "text-gm-gold" : "text-slate-400"}`}
+                    >
+                      Payment For
+                    </Text>
+
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={() => setIsItemModalVisible(true)}
+                      className={`w-full flex-row items-center justify-between px-4 py-3 rounded-xl border ${
+                        isDarkMode
+                          ? "bg-gm-navy border-slate-800"
+                          : "bg-white border-slate-200"
+                      }`}
+                    >
+                      <Text
+                        className={`text-sm font-semibold ${
+                          form.category
+                            ? isDarkMode
+                              ? "text-white"
+                              : "text-slate-900"
+                            : isDarkMode
+                              ? "text-slate-500"
+                              : "text-slate-400"
+                        }`}
+                      >
+                        {form.category || "Select Payment Category"}
+                      </Text>
+
+                      {/* Simple chevron down indicator */}
+                      <Text
+                        className={
+                          isDarkMode ? "text-gm-gold" : "text-slate-400"
+                        }
+                      >
+                        ▼
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
 
                   {/* Method Selector */}
                   <View
@@ -519,18 +570,7 @@ const PaymentHistory = () => {
                         );
                       })}
                     </View>
-                  </View>
-
-                  <InputField
-                    label="Transaction Reference"
-                    placeholder="Enter reference number"
-                    placeholderTextColor="#94a3b8"
-                    value={form.transaction_reference}
-                    onChangeText={(v: string) =>
-                      setForm({ ...form, transaction_reference: v })
-                    }
-                    isDarkMode={isDarkMode}
-                  />
+                  </View>                  
 
                   {/* Date Input Box */}
                   <View
@@ -697,7 +737,7 @@ const PaymentHistory = () => {
                         <StatusBadge status={item.status} />
                       </View>
                       <Text className="text-xs text-slate-400 font-bold mt-2">
-                        {new Date(item.payment_date).toLocaleDateString()}
+                        {formatPaymentDate(item.payment_date)}
                       </Text>
 
                       {item.status.toUpperCase() !== "VERIFIED" && (
@@ -870,60 +910,93 @@ const PaymentHistory = () => {
             onChange={handleDateChange}
           />
         )}
+        <Modal
+          visible={isItemModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setIsItemModalVisible(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={() => setIsItemModalVisible(false)}
+            className="flex-1 justify-center items-center bg-black/60 p-5"
+          >
+            <TouchableOpacity
+              activeOpacity={1}
+              className={`w-full max-h-[70%] rounded-3xl p-5 ${
+                isDarkMode ? "bg-gm-navy" : "bg-white"
+              }`}
+            >
+              {/* Modal Header */}
+              <View className="flex-row justify-between items-center pb-4 mb-2 border-b border-slate-700/30">
+                <Text
+                  className={`text-base font-bold ${isDarkMode ? "text-white" : "text-slate-900"}`}
+                >
+                  Select Payment Category
+                </Text>
+                <TouchableOpacity onPress={() => setIsItemModalVisible(false)}>
+                  <Text className="text-slate-400 font-bold text-base px-2">
+                    ✕
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Item List */}
+              <FlatList
+                data={paymentItems}
+                keyExtractor={(item) => item}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingVertical: 4 }}
+                renderItem={({ item }) => {
+                  const isSelected = form.category === item;
+                  return (
+                    <TouchableOpacity
+                      onPress={() => {
+                        setForm((prev) => ({ ...prev, category: item }));
+                        setIsItemModalVisible(false);
+                      }}
+                      className={`flex-row items-center justify-between p-4 my-1 rounded-xl border ${
+                        isSelected
+                          ? isDarkMode
+                            ? "bg-gm-charcoal border-gm-gold"
+                            : "bg-indigo-50 border-indigo-600"
+                          : isDarkMode
+                            ? "bg-slate-800/40 border-transparent"
+                            : "bg-slate-50 border-transparent"
+                      }`}
+                    >
+                      <Text
+                        className={`text-sm font-semibold ${
+                          isSelected
+                            ? isDarkMode
+                              ? "text-gm-gold"
+                              : "text-indigo-900"
+                            : isDarkMode
+                              ? "text-slate-200"
+                              : "text-slate-700"
+                        }`}
+                      >
+                        {item}
+                      </Text>
+                      {isSelected && (
+                        <Text
+                          className={
+                            isDarkMode ? "text-gm-gold" : "text-indigo-600"
+                          }
+                        >
+                          ✓
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
 
 export default PaymentHistory;
-
-// // Internal sub components remain stable
-// const InputField = ({ label, isDarkMode, ...props }: any) => (
-//   <View
-//     className={`p-4 ${isDarkMode ? " border border-gm-gold" : "border border-slate-100"}`}
-//   >
-//     <Text
-//       className={`text-[10px] font-oswald-semibold ${isDarkMode ? "text-gm-gold" : "text-slate-400"} uppercase mb-1`}
-//     >
-//       {label}
-//     </Text>
-//     <TextInput
-//       {...props}
-//       className={`text-base font-roboto-regular ${isDarkMode ? "bg-gm-navy text-gray-200 border border-gm-gold" : "text-gm-navy bg-slate-50"} rounded-3xl`}
-//     />
-//   </View>
-// );
-
-// const StatusBadge = ({ status }: { status: string }) => {
-//   const styles = {
-//     pending: { bg: "bg-amber-50", text: "text-amber-600", Icon: Clock },
-//     verified: {
-//       bg: "bg-emerald-50",
-//       text: "text-emerald-600",
-//       Icon: CheckCircle,
-//     },
-//     rejected: { bg: "bg-rose-50", text: "text-rose-600", Icon: XCircle },
-//   };
-//   const current = styles[status as keyof typeof styles] || styles.pending;
-//   return (
-//     <View
-//       className={`${current.bg} px-3 py-1 rounded-full flex-row items-center h-fit`}
-//     >
-//       <current.Icon
-//         size={12}
-//         color={
-//           status === "verified"
-//             ? "#10b981"
-//             : status === "rejected"
-//               ? "#e11d48"
-//               : "#f59e0b"
-//         }
-//       />
-//       <Text className={`${current.text} text-[10px] font-black ml-1 uppercase`}>
-//         {status}
-//       </Text>
-//     </View>
-//   );
-// };
-
-// export default PaymentHistory;

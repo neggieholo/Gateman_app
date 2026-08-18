@@ -97,7 +97,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     {},
   );
   const [contextEstateId, setContextEstateId] = useState<string | null>(null);
-  // const [zim, setZim] = useState<ZIM | null>(null);
 
   const socketRef = useRef<Socket | null>(null);
   const triggerRefresh = () => setRefreshTrigger((prev) => !prev);

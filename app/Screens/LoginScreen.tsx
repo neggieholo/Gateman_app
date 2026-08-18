@@ -30,7 +30,6 @@ import registerForPushNotificationsAsync, {
   postLogin,
   postRegister,
   sendOtpApi,
-  sendPofileChangeOtpApi,
   updatePushTokenApi,
 } from "../services/api";
 import { UserContext } from "../UserContext";
@@ -40,8 +39,6 @@ export default function LoginScreen() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
-  // const [phone, setPhone] = useState<string>("");
-  // const [formattedPhone, setFormattedPhone] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const [isLogin, setIsLogin] = useState<boolean>(true);
   const [isForgot, setIsForgot] = useState<boolean>(false);
