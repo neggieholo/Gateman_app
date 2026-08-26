@@ -35,12 +35,20 @@ export interface EstateProfile {
   state: string;
   lga: string;
   town: string;
+  plan: Plan;
+  subscription_expiry?: string;
 }
 
 export interface LocationPair {
   block: string;
-  unit: string[]; // Dynamic string array for multi-unit selection
+  unit: string[]; 
 }
+
+export interface Plan {
+  is_trial: boolean;
+  selected_add_ons: string[];
+}
+
 
 export interface User {
   id: string;

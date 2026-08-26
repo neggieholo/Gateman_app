@@ -287,18 +287,19 @@ export const fetchRequests = async () => {
   }
 };
 
-export const fetchNotifications =
-  async (): Promise<FetchNotificationsResponse> => {
-    try {
-      const res = await fetch(`${BASE_URL}/notifications`, {
-        method: "GET",
-        credentials: "include",
-      });
-      return await res.json();
-    } catch (err) {
-      return { success: false, list: [], lastReadAt: "1970-01-01" };
-    }
-  };
+export const fetchNotifications = async (
+  estate_id: string,
+): Promise<FetchNotificationsResponse> => {
+  try {
+    const res = await fetch(`${BASE_URL}/notifications/:estate_id`, {
+      method: "GET",
+      credentials: "include",
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, list: [], lastReadAt: "1970-01-01" };
+  }
+};
 
 export const markAllAsReadApi = async () => {
   try {
@@ -827,7 +828,7 @@ export const getEstatePaymentSettings = async (
         "Content-Type": "application/json",
       },
       method: "POST",
-      body: JSON.stringify({ id }),
+      body: JSON.stringify({ estate_id: id }),
       credentials: "include",
     });
 
@@ -1023,7 +1024,7 @@ export const updateLastPostRead = async (
   estate_id: string,
 ): Promise<{ success: boolean; last_post_read: Record<string, string> }> => {
   try {
-    const res = await fetch(`${BASE_URL}/resident/update-feed-read`, {
+    const res = await fetch(`${BASE_URL}/community/update-feed-read`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ estate_id }),
@@ -1286,7 +1287,7 @@ export const fetchLastPostRead = async (): Promise<{
   last_post_read: Record<string, string>;
 }> => {
   try {
-    const res = await fetch(`${BASE_URL}/resident/get-feed-read`, {
+    const res = await fetch(`${BASE_URL}/community/get-feed-read`, {
       method: "GET",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
@@ -1470,7 +1471,7 @@ export const getResidentPaymentItemsApi = async (
 ): Promise<FetchPaymentItemsResponse> => {
   try {
     const response = await fetch(
-      `${BASE_URL}/resident/payment-items/${estateId}`,
+      `${BASE_URL}/payment/payment-items/${estateId}`,
       {
         method: "GET",
         headers: {

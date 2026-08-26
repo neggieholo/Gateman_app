@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import CookieManager from "@react-native-cookies/cookies";
 import * as Device from "expo-device";
@@ -320,25 +321,11 @@ export default function LoginScreen() {
         setShowOtpInput(false);
         setOtp(["", "", "", "", "", ""]);
 
-        // 🌟 DYNAMIC ONBOARDING SUBUSER PIPELINE SWITCH
-        if (isFirstSubUserSetup) {
-          if (subUserSetupStep === "EMAIL_OTP") {
-            setEmailVerified(true);
-            setVerifyingField("phone");
-            setSubUserSetupStep("PHONE_COLLECT"); // Elevates views up to collect Phone Data
-          } else if (subUserSetupStep === "PHONE_COLLECT") {
-            setPhoneVerified(true);
-            await handleFinalizeSubUserActivation();
-          }
-        } else {
-          // Normal Registration Flow Setup
-          if (verifyingField === "phone") {
+        if (verifyingField === "phone") {
             setPhoneVerified(true);
           } else {
             setEmailVerified(true);
           }
-          setVerifyingField(null);
-        }
       } else {
         setError(data.message || "Invalid Code");
       }
@@ -349,64 +336,6 @@ export default function LoginScreen() {
     }
   };
 
-  const handleFinalizeSubUserActivation = async () => {
-    if (!formattedPhone || !pendingUserData) return;
-    setLoading(true);
-
-    try {
-      const res = await fetch(`${BASE_URL}/api/resident/activate-subuser`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: pendingUserData.id,
-          phone: formattedPhone,
-        }),
-      });
-
-      const result = await res.json();
-
-      if (result.success) {
-        Alert.alert("Success", "Account fully activated! Welcome to GateMan.", [
-          {
-            text: "Get Started",
-            onPress: async () => {
-              setUser(
-                result.user || {
-                  ...pendingUserData,
-                  phone: formattedPhone,
-                },
-              );
-              setSessionId?.(pendingSessionId);
-              setIsFirstSubUserSetup(false);
-
-              try {
-                const pToken = await registerForPushNotificationsAsync();
-                if (pToken) {
-                  setPushToken(pToken);
-                  await updatePushTokenApi(pToken, pendingUserData.id);
-                }
-              } catch (pErr) {
-                console.warn(pErr);
-              }
-              router.replace("/dashboard");
-            },
-          },
-        ]);
-      } else {
-        Alert.alert(
-          "Activation Failed",
-          result.message || "Could not save details.",
-        );
-      }
-    } catch (err) {
-      Alert.alert(
-        "Connection Error",
-        "Failed to sync your activation status to the server.",
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
   // Inside your component
   const handleCancelOtp = () => {
     setOtp(["", "", "", "", "", ""]); // Reset the 6 boxes

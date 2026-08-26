@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import {
   getEventDateLabel,
   getResidentDashboardStats,
@@ -10,6 +11,7 @@ import {
   ChevronDown,
   ChevronRight,
   Heart,
+  Lock,
   MapPin,
   MessageSquare,
   ShieldCheck,
@@ -37,6 +39,33 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { UserContext } from "../../UserContext";
+
+const HIDE_LOCKED_MODULES = false;
+
+function FeatureWrapper({
+  isEnabled,
+  children,
+}: {
+  isEnabled: boolean;
+  children: React.ReactNode;
+}) {
+  if (isEnabled) return <>{children}</>;
+  if (HIDE_LOCKED_MODULES) return null;
+
+  return (
+    <View className="relative overflow-hidden rounded-3xl mb-6">
+      <View className="opacity-30 pointer-events-none">{children}</View>
+      <View className="absolute inset-0 bg-black/10 items-center justify-center p-4 rounded-3xl">
+        <View className="p-2.5 bg-white/90 rounded-full mb-1 shadow-sm">
+          <Lock size={18} color="#334155" />
+        </View>
+        <Text className="text-[10px] font-bold text-slate-800 bg-white/90 px-2.5 py-0.5 rounded-full overflow-hidden">
+          Module Locked
+        </Text>
+      </View>
+    </View>
+  );
+}
 
 const StatCard = ({
   title,
@@ -103,7 +132,7 @@ export default function Dashboard() {
     welcomeShown();
   }, [user]);
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     if (!selectedEstateId) return;
 
     const result = await getResidentDashboardStats(selectedEstateId);
@@ -113,7 +142,7 @@ export default function Dashboard() {
     } else {
       setErrorMessage(result.message || "Could not sync dashboard data.");
     }
-  };
+  }, [selectedEstateId]);
 
   useEffect(() => {
     const initializeDashboard = async () => {
@@ -125,13 +154,13 @@ export default function Dashboard() {
     if (selectedEstateId) {
       initializeDashboard();
     }
-  }, [selectedEstateId]);
+  }, [selectedEstateId, fetchStats]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchStats();
     setRefreshing(false);
-  }, [selectedEstateId]);
+  }, [fetchStats]);
 
   const handleDismissWelcome = () => {
     setShowBanner(false);
@@ -139,6 +168,15 @@ export default function Dashboard() {
       setUser({ ...user, showWelcome: false });
     }
   };
+
+  const isModuleEnabled = useCallback(
+    (moduleKey: string): boolean => {
+      if (!activeEstate?.plan) return false;
+      if (activeEstate.plan.is_trial) return true;
+      return activeEstate.plan.selected_add_ons?.includes(moduleKey) ?? false;
+    },
+    [activeEstate?.plan],
+  );
 
   const hasEvents = stats?.bookings && stats.bookings.length > 0;
   const mainEvent = hasEvents ? stats.bookings[0] : null;
@@ -279,184 +317,190 @@ export default function Dashboard() {
         </View>
 
         {/* --- 2. Quick Guest Stats (The "Expected" Section) --- */}
-        <View className="mb-6">
-          <View className="flex-row justify-between items-end mb-4">
-            <Text
-              className={`text-lg font-oswald-semibold ${isDarkMode ? "text-gray-300" : "text-gm-navy"}`}
-            >
-              Today&apos;s Guests
-            </Text>
-            <TouchableOpacity onPress={() => router.push("/guests")}>
-              <Text className="text-indigo-600 font-roboto-regular text-xs">
-                View All
-              </Text>
-            </TouchableOpacity>
-          </View>
-          <View className="flex-row flex-wrap justify-between gap-y-3">
-            <View className="w-[48%]">
-              <StatCard
-                title="Expected"
-                value={stats?.invitations.total_expected}
-                icon={UserPlus}
-                colorClass="text-indigo-600"
-                isDarkMode={isDarkMode}
-              />
-            </View>
-            <View className="w-[48%]">
-              <StatCard
-                title="Arrived"
-                value={stats?.invitations.checked_in}
-                icon={UserCheck}
-                colorClass="text-emerald-600"
-                isDarkMode={isDarkMode}
-              />
-            </View>
-            <View className="w-[48%]">
-              <StatCard
-                title="Departed"
-                value={stats?.invitations.checked_out}
-                icon={UserMinus}
-                colorClass="text-amber-500"
-                isDarkMode={isDarkMode}
-              />
-            </View>
-            <View className="w-[48%]">
-              <StatCard
-                title="Overstayed"
-                value={stats?.invitations.overstayed}
-                icon={UserX}
-                colorClass="text-amber-500"
-                isDarkMode={isDarkMode}
-              />
-            </View>
-          </View>
-        </View>
-
-        {/* --- 4. Community Engagement (Likes & Comments) --- */}
-        <View
-          className={`mb-6 p-5 rounded-3xl border shadow-sm ${isDarkMode ? "border-gm-gold bg-gm-navy" : "bg-white border-gray-100"}`}
-        >
-          <View className="flex-row items-center justify-between mb-4">
-            <Text
-              className={`text-lg font-oswald-semibold ${isDarkMode ? "text-gm-gold" : "text-gm-navy"}`}
-            >
-              Community Buzz
-            </Text>
-            <View className="flex-row gap-4">
-              <View className="flex-row items-center">
-                <Heart size={16} color="#ef4444" fill="#ef4444" />
-                <Text
-                  className={`ml-1 font-roboto-regular ${isDarkMode ? "text-white" : "text-gm-navy"}`}
-                >
-                  {stats?.feed?.likes_on_my_posts || 0}
-                </Text>
-              </View>
-              <View className="flex-row items-center">
-                <MessageSquare size={16} color="#4f46e5" />
-                <Text
-                  className={`ml-1 font-roboto-regular ${isDarkMode ? "text-white" : "text-gm-navy"}`}
-                >
-                  {stats?.feed?.comments_on_my_posts || 0}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Dynamic Unread Posts Banner */}
-          <TouchableOpacity
-            onPress={() => router.push("/community" as any)}
-            className={`flex-row items-center justify-between ${
-              isDarkMode
-                ? "bg-gm-charcoal/50 border border-gray-800"
-                : "bg-indigo-50/60"
-            } p-3 rounded-xl`}
-          >
-            <View className="flex-1">
+        <FeatureWrapper isEnabled={isModuleEnabled("security")}>
+          <View className="mb-6">
+            <View className="flex-row justify-between items-end mb-4">
               <Text
-                className={`${isDarkMode ? "text-gm-gold" : "text-gm-navy"} font-oswald-semibold text-xs`}
+                className={`text-lg font-oswald-semibold ${isDarkMode ? "text-gray-300" : "text-gm-navy"}`}
               >
-                {stats?.feed?.unread_posts && stats.feed.unread_posts > 0
-                  ? `${stats.feed.unread_posts} New Update${stats.feed.unread_posts > 1 ? "s" : ""}`
-                  : "Community Feed"}
+                Today&apos;s Guests
               </Text>
-              <Text
-                className={`${isDarkMode ? "text-gray-400" : "text-gray-500"} font-roboto-regular text-[10px] mt-0.5`}
-              >
-                {stats?.feed?.unread_posts && stats.feed.unread_posts > 0
-                  ? "Tap to view unread posts from management and residents"
-                  : "Catch up on historical estate posts and notices"}
-              </Text>
+              <TouchableOpacity onPress={() => router.push("/guests")}>
+                <Text className="text-indigo-600 font-roboto-regular text-xs">
+                  View All
+                </Text>
+              </TouchableOpacity>
             </View>
-            <ChevronRight
-              size={16}
-              color={isDarkMode ? "#E2E8F0" : "#4f46e5"}
-            />
-          </TouchableOpacity>
-        </View>
-
-        {/* --- 5. Upcoming Events --- */}
-        <View className="mb-10">
-          <Text
-            className={`text-lg font-oswald-semibold ${isDarkMode ? "text-gray-300" : "text-gm-navy"} mb-4`}
-          >
-            Upcoming Facility Bookings
-          </Text>
-          {mainEvent ? (
-            <TouchableOpacity
-              onPress={() => router.push("/AllEvents" as any)}
-              className={`p-4 rounded-2xl border flex-row items-center justify-between ${isDarkMode ? "bg-gm-charcoal border-emerald-900" : "bg-emerald-50 border-emerald-100"}`}
-            >
-              <View className="flex-row items-center flex-1 pr-2">
-                <View
-                  className={`${isDarkMode ? "bg-gm-charcoal" : "bg-emerald-500"} p-3 rounded-xl mr-4`}
-                >
-                  <Calendar
-                    size={24}
-                    color={isDarkMode ? "#6EE7B7" : "white"}
-                  />
-                </View>
-                <View className="flex-1">
-                  <Text
-                    className={`font-oswald-semibold ${isDarkMode ? "text-emerald-300" : "text-emerald-900"}`}
-                    numberOfLines={1}
-                  >
-                    {mainEvent.venue_name}
-                  </Text>
-                  <Text
-                    className={`${isDarkMode ? "text-emerald-400" : "text-emerald-700"} text-xs font-roboto-regular`}
-                  >
-                    {getEventDateLabel(mainEvent.start_date)}
-                  </Text>
-                </View>
-              </View>
-
-              <View className="flex-row items-center">
-                {extraEventsCount > 0 && (
-                  <Text
-                    className={`text-xs font-roboto-medium mr-1 ${isDarkMode ? "text-emerald-300" : "text-emerald-800"}`}
-                  >
-                    {extraEventsCount} more event
-                    {extraEventsCount > 1 ? "s" : ""}
-                  </Text>
-                )}
-                <ChevronRight
-                  size={16}
-                  color={isDarkMode ? "#6EE7B7" : "#065f46"}
+            <View className="flex-row flex-wrap justify-between gap-y-3">
+              <View className="w-[48%]">
+                <StatCard
+                  title="Expected"
+                  value={stats?.invitations.total_expected}
+                  icon={UserPlus}
+                  colorClass="text-indigo-600"
+                  isDarkMode={isDarkMode}
                 />
               </View>
-            </TouchableOpacity>
-          ) : (
-            <View
-              className={`p-6 rounded-2xl border items-center justify-center ${isDarkMode ? "bg-gm-navy border-gray-800" : "bg-white border-gray-100"}`}
-            >
-              <Text
-                className={`font-roboto-regular text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}
-              >
-                No upcoming events scheduled
-              </Text>
+              <View className="w-[48%]">
+                <StatCard
+                  title="Arrived"
+                  value={stats?.invitations.checked_in}
+                  icon={UserCheck}
+                  colorClass="text-emerald-600"
+                  isDarkMode={isDarkMode}
+                />
+              </View>
+              <View className="w-[48%]">
+                <StatCard
+                  title="Departed"
+                  value={stats?.invitations.checked_out}
+                  icon={UserMinus}
+                  colorClass="text-amber-500"
+                  isDarkMode={isDarkMode}
+                />
+              </View>
+              <View className="w-[48%]">
+                <StatCard
+                  title="Overstayed"
+                  value={stats?.invitations.overstayed}
+                  icon={UserX}
+                  colorClass="text-amber-500"
+                  isDarkMode={isDarkMode}
+                />
+              </View>
             </View>
-          )}
-        </View>
+          </View>
+        </FeatureWrapper>
+
+        {/* --- 4. Community Engagement (Likes & Comments) --- */}
+        <FeatureWrapper isEnabled={isModuleEnabled("community")}>
+          <View
+            className={`mb-6 p-5 rounded-3xl border shadow-sm ${isDarkMode ? "border-gm-gold bg-gm-navy" : "bg-white border-gray-100"}`}
+          >
+            <View className="flex-row items-center justify-between mb-4">
+              <Text
+                className={`text-lg font-oswald-semibold ${isDarkMode ? "text-gm-gold" : "text-gm-navy"}`}
+              >
+                Community Buzz
+              </Text>
+              <View className="flex-row gap-4">
+                <View className="flex-row items-center">
+                  <Heart size={16} color="#ef4444" fill="#ef4444" />
+                  <Text
+                    className={`ml-1 font-roboto-regular ${isDarkMode ? "text-white" : "text-gm-navy"}`}
+                  >
+                    {stats?.feed?.likes_on_my_posts || 0}
+                  </Text>
+                </View>
+                <View className="flex-row items-center">
+                  <MessageSquare size={16} color="#4f46e5" />
+                  <Text
+                    className={`ml-1 font-roboto-regular ${isDarkMode ? "text-white" : "text-gm-navy"}`}
+                  >
+                    {stats?.feed?.comments_on_my_posts || 0}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Dynamic Unread Posts Banner */}
+            <TouchableOpacity
+              onPress={() => router.push("/community" as any)}
+              className={`flex-row items-center justify-between ${
+                isDarkMode
+                  ? "bg-gm-charcoal/50 border border-gray-800"
+                  : "bg-indigo-50/60"
+              } p-3 rounded-xl`}
+            >
+              <View className="flex-1">
+                <Text
+                  className={`${isDarkMode ? "text-gm-gold" : "text-gm-navy"} font-oswald-semibold text-xs`}
+                >
+                  {stats?.feed?.unread_posts && stats.feed.unread_posts > 0
+                    ? `${stats.feed.unread_posts} New Update${stats.feed.unread_posts > 1 ? "s" : ""}`
+                    : "Community Feed"}
+                </Text>
+                <Text
+                  className={`${isDarkMode ? "text-gray-400" : "text-gray-500"} font-roboto-regular text-[10px] mt-0.5`}
+                >
+                  {stats?.feed?.unread_posts && stats.feed.unread_posts > 0
+                    ? "Tap to view unread posts from management and residents"
+                    : "Catch up on historical estate posts and notices"}
+                </Text>
+              </View>
+              <ChevronRight
+                size={16}
+                color={isDarkMode ? "#E2E8F0" : "#4f46e5"}
+              />
+            </TouchableOpacity>
+          </View>
+        </FeatureWrapper>
+
+        {/* --- 5. Upcoming Events --- */}
+        <FeatureWrapper isEnabled={isModuleEnabled("facility_bookings")}>
+          <View className="mb-10">
+            <Text
+              className={`text-lg font-oswald-semibold ${isDarkMode ? "text-gray-300" : "text-gm-navy"} mb-4`}
+            >
+              Upcoming Facility Bookings
+            </Text>
+            {mainEvent ? (
+              <TouchableOpacity
+                onPress={() => router.push("/AllEvents" as any)}
+                className={`p-4 rounded-2xl border flex-row items-center justify-between ${isDarkMode ? "bg-gm-charcoal border-emerald-900" : "bg-emerald-50 border-emerald-100"}`}
+              >
+                <View className="flex-row items-center flex-1 pr-2">
+                  <View
+                    className={`${isDarkMode ? "bg-gm-charcoal" : "bg-emerald-500"} p-3 rounded-xl mr-4`}
+                  >
+                    <Calendar
+                      size={24}
+                      color={isDarkMode ? "#6EE7B7" : "white"}
+                    />
+                  </View>
+                  <View className="flex-1">
+                    <Text
+                      className={`font-oswald-semibold ${isDarkMode ? "text-emerald-300" : "text-emerald-900"}`}
+                      numberOfLines={1}
+                    >
+                      {mainEvent.venue_name}
+                    </Text>
+                    <Text
+                      className={`${isDarkMode ? "text-emerald-400" : "text-emerald-700"} text-xs font-roboto-regular`}
+                    >
+                      {getEventDateLabel(mainEvent.start_date)}
+                    </Text>
+                  </View>
+                </View>
+
+                <View className="flex-row items-center">
+                  {extraEventsCount > 0 && (
+                    <Text
+                      className={`text-xs font-roboto-medium mr-1 ${isDarkMode ? "text-emerald-300" : "text-emerald-800"}`}
+                    >
+                      {extraEventsCount} more event
+                      {extraEventsCount > 1 ? "s" : ""}
+                    </Text>
+                  )}
+                  <ChevronRight
+                    size={16}
+                    color={isDarkMode ? "#6EE7B7" : "#065f46"}
+                  />
+                </View>
+              </TouchableOpacity>
+            ) : (
+              <View
+                className={`p-6 rounded-2xl border items-center justify-center ${isDarkMode ? "bg-gm-navy border-gray-800" : "bg-white border-gray-100"}`}
+              >
+                <Text
+                  className={`font-roboto-regular text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}
+                >
+                  No upcoming events scheduled
+                </Text>
+              </View>
+            )}
+          </View>
+        </FeatureWrapper>
       </ScrollView>
 
       <Modal

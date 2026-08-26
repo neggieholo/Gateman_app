@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 // app/context/UserContext.tsx
 import firestore from "@react-native-firebase/firestore";
 import * as Notifications from "expo-notifications";
@@ -6,6 +7,7 @@ import React, {
   createContext,
   ReactNode,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -13,7 +15,7 @@ import { Alert, Platform, useColorScheme, Vibration } from "react-native";
 // import RNCallKeep from "react-native-callkeep";
 import { Colors } from "@/constants/Colors";
 import { io, Socket } from "socket.io-client";
-import { startEmergencyAlarm } from "./services/alarm";
+import { ExpiredSubscriptionModal } from "./components/ExpiredSubscriptionModal";
 import { fetchNotifications, fetchRequests } from "./services/api";
 import { notification, tempNotification, User } from "./services/interfaces";
 
@@ -75,7 +77,7 @@ export const UserContext = createContext<UserContextType>({
   loadingNotifications: false,
   isDarkMode: false,
   setIsDarkMode: () => {},
-  contextEstateId:"",
+  contextEstateId: "",
   setContextEstateId: () => {},
   theme: Colors.light,
   // zim: null,
@@ -107,6 +109,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const BASE_URL = `${process.env.EXPO_PUBLIC_BASE_URL}`;
   const systemColorScheme = useColorScheme();
   const [isDarkMode, setIsDarkMode] = useState(systemColorScheme === "dark");
+  const [showExpiredModal, setShowExpiredModal] = useState<boolean>(false);
   const hasNoEstates = !user?.estate_ids || user.estate_ids.length === 0;
 
   useEffect(() => {
@@ -120,6 +123,32 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       setContextEstateId(user.estate_ids[0]);
     }
   }, [user]);
+
+  const estates = useMemo(() => user?.estates || [], [user?.estates]);
+
+  const activeEstate = useMemo(() => {
+    console.log("UserContext EstateId:", contextEstateId);
+    return (
+      estates.find((e: any) => e.id === contextEstateId) || estates[0] || null
+    );
+  }, [estates, contextEstateId]);
+
+  const isCurrentEstateExpired = useMemo(() => {
+    if (!activeEstate) return false;
+    if (!activeEstate.subscription_expiry) return true;
+
+    const expiryDate = new Date(activeEstate.subscription_expiry);
+    const now = new Date();
+    return expiryDate <= now;
+  }, [activeEstate]);
+
+  useEffect(() => {
+    if (user && isCurrentEstateExpired) {
+      setShowExpiredModal(true);
+    } else {
+      setShowExpiredModal(false);
+    }
+  }, [user, isCurrentEstateExpired]);
 
   useEffect(() => {
     if (!user?.id || hasNoEstates || !contextEstateId) return;
@@ -253,59 +282,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [sessionId, BASE_URL]);
 
-  // useEffect(() => {
-  //   if (!user) return;
-
-  //   const appID = Number(process.env.EXPO_PUBLIC_ZEGO_APP_ID);
-  //   const appSign = String(process.env.EXPO_PUBLIC_ZEGO_APP_SIGN);
-  //   const myId = String(user.id).replace(/-/g, "").substring(0, 24);
-  //   const myName = user.name || "GateMan User";
-
-  //   // 1. Create ZIM
-  //   ZIM.create({ appID: appID, appSign: appSign });
-  //   const zimInstance = ZIM.getInstance();
-  //   setZim(zimInstance);
-
-  //   // 2. Login
-  //   const config: ZIMLoginConfig = {
-  //     userName: myName,
-  //     token: "",
-  //     customStatus: "",
-  //     isOfflineLogin: false,
-  //   };
-
-  //   zimInstance
-  //     .login(myId, config)
-  //     .then(() => {
-  //       console.log("✅ ZIM Logged In. My ID:", myId);
-
-  //       // 2. Set config and register
-  //       ZPNs.setPushConfig({ enableFCMPush: true });
-
-  //       // ZPNs.enableDebug(true);
-  //       setTimeout(() => {
-  //         ZPNs.getInstance().registerPush();
-  //         console.log("🚀 registerPush() called");
-  //       }, 500);
-  //       setTimeout(() => {
-  //         ZPNs.getInstance().on("registered", (message) => {
-  //           console.log(
-  //             "🔥 ZPNs PushID Successfully Registered:",
-  //             message.pushID,
-  //           );
-  //         });
-  //       }, 500);
-  //     })
-  //     .catch((err) => console.error("❌ ZIM Login Failed", err));
-      
-
-  //   return () => {
-  //     // 4. Proper Cleanup
-  //     zimInstance.destroy();
-  //     setZim(null);
-  //   };
-  // }, [user]);
-
   useEffect(() => {
     const getStatus = async () => {
       try {
@@ -324,7 +300,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
         if (!hasNoEstates && !user?.isTemp) {
           setLoadingNotifications(true);
-          const result = await fetchNotifications();
+          const result = await fetchNotifications(contextEstateId!);
           if (result.success) {
             setNotifications(result.list);
 
@@ -344,7 +320,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     };
 
     getStatus();
-  }, [user, refreshTrigger, hasNoEstates]);
+  }, [user, refreshTrigger, hasNoEstates, contextEstateId]);
 
   useEffect(() => {
     const setupNotifications = async () => {
@@ -427,33 +403,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           });
         }
 
-        // if (data.type === "incoming_call") {
-        //   router.push({
-        //     pathname: "/CallScreen",
-        //     params: {
-        //       callId: data.callId,
-        //       callerName: data.callerName,
-        //       callerAvatar: data.callerAvatar || "",
-        //       callType: data.callType,
-        //       isIncoming: "true",
-        //       roomName: data.callerName,
-        //     },
-        //   });
-        // }
-
-        // if (data.type === "notification" && data.subtype === "emergency") {
-        //   router.replace({
-        //     pathname: "/EmergencyAlertPage",
-        //     params: {
-        //       title: response.notification.request.content.title || "Emergency",
-        //       message: response.notification.request.content.body || "",
-        //       residentId: data.user_id,
-        //     },
-        //   });
-        //   Vibration.vibrate([0, 500, 200, 500], true);
-        //   return;
-        // }
-
         if (data.type === "notification") {
           router.push({
             pathname: user?.id && isConnected ? "/NotificationsPage" : "/",
@@ -466,30 +415,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       responseSubscription.remove();
     };
   }, [isConnected, user]);
-
-  useEffect(() => {
-    const checkInitialNotification = async () => {
-      // This is the current, non-deprecated way to fetch the last response manually
-      const response = Notifications.getLastNotificationResponse();
-
-      // if (response) {
-      //   const data = response.notification.request.content.data as any;
-      //   if (data?.subtype === "emergency") {
-      //     router.replace({
-      //       pathname: "/EmergencyAlertPage",
-      //       params: {
-      //         title: response.notification.request.content.title || "EMERGENCY",
-      //         message: response.notification.request.content.body || "",
-      //         residentId: data.user_id,
-      //       },
-      //     });
-      //     Vibration.vibrate([0, 500, 200, 500], true);
-      //   }
-      // }
-    };
-
-    checkInitialNotification();
-  }, []);
 
   return (
     <UserContext.Provider
@@ -525,6 +450,13 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       }}
     >
       {children}
+      {user && isCurrentEstateExpired && (
+        <ExpiredSubscriptionModal
+          isOpen={showExpiredModal}
+          activeEstate={activeEstate}
+          onClose={() => setShowExpiredModal(false)}
+        />
+      )}
     </UserContext.Provider>
   );
 };

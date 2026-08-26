@@ -4,13 +4,14 @@ import {
   Briefcase,
   ChevronRight,
   Clock,
+  Lock,
   PhoneCall,
   Shield,
   ShieldCheck,
   Zap,
 } from "lucide-react-native";
-import React from "react";
-import { ScrollView, Text, TouchableOpacity, View } from "react-native";
+import React, { useMemo } from "react";
+import { Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
 
 interface ServiceItemProps {
   title: string;
@@ -19,6 +20,7 @@ interface ServiceItemProps {
   color: string;
   onPress: () => void;
   isDarkMode: boolean;
+  disabled?: boolean;
 }
 
 const ServiceListItem: React.FC<ServiceItemProps> = ({
@@ -28,61 +30,105 @@ const ServiceListItem: React.FC<ServiceItemProps> = ({
   color,
   onPress,
   isDarkMode,
+  disabled = false,
 }) => (
   <TouchableOpacity
     onPress={onPress}
-    activeOpacity={0.7}
-    className={`flex-row items-center justify-between p-5 ${isDarkMode ? "bg-gm-navy border-gm-gold" : "bg-white border-slate-100"} rounded-3xl mb-3 shadow-sm border`}
+    activeOpacity={disabled ? 0.9 : 0.7}
+    className={`flex-row items-center justify-between p-5 ${
+      isDarkMode ? "bg-gm-navy border-gm-gold" : "bg-white border-slate-100"
+    } rounded-3xl mb-3 shadow-sm border ${disabled ? "opacity-45" : ""}`}
   >
     <View className="flex-row items-center flex-1">
       <View
         style={{ backgroundColor: `${color}15` }}
         className="p-3 rounded-2xl mr-4"
       >
-        <Icon size={22} color={color} />
+        <Icon size={22} color={disabled ? "#94a3b8" : color} />
       </View>
-      <View>
+      <View className="flex-1 pr-2">
         <Text
-          className={`${isDarkMode ? "text-gm-gold" : "text-gm-navy"} font-oswald-semibold text-base`}
+          className={`${
+            isDarkMode ? "text-gm-gold" : "text-gm-navy"
+          } font-oswald-semibold text-base`}
         >
           {title}
         </Text>
         <Text
-          className={`${isDarkMode ? "text-slate-400" : "text-slate-500 "} font-roboto-regular text-xs`}
+          className={`${
+            isDarkMode ? "text-slate-400" : "text-slate-500"
+          } font-roboto-regular text-xs`}
         >
           {subtitle}
         </Text>
       </View>
     </View>
-    <ChevronRight size={18} color="#cbd5e1" />
+    {disabled ? (
+      <Lock size={18} color="#94a3b8" />
+    ) : (
+      <ChevronRight size={18} color="#cbd5e1" />
+    )}
   </TouchableOpacity>
 );
 
 export default function EstateServicesScreen() {
-  const { user, isDarkMode, theme } = useUser();
+  const { user, isDarkMode, contextEstateId } = useUser();
+  const estates = useMemo(() => user?.estates || [], [user?.estates]);
+
+  const activeEstate = useMemo(() => {
+    return (
+      estates.find((e: any) => e.id === contextEstateId) || estates[0] || null
+    );
+  }, [estates, contextEstateId]);
+
+  const isModuleEnabled = (moduleKey: string): boolean => {
+    if (!activeEstate?.plan) return false;
+    if (activeEstate.plan.is_trial) return true;
+    return activeEstate.plan.selected_add_ons?.includes(moduleKey) ?? false;
+  };
+
+  const handleDisabledPress = (moduleName: string) => {
+    Alert.alert(
+      "Module Locked",
+      `The ${moduleName} feature is not included in your estate's active plan.`
+    );
+  };
+
   const hasNoEstates = !user?.estate_ids || user.estate_ids.length === 0;
 
   if (hasNoEstates) {
     return (
       <View
-        className={`${isDarkMode ? "bg-slate-950" : "bg-slate-50"} flex-1 justify-center items-center p-6`}
+        className={`${
+          isDarkMode ? "bg-slate-950" : "bg-slate-50"
+        } flex-1 justify-center items-center p-6`}
       >
         <View
-          className={`${isDarkMode ? "bg-gm-navy border-slate-800" : "bg-white border-slate-100"} p-8 rounded-[2.5rem] shadow-sm items-center border`}
+          className={`${
+            isDarkMode ? "bg-gm-navy border-slate-800" : "bg-white border-slate-100"
+          } p-8 rounded-[2.5rem] shadow-sm items-center border`}
         >
           <ShieldCheck size={60} color={isDarkMode ? "#D4AF37" : "#0A1F44"} />
           <Text
-            className={`text-xl font-bold ${isDarkMode ? "text-gm-gold" : "text-gm-navy"} mt-4 text-center`}
+            className={`text-xl font-bold ${
+              isDarkMode ? "text-gm-gold" : "text-gm-navy"
+            } mt-4 text-center`}
           >
             Access Restricted
           </Text>
           <Text
-            className={`text-sm ${isDarkMode ? "text-slate-400" : "text-slate-500"} mt-2 text-center px-4 max-w-[280px]`}
+            className={`text-sm ${
+              isDarkMode ? "text-slate-400" : "text-slate-500"
+            } mt-2 text-center px-4 max-w-[280px]`}
           >
             You are currently not attached to any active estates on GateMan.
           </Text>
           <TouchableOpacity
-            className={`w-full p-4 rounded-2xl shadow-sm mt-6 border items-center ${isDarkMode ? "bg-gm-charcoal border-gm-gold" : "bg-slate-900 border-transparent"}`}
+            className={`w-full p-4 rounded-2xl shadow-sm mt-6 border items-center ${
+              isDarkMode
+                ? "bg-gm-charcoal border-gm-gold"
+                : "bg-slate-900 border-transparent"
+            }`}
             onPress={() => router.push("/JoinRequest" as any)}
           >
             <Text className="text-white font-roboto-regular font-bold text-base">
@@ -94,21 +140,27 @@ export default function EstateServicesScreen() {
     );
   }
 
+  const isPaymentsEnabled = isModuleEnabled("payments");
+  const isSecurityEnabled = isModuleEnabled("security");
+  const isServicesDispatchEnabled = isModuleEnabled("services_dispatch");
+
   return (
-    <View className={`flex-1 ${isDarkMode ? "bg-slate-950" : "bg-gray-50 "}`}>
+    <View className={`flex-1 ${isDarkMode ? "bg-slate-950" : "bg-gray-50"}`}>
       <ScrollView
         className="flex-1 px-4 mt-5"
         showsVerticalScrollIndicator={false}
       >
         <View className="mb-6">
           <Text
-            className={`${isDarkMode ? "text-gray-300" : "text-slate-500 "} font-oswald-semibold`}
+            className={`${
+              isDarkMode ? "text-gray-300" : "text-slate-500"
+            } font-oswald-semibold`}
           >
             Utilities, payments, and security info
           </Text>
         </View>
 
-        {/* FINANCIAL SERVICES - Blue/Indigo */}
+        {/* FINANCIAL SERVICES */}
         <ServiceListItem
           title="Utility & Dues"
           subtitle="Redirect to estate payment portal"
@@ -124,55 +176,71 @@ export default function EstateServicesScreen() {
           title="Payments History"
           subtitle="View your past transactions"
           icon={Clock}
-          color="#0ea5e9" // Sky 500
+          color="#0ea5e9"
+          disabled={!isPaymentsEnabled}
           onPress={() => {
+            if (!isPaymentsEnabled) {
+              handleDisabledPress("Payments History");
+              return;
+            }
             router.push("/PaymentHistory" as any);
           }}
           isDarkMode={isDarkMode}
         />
 
-        {/* SECURITY - Emerald/Green */}
+        {/* SECURITY */}
         <ServiceListItem
           title="Security Center"
           subtitle="View security personnel"
           icon={Shield}
-          color="#10b981" // Emerald 500
+          color="#10b981"
+          disabled={!isSecurityEnabled}
           onPress={() => {
+            if (!isSecurityEnabled) {
+              handleDisabledPress("Security Center");
+              return;
+            }
             router.push("/SecurityPersonnels" as any);
           }}
           isDarkMode={isDarkMode}
         />
 
-        {/* SUPPORT & HELP - Amber/Orange */}
+        {/* SUPPORT & HELP */}
         <ServiceListItem
           title="Suggestions and Complaints"
           subtitle="Report your concerns"
-          icon={ShieldCheck} 
-          color="#f59e0b" 
+          icon={ShieldCheck}
+          color="#f59e0b"
           onPress={() => {
             router.push("/ResolutionCenter" as any);
           }}
           isDarkMode={isDarkMode}
         />
 
-        {/* EMERGENCY - Rose/Red */}
+        {/* EMERGENCY */}
         <ServiceListItem
           title="Emergency Contacts"
           subtitle="Important Numbers"
-          icon={PhoneCall} 
-          color="#e11d48" 
+          icon={PhoneCall}
+          color="#e11d48"
           onPress={() => {
             router.push("/EmergencyContactsPage" as any);
           }}
           isDarkMode={isDarkMode}
         />
 
+        {/* REQUESTS (SERVICE DISPATCH) */}
         <ServiceListItem
           title="Requests"
           subtitle="Order a service"
-          icon={Briefcase} 
-          color="#e11d48" 
+          icon={Briefcase}
+          color="#e11d48"
+          disabled={!isServicesDispatchEnabled}
           onPress={() => {
+            if (!isServicesDispatchEnabled) {
+              handleDisabledPress("Service Requests");
+              return;
+            }
             router.push("/ServicesRequestScreen" as any);
           }}
           isDarkMode={isDarkMode}
