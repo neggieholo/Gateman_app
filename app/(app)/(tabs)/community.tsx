@@ -182,7 +182,7 @@ export default function Community() {
     } else return;
   };
 
-  const handleCreatePost = async () => {
+  const handleCreatePost = async (overrideImageUrl?: string) => {
     if (!postTitle.trim() || !postContent.trim() || !selectedEstateId) return;
 
     const payload = {
@@ -191,9 +191,10 @@ export default function Community() {
       author_role: "resident",
       title: postTitle,
       content: postContent,
-      image_url: postImageUrl,
+      image_url: overrideImageUrl ?? postImageUrl,
       category: "General",
     };
+    console.log('Post payload:',payload)
 
     await communityApi.createPost(payload);
 

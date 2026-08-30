@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { useUser } from "@/app/UserContext";
 import * as ImagePicker from "expo-image-picker";
 import { ImageIcon, X } from "lucide-react-native";
@@ -19,7 +20,7 @@ import { getS3UploadedUrl } from "../services/api";
 interface CreatePostModalProps {
   isVisible: boolean;
   onClose: () => void;
-  onSubmit: () => void;
+  onSubmit: (imageUrl: string) => void;
   category: string;
   title: string;
   setTitle: (text: string) => void;
@@ -67,10 +68,10 @@ export default function CreatePostModal({
       if (selectedImage) {
         const url = await getS3UploadedUrl(selectedImage, "post-images");
         if (url) uploadedUrl = url;
-        setImageUrl(uploadedUrl);
+        console.log("post image url:", uploadedUrl);
       }
 
-      await onSubmit();
+      onSubmit(uploadedUrl);
       setSelectedImage(null);
     } catch (error) {
       Alert.alert(
@@ -91,7 +92,9 @@ export default function CreatePostModal({
       >
         <View
           className={`rounded-t-[3rem] p-6  pb-20 h-3/4 border-t ${
-            isDarkMode ? "bg-gm-charcoal border-slate-800" : "bg-white border-transparent"
+            isDarkMode
+              ? "bg-gm-charcoal border-slate-800"
+              : "bg-white border-transparent"
           }`}
         >
           {/* Header Layout */}
@@ -192,7 +195,10 @@ export default function CreatePostModal({
                       : "bg-slate-50 border-slate-300"
                   }`}
                 >
-                  <ImageIcon size={20} color={isDarkMode ? "#D4AF37" : "#4f46e5"} />
+                  <ImageIcon
+                    size={20}
+                    color={isDarkMode ? "#D4AF37" : "#4f46e5"}
+                  />
                   <Text
                     style={{ fontFamily: "oswald-semibold" }}
                     className={`ml-2 uppercase tracking-wide text-xs ${
@@ -211,7 +217,9 @@ export default function CreatePostModal({
             onPress={handlePublish}
             disabled={isUploading}
             className={`py-4 rounded-2xl items-center shadow-xl ${
-              isDarkMode ? "bg-gm-charcoal border border-gm-gold" : "bg-slate-900"
+              isDarkMode
+                ? "bg-gm-charcoal border border-gm-gold"
+                : "bg-slate-900"
             }`}
           >
             {isUploading ? (

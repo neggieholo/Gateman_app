@@ -883,7 +883,7 @@ export const getPaymentHistory = async (
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ id }),
+      body: JSON.stringify({ estate_id: id }),
       credentials: "include",
     });
     return await res.json();
@@ -1164,17 +1164,28 @@ export const updateServiceRequestCompletion = async (
   }
 };
 
-export const deleteServiceRequest = async (id: string) => {
+export const deleteServiceRequest = async (id: string, estate_id: string) => {
   try {
     const response = await fetch(
-      `${BASE_URL}/api/admin/services/requests/${id}`,
+      `${BASE_URL}/services/requests/${id}?estate_id=${estate_id}`,
       {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
       },
     );
-    return await response.json();
+
+    const data = await response.json();
+
+    // CHANGED: Explicitly handle non-200 HTTP response statuses
+    if (!response.ok) {
+      return {
+        success: false,
+        message: data.message || data.error || `HTTP error ${response.status}`,
+      };
+    }
+
+    return data;
   } catch (err) {
     console.error("Delete Service Request Error:", err);
     return { success: false, message: "Network connection failure." };
@@ -1497,4 +1508,53 @@ export const getResidentPaymentItemsApi = async (
       error: "Unable to connect. Check network connection.",
     };
   }
+};
+
+export const formatReportsDate = (dateString?: string) => {
+  if (!dateString) return "N/A";
+
+  let formatted = dateString.trim();
+
+  // PostgreSQL:
+  // 2026-08-30 01:14:50.170916+01
+  //
+  // Convert timezone:
+  // +01 -> +01:00
+  formatted = formatted.replace(/([+-]\d{2})$/, "$1:00");
+
+  // Convert:
+  // YYYY-MM-DD HH:mm:ss
+  // to:
+  // YYYY-MM-DDTHH:mm:ss
+  formatted = formatted.replace(" ", "T");
+
+  // Convert PostgreSQL microseconds to JavaScript milliseconds
+  formatted = formatted.replace(/\.(\d{3})\d*/, ".$1");
+
+  console.log("Original:", dateString);
+  console.log("Normalized:", formatted);
+
+  const parsedDate = new Date(formatted);
+
+  console.log("Parsed:", parsedDate);
+  console.log("Timestamp:", parsedDate.getTime());
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    // Last-resort fallback: show just the date portion
+    const datePart = dateString.split(" ")[0];
+
+    const [year, month, day] = datePart.split("-").map(Number);
+
+    if (
+      Number.isInteger(year) &&
+      Number.isInteger(month) &&
+      Number.isInteger(day)
+    ) {
+      return new Date(year, month - 1, day).toLocaleDateString();
+    }
+
+    return "Invalid Date";
+  }
+
+  return parsedDate.toLocaleDateString();
 };

@@ -247,27 +247,20 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     });
 
     newSocket.on("new_notification", (newNotif: notification) => {
-      console.log("🚀 Real-time notification received:", newNotif);
-      setNotifications((prev) => {
-        const exists = prev.find((n) => n.id === newNotif.id);
-        if (exists) return prev;
-        return [newNotif, ...prev];
-      });
+      triggerRefresh()
 
-      setBadgeCount((prev) => prev + 1);
+      // if (newNotif.type?.toLowerCase() === "emergency") {
+      //   router.replace({
+      //     pathname: "/EmergencyAlertPage",
+      //     params: {
+      //       title: newNotif.title,
+      //       message: newNotif.message,
+      //       residentId: newNotif.user_id,
+      //     },
+      //   });
 
-      if (newNotif.type?.toLowerCase() === "emergency") {
-        router.replace({
-          pathname: "/EmergencyAlertPage",
-          params: {
-            title: newNotif.title,
-            message: newNotif.message,
-            residentId: newNotif.user_id,
-          },
-        });
-
-        Vibration.vibrate([0, 500, 200, 500], true);
-      }
+      //   Vibration.vibrate([0, 500, 200, 500], true);
+      // }
     });
 
     socketRef.current = newSocket;

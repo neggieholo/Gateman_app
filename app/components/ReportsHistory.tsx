@@ -24,7 +24,7 @@ import {
   View,
 } from "react-native";
 import { useUser } from "../UserContext"; // Added theme access hook
-import { deleteReport, getMyReports } from "../services/api";
+import { deleteReport, formatReportsDate, getMyReports } from "../services/api";
 import { EstateReport } from "../services/interfaces";
 
 type StatusType = "ALL" | "PENDING" | "REVIEWED" | "RESOLVED";
@@ -168,7 +168,7 @@ export default function ReportsHistory({ estate_id }: ReportsHistoryProps) {
           <View className={`flex-row items-center px-3 py-2 rounded-xl ${isDarkMode ? "bg-slate-900" : "bg-slate-50"}`}>
             <Calendar size={16} color="#94a3b8" />
             <Text className="ml-2 text-slate-500 text-xs font-bold">
-              {new Date(selectedReport.created_at).toLocaleDateString()}
+              {formatReportsDate(selectedReport.created_at)}
             </Text>
           </View>
         </View>
@@ -300,7 +300,7 @@ export default function ReportsHistory({ estate_id }: ReportsHistoryProps) {
 
               <View className="items-start">
                 <Text className="text-[10px] text-slate-400 mt-1 font-bold">
-                  {new Date(item.created_at).toLocaleDateString()}
+                  {formatReportsDate(item.created_at)}
                 </Text>
               </View>
             </View>

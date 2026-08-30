@@ -29,6 +29,8 @@ import {
 import { useUser } from "./UserContext"; // Linked User Context hook
 import {
   deleteReport,
+  formatDate,
+  formatReportsDate,
   getMyReports,
   getSecurityColleagues,
 } from "./services/api";
@@ -69,6 +71,7 @@ export default function SecurityReportsHistory({estate_id}:{estate_id:string}) {
       ]);
       
       if (reportRes.success) {
+        console.log('Report 1:',(reportRes.reports || []).filter((r: EstateReport) => r.type === "SECURITY")[0])
         setReports(
           (reportRes.reports || []).filter((r: EstateReport) => r.type === "SECURITY"),
         );
@@ -226,7 +229,7 @@ export default function SecurityReportsHistory({estate_id}:{estate_id:string}) {
           <View className={`flex-row items-center px-3 py-2 rounded-xl ${isDarkMode ? "bg-slate-900" : "bg-slate-50"}`}>
             <Calendar size={16} color="#94a3b8" />
             <Text className="ml-2 text-slate-500 text-xs font-bold">
-              {new Date(selectedReport.created_at).toLocaleDateString()}
+              {formatReportsDate(selectedReport.created_at)}
             </Text>
           </View>
         </View>
@@ -384,7 +387,7 @@ export default function SecurityReportsHistory({estate_id}:{estate_id:string}) {
 
               <View className="items-start">
                 <Text className="text-[10px] text-slate-400 mt-1 font-bold">
-                  {new Date(item.created_at).toLocaleDateString()}
+                  {formatReportsDate(item.created_at)}
                 </Text>
               </View>
             </View>

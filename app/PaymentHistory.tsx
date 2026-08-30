@@ -153,7 +153,7 @@ const PaymentHistory = () => {
       try {
         const res = await getPaymentHistory(selectedEstateId);
         if (res.success) setHistory(res.history);
-        console.log('Date Check:',res.history[0].payment_date)
+        console.log('history data:',res.history)
       } finally {
         setLoading(false);
       }

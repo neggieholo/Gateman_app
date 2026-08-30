@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import {
   Check,
   CheckCircle,
@@ -11,7 +12,7 @@ import {
   Wrench,
   XCircle,
 } from "lucide-react-native";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -30,6 +31,7 @@ import ServicesReportsHistory from "./ServicesReportsHistory";
 import { useUser } from "./UserContext";
 import {
   deleteServiceRequest,
+  formatReportsDate,
   getEstateServicesCatalog,
   getServiceRequestsHistory,
   submitEstateReport,
@@ -141,31 +143,45 @@ export default function ServiceRequestsScreen() {
     } else if (!selectedEstateId) {
       setEstatePickerVisible(true);
     }
-  }, [user?.estate_ids]);
+  }, [user?.estate_ids, selectedEstateId]);
+
+  const resetForm = () => {
+    setForm({
+      service_id: "",
+      service_name: "",
+      unit: "",
+      time_preferred: "Morning (9AM - 12PM)",
+      description: "",
+    });
+  };
+
+  useEffect(() => {
+    resetForm();
+  }, [selectedEstateId]);
 
   const activeEstateName = useMemo(() => {
     if (!user?.estates || !selectedEstateId) return "";
     return user.estates.find((e) => e.id === selectedEstateId)?.name || "";
   }, [selectedEstateId, user?.estates]);
 
-  useEffect(() => {
-    if (selectedEstateId) {
-      console.log("initiating catalogue fetch");
-      fetchServicesCatalog();
-    }
-  }, [selectedEstateId]);
+  const fetchServicesCatalog = useCallback(async () => {
+    if (!selectedEstateId) return;
 
-  const fetchServicesCatalog = async () => {
     try {
-      const res = await getEstateServicesCatalog(selectedEstateId!);
+      const res = await getEstateServicesCatalog(selectedEstateId);
       if (res.success) setServicesCatalog(res.services || []);
     } catch (err) {
       console.error("Catalog retrieval error: ", err);
     }
-  };
+  }, [selectedEstateId]);
 
-  const fetchHistory = async () => {
+  useEffect(() => {
+    fetchServicesCatalog();
+  }, [fetchServicesCatalog]);
+
+  const fetchHistory = useCallback(async () => {
     if (!selectedEstateId) return;
+
     setLoading(true);
     try {
       const res = await getServiceRequestsHistory(selectedEstateId);
@@ -175,7 +191,7 @@ export default function ServiceRequestsScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedEstateId]);
 
   const flatLocationList = useMemo(() => {
     if (
@@ -208,7 +224,7 @@ export default function ServiceRequestsScreen() {
     if (activeTab === "HISTORY" && selectedEstateId) {
       fetchHistory();
     }
-  }, [activeTab, selectedEstateId]);
+  }, [activeTab, selectedEstateId, fetchHistory]);
 
   const openReportModal = (request: any) => {
     setSelectedService(request);
@@ -267,7 +283,7 @@ export default function ServiceRequestsScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              const res = await deleteServiceRequest(id);
+              const res = await deleteServiceRequest(id, selectedEstateId!);
 
               if (res && res.success) {
                 Alert.alert("Deleted", "Service request removed.");
@@ -631,7 +647,7 @@ export default function ServiceRequestsScreen() {
                           Slot: {item.time_preferred}
                         </Text>
                         <Text className="text-[10px] text-slate-400 font-bold">
-                          {new Date(item.requested_at).toLocaleDateString()}
+                          {formatReportsDate(item.requested_at)}
                         </Text>
                       </View>
 

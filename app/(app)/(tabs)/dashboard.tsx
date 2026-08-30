@@ -56,7 +56,7 @@ function FeatureWrapper({
     <View className="relative overflow-hidden rounded-3xl mb-6">
       <View className="opacity-30 pointer-events-none">{children}</View>
       <View className="absolute inset-0 bg-black/10 items-center justify-center p-4 rounded-3xl">
-        <View className="p-2.5 bg-white/90 rounded-full mb-1 shadow-sm">
+        <View className="p-2.5 bg-white/90 rounded-full mb-1">
           <Lock size={18} color="#334155" />
         </View>
         <Text className="text-[10px] font-bold text-slate-800 bg-white/90 px-2.5 py-0.5 rounded-full overflow-hidden">
@@ -75,7 +75,7 @@ const StatCard = ({
   isDarkMode,
 }: any) => (
   <View
-    className={`flex-1 p-4 ${isDarkMode ? "bg-gm-navy border-gm-gold" : "bg-white border-gray-100"} rounded-2xl shadow-sm border `}
+    className={`flex-1 p-4 ${isDarkMode ? "bg-gm-navy border-gm-gold" : "bg-white border-gray-100"} rounded-2xl border `}
   >
     <View className="flex-row items-center justify-between mb-2">
       <View
@@ -292,7 +292,7 @@ export default function Dashboard() {
           {user?.estate_ids && user.estate_ids.length > 1 && (
             <TouchableOpacity
               onPress={() => setEstatePickerVisible(true)}
-              className={`flex-row items-center p-2.5 px-4 rounded-full border shadow-sm ${
+              className={`flex-row items-center p-2.5 px-4 rounded-full border ${
                 isDarkMode
                   ? "bg-gm-navy border-slate-800"
                   : "bg-white border-slate-200"
@@ -375,7 +375,7 @@ export default function Dashboard() {
         {/* --- 4. Community Engagement (Likes & Comments) --- */}
         <FeatureWrapper isEnabled={isModuleEnabled("community")}>
           <View
-            className={`mb-6 p-5 rounded-3xl border shadow-sm ${isDarkMode ? "border-gm-gold bg-gm-navy" : "bg-white border-gray-100"}`}
+            className={`mb-6 p-5 rounded-3xl border ${isDarkMode ? "border-gm-gold bg-gm-navy" : "bg-white border-gray-100"}`}
           >
             <View className="flex-row items-center justify-between mb-4">
               <Text

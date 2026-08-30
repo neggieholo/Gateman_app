@@ -23,7 +23,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { deleteReport, getMyReports } from "./services/api";
+import { deleteReport, formatReportsDate, getMyReports } from "./services/api";
 import { EstateReport } from "./services/interfaces";
 import { useUser } from "./UserContext";
 
@@ -168,7 +168,7 @@ export default function ServicesReportsHistory({
             <Text
               className={`ml-2 text-xs font-oswald-semibold ${isDarkMode ? "text-gm-gold" : "text-slate-500 "}`}
             >
-              {new Date(selectedReport.created_at).toLocaleDateString()}
+              {formatReportsDate(selectedReport.created_at)}
             </Text>
           </View>
         </View>
@@ -289,7 +289,7 @@ export default function ServicesReportsHistory({
 
               <View className="items-start">
                 <Text className="text-[10px] text-slate-400 mt-1 font-bold">
-                  {new Date(item.created_at).toLocaleDateString()}
+                  {formatReportsDate(item.created_at)}
                 </Text>
               </View>
             </View>
