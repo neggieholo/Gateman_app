@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { formatDistanceToNow, parseISO } from "date-fns";
 import Constants from "expo-constants";
@@ -291,11 +292,12 @@ export const fetchNotifications = async (
   estate_id: string,
 ): Promise<FetchNotificationsResponse> => {
   try {
-    const res = await fetch(`${BASE_URL}/notifications/:estate_id`, {
+    const res = await fetch(`${BASE_URL}/notifications/${estate_id}`, {
       method: "GET",
       credentials: "include",
     });
-    return await res.json();
+    const data = await res.json();
+    return data
   } catch (err) {
     return { success: false, list: [], lastReadAt: "1970-01-01" };
   }
@@ -329,7 +331,7 @@ export const deleteNotificationApi = async (id: string) => {
 
 export const dismissNotification = async () => {
   try {
-    const response = await fetch(`${BASE_URL}/admin/notification/dismiss`, {
+    const response = await fetch(`${BASE_URL}/notifications/dismiss`, {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",
@@ -346,7 +348,7 @@ export const dismissNotification = async () => {
 
 export const markNotificationAsRead = async () => {
   try {
-    const response = await fetch(`${BASE_URL}/admin/notification/read`, {
+    const response = await fetch(`${BASE_URL}/notifications/read-all`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
@@ -671,8 +673,9 @@ export const invitationApi = {
   // --- 1. GET ALL INVITATIONS (BY ESTATE) ---
   getInvitations: async (estateId: string) => {
     try {
+      console.log('Estate_id for invites:', estateId)
       const response = await fetch(
-        `${BASE_URL}/invitations/resident?estate_id=${estateId}`,
+        `${BASE_URL}/invitations/resident/get-all?estate_id=${estateId}`,
       );
       if (!response.ok)
         throw new Error(`HTTP error! status: ${response.status}`);

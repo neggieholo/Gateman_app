@@ -12,7 +12,13 @@ import {
   User,
   X,
 } from "lucide-react-native";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -21,7 +27,6 @@ import {
   Modal,
   RefreshControl,
   ScrollView,
-  Share,
   Text,
   TextInput,
   TouchableOpacity,
@@ -63,7 +68,7 @@ const TrackGuestView = ({
     setSelectedEstateId(estate_id);
   }, [estate_id]);
 
-  const fetchInvitations = async () => {
+  const fetchInvitations = useCallback(async () => {
     if (!selectedEstateId) return;
     setIsLoading(true);
     try {
@@ -75,12 +80,11 @@ const TrackGuestView = ({
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  };
-
+  }, [selectedEstateId]);
 
   useEffect(() => {
     fetchInvitations();
-  }, [selectedEstateId]);
+  }, [fetchInvitations]);
 
   const activeEstateFilterName = useMemo(() => {
     if (!selectedEstateId || !user?.estates) return "Select Estate";

@@ -11,7 +11,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Alert, Platform, useColorScheme, Vibration } from "react-native";
+import { Alert, Platform, useColorScheme } from "react-native";
 // import RNCallKeep from "react-native-callkeep";
 import { Colors } from "@/constants/Colors";
 import { io, Socket } from "socket.io-client";
@@ -51,6 +51,26 @@ interface UserContextType {
   theme: Theme;
   // zim: ZIM | null;
 }
+
+const parsePostgresDate = (dateStr: string | null | undefined): number => {
+  if (!dateStr || typeof dateStr !== "string") return 0;
+
+  try {
+    // 1. Convert space to ISO 'T'
+    let iso = dateStr.trim().replace(" ", "T");
+
+    // 2. Trim 6-digit microseconds to 3-digit milliseconds (.982153+01 -> .982+01)
+    iso = iso.replace(/(\.\d{3})\d+/, "$1");
+
+    // 3. Fix standard timezone offset formatting (+01 -> +01:00)
+    iso = iso.replace(/([+-]\d{2})$/, "$1:00");
+
+    const parsed = new Date(iso).getTime();
+    return isNaN(parsed) ? 0 : parsed;
+  } catch {
+    return 0;
+  }
+};
 
 export const UserContext = createContext<UserContextType>({
   user: null,
@@ -247,7 +267,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     });
 
     newSocket.on("new_notification", (newNotif: notification) => {
-      triggerRefresh()
+      triggerRefresh();
+      console.log("New notification gotten");
 
       // if (newNotif.type?.toLowerCase() === "emergency") {
       //   router.replace({
@@ -291,16 +312,23 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           }
         }
 
-        if (!hasNoEstates && !user?.isTemp) {
+        if (!hasNoEstates && !user?.isTemp && contextEstateId) {
           setLoadingNotifications(true);
-          const result = await fetchNotifications(contextEstateId!);
+          const result = await fetchNotifications(contextEstateId);
+
           if (result.success) {
             setNotifications(result.list);
 
-            const lastRead = new Date(result.lastReadAt || "1970-01-01");
-            const unreadCount = result.list.filter(
-              (n: any) => new Date(n.created_at) > lastRead,
-            ).length;
+            // ✅ Safely parse backend lastReadAt
+            const lastReadTime = parsePostgresDate(result.lastReadAt);
+
+            const unreadCount = result.list.filter((n: any) => {
+              // ✅ Safely parse created_at for each notification item
+              const createdAtTime = parsePostgresDate(n.created_at);
+              const isUnread = createdAtTime > lastReadTime;
+
+              return isUnread;
+            }).length;
 
             setBadgeCount(unreadCount);
           }

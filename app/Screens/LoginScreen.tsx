@@ -269,6 +269,7 @@ export default function LoginScreen() {
     try {
       const otpRes = await sendOtpApi(actualTarget, type);
       if (otpRes.success) {
+        console.log("otp matadata:", otpRes.metadata)
         setMetadata(otpRes.metadata);
         setShowOtpInput(true);
       } else {

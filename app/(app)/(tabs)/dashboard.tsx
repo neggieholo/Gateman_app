@@ -463,7 +463,7 @@ export default function Dashboard() {
                       className={`font-oswald-semibold ${isDarkMode ? "text-emerald-300" : "text-emerald-900"}`}
                       numberOfLines={1}
                     >
-                      {mainEvent.venue_name}
+                      {mainEvent.venue}
                     </Text>
                     <Text
                       className={`${isDarkMode ? "text-emerald-400" : "text-emerald-700"} text-xs font-roboto-regular`}

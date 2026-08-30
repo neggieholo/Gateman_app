@@ -430,7 +430,7 @@ export interface DashboardStats {
     overstayed: number;
   };
   bookings: {
-    venue_name: string;
+    venue: string;
     start_date: string;
   }[];
   feed: {

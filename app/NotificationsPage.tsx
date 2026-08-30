@@ -34,20 +34,22 @@ export default function NotificationsPage() {
     if (user?.isTemp) {
       triggerRefresh();
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     const handleRead = async () => {
+      console.log('marking as read')
       if (user?.isTemp && tempnotification) {
         setBadgeCount(0);
         await markNotificationAsRead();
       } else if (!user?.isTemp && notifications.length > 0) {
+        console.log('marking permanent as read')
         await markAllAsReadApi();
         setBadgeCount(0);
       }
     };
     handleRead();
-  }, [tempnotification, notifications.length]);
+  }, [tempnotification, notifications.length, user, setBadgeCount]);
 
   const handleDelete = async (id?: string) => {
     if (user?.isTemp) {
@@ -60,11 +62,15 @@ export default function NotificationsPage() {
   };
 
   return (
-    <View className={`flex flex-1 ${isDarkMode ? "bg-slate-950" : "bg-gray-50"}`}>
+    <View
+      className={`flex flex-1 ${isDarkMode ? "bg-slate-950" : "bg-gray-50"}`}
+    >
       {/* Header Bar */}
       <View className="p-4 flex-row justify-between items-center">
         <TouchableOpacity onPress={triggerRefresh}>
-          <Text className={`font-black ${isDarkMode ? "text-gm-gold" : "text-indigo-600"}`}>
+          <Text
+            className={`font-black ${isDarkMode ? "text-gm-gold" : "text-indigo-600"}`}
+          >
             Refresh
           </Text>
         </TouchableOpacity>
