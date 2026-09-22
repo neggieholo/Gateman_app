@@ -31,7 +31,7 @@ export interface ChatSettings {
 export interface EstateProfile {
   id: string;
   name: string;
-  address: string;
+  street_address: string;
   state: string;
   lga: string;
   town: string;

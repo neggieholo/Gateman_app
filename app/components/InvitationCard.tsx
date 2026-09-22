@@ -147,7 +147,7 @@ export const InvitationCard = ({
             <Text className="text-base text-slate-500 font-medium text-center">
               {isStaff ? "is a staff of " : "has been invited by "}
               <Text className="text-[#0A1F44] text-2xl font-black">
-                {inviterName || "Resident"}
+                {inviterName.split("")[0] || "Resident"}
               </Text>
             </Text>
 
@@ -188,7 +188,7 @@ export const InvitationCard = ({
             <Text className="text-slate-400 text-xs font-montserrat-bold text-center mt-0.5 px-6">
               {estate_lga && estate_state
                 ? `${estate_lga}, ${estate_state}`
-                : "Isolo, Lagos"}
+                : "Unknown"}
             </Text>
           </View>
 

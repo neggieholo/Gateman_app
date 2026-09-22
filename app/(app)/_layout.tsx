@@ -1,23 +1,16 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import CookieManager from "@react-native-cookies/cookies";
 import auth from "@react-native-firebase/auth";
 import { DrawerContentScrollView, DrawerItem } from "@react-navigation/drawer";
-import { StatusBar } from 'expo-status-bar';
 import { DrawerActions } from "@react-navigation/native";
 import { router, usePathname, useRouter } from "expo-router";
 import { Drawer } from "expo-router/drawer";
-import { useUser } from "../UserContext";
-import {
-  Bell,
-  LogOut,
-  MessageSquare,
-  Settings,
-  X,
-} from "lucide-react-native";
+import { Bell, LogOut, MessageSquare, Settings, X } from "lucide-react-native";
+import { useState } from "react";
 import { Alert, Image, Text, TouchableOpacity, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { postLogout } from "../services/api";
-import { useState } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useUser } from "../UserContext";
 
 function CustomDrawerContent(props: any) {
   const { setUser, setSessionId, socket } = useUser();
@@ -83,7 +76,10 @@ function CustomDrawerContent(props: any) {
         label="Settings"
         labelStyle={{ color: "#D4AF37", fontSize: 16, fontWeight: "bold" }}
         icon={() => <Settings size={30} color="green" />}
-        onPress={() => {router.push("/SettingsScreen" as any); props.navigation.dispatch(DrawerActions.closeDrawer())}}
+        onPress={() => {
+          router.push("/SettingsScreen" as any);
+          props.navigation.dispatch(DrawerActions.closeDrawer());
+        }}
       />
 
       <DrawerItem
@@ -98,7 +94,7 @@ function CustomDrawerContent(props: any) {
 
 export default function AppLayout() {
   const pathname = usePathname();
-  const { badgeCount, totalUnread } = useUser();
+  const { badgeCount, totalUnread, user } = useUser();
 
   const getHeaderTitle = () => {
     if (pathname.includes("community")) return "Community";
@@ -109,8 +105,11 @@ export default function AppLayout() {
   };
   const isDashboard = pathname.includes("dashboard");
 
+  const hasNoEstates =
+    !user?.estate_ids || user.estate_ids.length === 0 || user.isTemp;
+
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>      
+    <GestureHandlerRootView style={{ flex: 1 }}>
       <Drawer
         drawerContent={(props) => <CustomDrawerContent {...props} />}
         screenOptions={{
@@ -130,22 +129,24 @@ export default function AppLayout() {
             if (isDashboard) {
               return (
                 <View className="flex-row items-center mr-4">
-                  <TouchableOpacity
-                    onPress={() => router.push("/ChatScreen")} 
-                    className="mr-10"
-                  >
-                    <MessageSquare size={24} color="#D4AF37" />
-                    {totalUnread > 0 && (
-                      <View
-                        className="absolute -top-1 -right-1 bg-red-500 rounded-full flex items-center justify-center border-2 border-[#2563eb]"
-                        style={{ minWidth: 18, height: 18 }}
-                      >
-                        <Text className="text-white text-[9px] font-bold">
-                          {totalUnread}
-                        </Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
+                  {!hasNoEstates && (
+                    <TouchableOpacity
+                      onPress={() => router.push("/ChatScreen")}
+                      className="mr-10"
+                    >
+                      <MessageSquare size={24} color="#D4AF37" />
+                      {totalUnread > 0 && (
+                        <View
+                          className="absolute -top-1 -right-1 bg-red-500 rounded-full flex items-center justify-center border-2 border-[#2563eb]"
+                          style={{ minWidth: 18, height: 18 }}
+                        >
+                          <Text className="text-white text-[9px] font-bold">
+                            {totalUnread}
+                          </Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  )}
 
                   {/* Notification Bell */}
                   <TouchableOpacity

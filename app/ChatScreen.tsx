@@ -81,7 +81,7 @@ import {
   IFileMessage,
   LocationPair,
   User,
-} from "./services/interfaces";
+} from "./services/interfaces"
 
 const ChatManager = () => {
   const insets = useSafeAreaInsets();
@@ -516,7 +516,7 @@ const ChatManager = () => {
               !updatedMessages.some((oldMsg) => oldMsg._id === newMsg._id),
           );
 
-          console.log("Curentmessage:", uniqueNewMessages);
+          console.log("Curent message:", uniqueNewMessages);
 
           // 3. Append the new ones to the filtered list
           return GiftedChat.append(updatedMessages, uniqueNewMessages);
@@ -530,7 +530,7 @@ const ChatManager = () => {
       if (unsubscribeMessages) unsubscribeMessages();
       setMessages([]);
     };
-  }, [selectedTenant, user]);
+  }, [selectedTenant, user, isGroupChat, selectedEstateId]);
 
   const onSend = async (newMsgs: IFileMessage[] = []) => {
     if (!selectedTenant || !selectedEstateId) return;

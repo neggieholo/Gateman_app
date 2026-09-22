@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { InvitationCard } from "@/app/components/InvitationCard";
 import TrackGuestView from "@/app/components/TrackGuest";
 import { getS3UploadedUrl, invitationApi } from "@/app/services/api";
@@ -105,15 +106,6 @@ const InviteGuestForm = ({
     { label: "Sun", value: 0 },
   ];
 
-  // const handleTypeChange = (type: string) => {
-  //   setGuestType(type);
-
-  //   if (type === "multi_entry") {
-  //     setEndDate(new Date(new Date().setDate(new Date().getDate() + 7)));
-  //   } else {
-  //     setEndDate(null);
-  //   }
-  // };
 
   const handleTypeChange = (type: string) => {
     setGuestType(type);
@@ -940,7 +932,7 @@ const InviteGuestForm = ({
           endTime={formatTime(toTime)}
           inviteType={guestType}
           estate_name={activeEstate?.name || ""}
-          estate_address={activeEstate?.address || ""}
+          estate_address={activeEstate?.street_address || ""}
           estate_state={activeEstate?.state || ""}
           estate_lga={activeEstate?.town || ""}
           locations={activeLocations || []}

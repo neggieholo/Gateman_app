@@ -1,8 +1,12 @@
-{
+import 'dotenv/config'; 
+
+const IS_DEV = process.env.APP_VARIANT === "development";
+
+export default {
   "expo": {
-    "name": "Gateman",
+    "name": IS_DEV ? "GateMan (Dev)" : "GateMan",
     "slug": "gateman",
-    "version": "1.1.8",
+    "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "gateman",
@@ -10,7 +14,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.snametech.gateman",
+      "bundleIdentifier": IS_DEV ? "com.snametech.gateman.dev" : "com.snametech.gateman",
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "UIBackgroundModes": ["voip", "remote-notification", "audio"],
@@ -54,7 +58,7 @@
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.snametech.gateman",
+      "package": IS_DEV ? "com.snametech.gateman.dev" : "com.snametech.gateman",
       "googleServicesFile": "./google-services.json"
     },
     "web": {

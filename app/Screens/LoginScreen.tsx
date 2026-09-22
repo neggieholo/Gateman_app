@@ -169,7 +169,7 @@ export default function LoginScreen() {
           setShowBiometricBtn(true);
         }
 
-        if (!response.user.biometric_login) {
+        if (!response.user.biometric_login || response.isTemp) {
           await AsyncStorage.setItem("biometrics_active", "false");
           setShowBiometricBtn(false);
         }
