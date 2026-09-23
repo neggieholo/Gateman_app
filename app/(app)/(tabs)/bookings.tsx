@@ -1,9 +1,6 @@
 import AllEventsScreen from "@/app/AllEvents";
-import {
-  createEvent,
-  getAllLocations,
-} from "@/app/services/api";
-import { EstateFacility } from "@/app/services/interfaces";
+import { createEvent, getAllLocations } from "@/app/services/api";
+import { BookedDateSlot, EstateFacility } from "@/app/services/interfaces";
 import { useUser } from "@/app/UserContext";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { router } from "expo-router";
@@ -19,6 +16,7 @@ import {
   Info,
   MapPin,
   ShieldCheck,
+  Zap,
 } from "lucide-react-native";
 import React, { useEffect, useMemo, useState } from "react";
 import {
@@ -53,7 +51,7 @@ const SectionHeader = ({
 export default function CreateEventScreen() {
   const { user, isDarkMode, contextEstateId } = useUser();
   const [activeTab, setActiveTab] = useState<"CREATE BOOKING" | "ALL BOOKINGS">(
-    "CREATE BOOKING"
+    "CREATE BOOKING",
   );
   const [showPicker, setShowPicker] = useState<
     "start_time" | "end_time" | null
@@ -66,27 +64,32 @@ export default function CreateEventScreen() {
   const [locations, setLocations] = useState<EstateFacility[]>([]);
   const [loadingLocations, setLoadingLocations] = useState<boolean>(false);
   const [selectedVenue, setSelectedVenue] = useState<EstateFacility | null>(
-    null
+    null,
   );
   const [selectedDates, setSelectedDates] = useState<string[]>([]);
   const [selectedEstateId, setSelectedEstateId] = useState<string | null>(null);
-  const [tempTime, setTempTime] = useState<Date>(new Date());
 
   // Calendar View Window state
   const [currentCalendarDate, setCurrentCalendarDate] = useState<Date>(
-    new Date()
+    new Date(),
   );
+  const [dateTimes, setDateTimes] = useState<
+    Record<string, { start_time: string; end_time: string }>
+  >({});
+
+  const [longPressedDate, setLongPressedDate] = useState<string | null>(null);
+
+  const [applyTimeToAll, setApplyTimeToAll] = useState(false);
+
+  const [timePickerDate, setTimePickerDate] = useState<string | null>(null);
 
   // Form State
   const [form, setForm] = useState({
-    id: "",
     estate_id: "",
     venue_id: "",
     venue_name: "",
     start_date: "",
     end_date: "",
-    start_time: "",
-    end_time: "",
     booked_dates: [],
     isPaid: false,
   });
@@ -122,21 +125,146 @@ export default function CreateEventScreen() {
     );
   }, [selectedVenue, locations]);
 
+  const bookedSlotsByDate = useMemo(() => {
+    const slotsByDate: Record<string, BookedDateSlot[]> = {};
+
+    if (!chosenLocationData?.event_booked_on) {
+      return slotsByDate;
+    }
+
+    Object.values(chosenLocationData.event_booked_on).forEach(
+      (bookingContext) => {
+        if (!bookingContext?.dates) return;
+
+        bookingContext.dates.forEach((slot) => {
+          const existing = slotsByDate[slot.date] || [];
+
+          slotsByDate[slot.date] = [...existing, slot];
+        });
+      },
+    );
+
+    return slotsByDate;
+  }, [chosenLocationData]);
+
   // Booked dates set tracking
   const completelyTakenDatesSet = useMemo(() => {
     const takenSet = new Set<string>();
-    if (!chosenLocationData || !chosenLocationData.event_booked_on)
-      return takenSet;
 
-    Object.values(chosenLocationData.event_booked_on).forEach(
-      (bookingContext: any) => {
-        if (bookingContext && Array.isArray(bookingContext.dates)) {
-          bookingContext.dates.forEach((d: string) => takenSet.add(d));
+    if (!chosenLocationData) return takenSet;
+
+    // Calculate required facility booking duration in total minutes
+    const requiredDurationMinutes =
+      (chosenLocationData.bookingDurationHours || 0) * 60 +
+      (chosenLocationData.bookingDurationMinutes || 0);
+
+    // Fallback: Default to at least 1 hour (60 min) if not specified
+    const minRequiredMinutes =
+      requiredDurationMinutes > 0 ? requiredDurationMinutes : 60;
+
+    Object.entries(bookedSlotsByDate).forEach(([date, slots]) => {
+      if (!slots || slots.length === 0) return;
+
+      // 1. Convert booked slots to minute intervals [startMinutes, endMinutes]
+      const intervals = slots
+        .map((slot) => {
+          const [startHour, startMinute] = slot.start_time
+            .split(":")
+            .map(Number);
+          const [endHour, endMinute] = slot.end_time.split(":").map(Number);
+          return {
+            start: startHour * 60 + startMinute,
+            end: endHour * 60 + endMinute,
+          };
+        })
+        .sort((a, b) => a.start - b.start);
+
+      // 2. Merge overlapping or adjacent booked intervals
+      const mergedIntervals: { start: number; end: number }[] = [];
+      for (const interval of intervals) {
+        if (mergedIntervals.length === 0) {
+          mergedIntervals.push(interval);
+        } else {
+          const last = mergedIntervals[mergedIntervals.length - 1];
+          if (interval.start <= last.end) {
+            last.end = Math.max(last.end, interval.end);
+          } else {
+            mergedIntervals.push(interval);
+          }
         }
       }
-    );
+
+      // 3. Calculate continuous free gaps across the 24-hour day (1440 minutes)
+      let maxFreeContinuousMinutes = 0;
+      let currentPointer = 0; // Starts at 00:00
+
+      for (const interval of mergedIntervals) {
+        if (interval.start > currentPointer) {
+          const gap = interval.start - currentPointer;
+          if (gap > maxFreeContinuousMinutes) {
+            maxFreeContinuousMinutes = gap;
+          }
+        }
+        currentPointer = Math.max(currentPointer, interval.end);
+      }
+
+      // Check remaining gap after last booking until end of day (24:00 / 1440 mins)
+      if (currentPointer < 1440) {
+        const remainingGap = 1440 - currentPointer;
+        if (remainingGap > maxFreeContinuousMinutes) {
+          maxFreeContinuousMinutes = remainingGap;
+        }
+      }
+
+      if (maxFreeContinuousMinutes < minRequiredMinutes) {
+        takenSet.add(date);
+      }
+    });
+
     return takenSet;
-  }, [chosenLocationData]);
+  }, [bookedSlotsByDate, chosenLocationData]);
+
+  const hasBookingOnDate = (dateStr: string) => {
+    return (bookedSlotsByDate[dateStr]?.length || 0) > 0;
+  };
+
+  const toggleDateSelection = (dateStr: string) => {
+    if (completelyTakenDatesSet.has(dateStr)) return;
+
+    const [day, month, year] = dateStr.split("-").map(Number);
+    const selectedDateObj = new Date(year, month - 1, day);
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Strip time components for accurate day comparison
+
+    if (selectedDateObj < today) {
+      Alert.alert("Invalid Selection", "You cannot select a past date.");
+      return;
+    }
+    //
+
+    setSelectedDates((prev) => {
+      if (prev.includes(dateStr)) {
+        setDateTimes((times) => {
+          const next = { ...times };
+          delete next[dateStr];
+          return next;
+        });
+
+        return prev.filter((d) => d !== dateStr);
+      }
+
+      setDateTimes((times) => ({
+        ...times,
+        [dateStr]: {
+          start_time: "",
+          end_time: "",
+        },
+      }));
+
+      return [...prev, dateStr];
+    });
+  };
 
   // Calendar grid math
   const calendarGridDays = useMemo(() => {
@@ -160,21 +288,11 @@ export default function CreateEventScreen() {
       const dd = String(dayDate.getDate()).padStart(2, "0");
       cells.push({
         date: dayDate,
-        dateStr: `${yyyy}-${mm}-${dd}`,
+        dateStr: `${dd}-${mm}-${yyyy}`,
       });
     }
     return cells;
   }, [currentCalendarDate]);
-
-  const toggleDateSelection = (dateStr: string) => {
-    if (completelyTakenDatesSet.has(dateStr)) return;
-
-    setSelectedDates((prev) =>
-      prev.includes(dateStr)
-        ? prev.filter((d) => d !== dateStr)
-        : [...prev, dateStr]
-    );
-  };
 
   // Keep form data synced with venue and dates selection
   useEffect(() => {
@@ -206,60 +324,218 @@ export default function CreateEventScreen() {
     if (!user?.estates || !selectedEstateId) return "Select Target Estate";
 
     const found = user.estates.find(
-      (e) => e.id.toString() === selectedEstateId.toString()
+      (e) => e.id.toString() === selectedEstateId.toString(),
     );
     return found ? found.name : "Select Target Estate";
   }, [selectedEstateId, user?.estates]);
 
   const filteredLocations = useMemo(() => {
     return locations.filter((loc) =>
-      loc.name.toLowerCase().includes(venueSearchQuery.toLowerCase())
+      loc.name.toLowerCase().includes(venueSearchQuery.toLowerCase()),
     );
   }, [locations, venueSearchQuery]);
 
-  const handleDateChange = (event: any, selectedDate?: Date) => {
-    if (event.type === "dismissed" || !selectedDate) {
-      setShowPicker(null);
-      return;
-    }
-    const field = showPicker;
+  const handleTimeChange = (event: any, selectedDate?: Date) => {
+  // Guard: cancel if picker was dismissed, date is missing, or neither target mode is active
+  if (
+    event.type === "dismissed" ||
+    !selectedDate ||
+    (!applyTimeToAll && !timePickerDate)
+  ) {
     setShowPicker(null);
+    setTimePickerDate(null);
+    setApplyTimeToAll(false);
+    return;
+  }
 
-    if (field === "start_time" || field === "end_time") {
-      const timeString = selectedDate.toTimeString().split(" ")[0];
-      setForm((prev) => ({ ...prev, [field]: timeString }));
+  const timeString = selectedDate.toTimeString().split(" ")[0]; // "HH:MM:SS"
+  const field = showPicker;
+
+  if (field === "start_time" || field === "end_time") {
+    const datesToCheck = applyTimeToAll ? selectedDates : [timePickerDate!];
+
+    // 1. Prevent multiple bookings on the same day for this resident
+    for (const dateStr of datesToCheck) {
+      const residentBookingsOnDate = (
+        bookedSlotsByDate[dateStr] || []
+      ).filter((slot) => slot.resident_id === user?.id);
+
+      if (residentBookingsOnDate.length > 0) {
+        Alert.alert(
+          "Booking Limit Reached",
+          `You already have an existing booking on ${dateStr}. Multiple bookings on the same day are not allowed.`
+        );
+        setShowPicker(null);
+        setTimePickerDate(null);
+        setApplyTimeToAll(false);
+        return;
+      }
     }
-  };
+
+    // 2. Check time validity and interval overlaps
+    for (const dateStr of datesToCheck) {
+      const existingTimes = dateTimes[dateStr] || {
+        start_time: "",
+        end_time: "",
+      };
+      const newStartTime =
+        field === "start_time" ? timeString : existingTimes.start_time;
+      const newEndTime =
+        field === "end_time" ? timeString : existingTimes.end_time;
+
+      if (newStartTime && newEndTime) {
+        const [newStartH, newStartM] = newStartTime.split(":").map(Number);
+        const [newEndH, newEndM] = newEndTime.split(":").map(Number);
+        const proposedStart = newStartH * 60 + newStartM;
+        const proposedEnd = newEndH * 60 + newEndM;
+        const maxAllowedMinutes =
+          (chosenLocationData?.bookingDurationHours || 0) * 60 +
+          (chosenLocationData?.bookingDurationMinutes || 0);
+
+        if (proposedStart >= proposedEnd) {
+          Alert.alert(
+            "Invalid Time Range",
+            "End time must be strictly after start time within the same day."
+          );
+          setShowPicker(null);
+          setTimePickerDate(null);
+          setApplyTimeToAll(false);
+          return;
+        }
+
+        if (proposedEnd > 1439) {
+          Alert.alert(
+            "Invalid End Time",
+            "Bookings cannot extend past 11:59 PM on the same day."
+          );
+          setShowPicker(null);
+          setTimePickerDate(null);
+          setApplyTimeToAll(false);
+          return;
+        }
+
+        // --- DURATION LIMIT GUARD ---
+        if (maxAllowedMinutes > 0) {
+          const selectedDuration = proposedEnd - proposedStart;
+          if (selectedDuration > maxAllowedMinutes) {
+            const maxHours = Math.floor(maxAllowedMinutes / 60);
+            const maxMins = maxAllowedMinutes % 60;
+            const durationLabel =
+              `${maxHours > 0 ? `${maxHours}h ` : ""}${maxMins > 0 ? `${maxMins}m` : ""}`.trim();
+
+            Alert.alert(
+              "Duration Exceeded",
+              `The maximum allowed booking duration for this facility is ${durationLabel}.`
+            );
+            setShowPicker(null);
+            setTimePickerDate(null);
+            setApplyTimeToAll(false);
+            return;
+          }
+        }
+
+        // Validate collision against existing booked slots
+        const existingSlots = bookedSlotsByDate[dateStr] || [];
+        const hasConflict = existingSlots.some((slot) => {
+          const [sH, sM] = slot.start_time.split(":").map(Number);
+          const [eH, eM] = slot.end_time.split(":").map(Number);
+          const slotStart = sH * 60 + sM;
+          const slotEnd = eH * 60 + eM;
+
+          return (
+            Math.max(proposedStart, slotStart) <
+            Math.min(proposedEnd, slotEnd)
+          );
+        });
+
+        if (hasConflict) {
+          Alert.alert(
+            "Time Conflict Error",
+            `The selected time range overlaps with an existing booking on ${dateStr}. Please select a different time window.`
+          );
+          setShowPicker(null);
+          setTimePickerDate(null);
+          setApplyTimeToAll(false);
+          return;
+        }
+      }
+    }
+
+    // Apply valid time update across resolved targets
+    setDateTimes((prev) => {
+      const next = { ...prev };
+      datesToCheck.forEach((d) => {
+        next[d] = {
+          ...(next[d] || { start_time: "", end_time: "" }),
+          [field]: timeString,
+        };
+      });
+      return next;
+    });
+  }
+
+  // Always reset controls on exit
+  setShowPicker(null);
+  setTimePickerDate(null);
+  setApplyTimeToAll(false);
+};
+
+  const booked_dates_list = selectedDates.sort().map((date) => ({
+    date,
+    start_time: dateTimes[date]?.start_time || "",
+    end_time: dateTimes[date]?.end_time || "",
+    resident_id: user?.id,
+  }));
 
   const handleSubmit = async () => {
     if (!selectedEstateId)
       return Alert.alert(
         "Missing Target",
-        "Please link an estate to this booking."
+        "Please link an estate to this booking.",
       );
     if (!form.venue_id || selectedDates.length === 0)
       return Alert.alert(
         "Missing Venue Plan",
-        "Please select a venue and target dates."
+        "Please select a venue and target dates.",
       );
 
-    if (!form.start_time || !form.end_time)
-      return Alert.alert("Missing Info", "Set event start and end hours.");
+    const missingTimeDate = selectedDates.find(
+      (date) => !dateTimes[date]?.start_time || !dateTimes[date]?.end_time,
+    );
+
+    if (missingTimeDate) {
+      return Alert.alert(
+        "Missing Time",
+        `Please set the start and end time for ${new Date(
+          `${missingTimeDate}T00:00:00`,
+        ).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })}.`,
+      );
+    }
+
+    const sortedDates = [...selectedDates].sort();
+    const start_date = sortedDates[0] || "";
+    const end_date = sortedDates[sortedDates.length - 1] || "";
 
     setIsSaving(true);
     try {
       const payload = {
-        ...form,
         estate_id: selectedEstateId,
         venue_id: parseInt(form.venue_id, 10),
-        booked_dates_list: [...selectedDates].sort(),
+        venue_name: form.venue_name,
+        start_date: start_date,
+        end_date: end_date,
+        booked_dates: booked_dates_list,
         isPaid: chosenLocationData?.is_paid || false,
       };
 
       await createEvent(payload);
       Alert.alert(
         "Booking Requested",
-        "Your event request has been submitted for approval. You will receive payment instructions once confirmed by admin."
+        "Your event request has been submitted for approval. You will receive payment instructions once confirmed by admin.",
       );
       resetEvent();
       setActiveTab("ALL BOOKINGS");
@@ -270,22 +546,19 @@ export default function CreateEventScreen() {
     }
   };
 
-  const getDisplayValue = (field: string, placeholder: string) => {
-    return form[field as keyof typeof form] || placeholder;
-  };
+  // const getDisplayValue = (field: string, placeholder: string) => {
+  //   return form[field as keyof typeof form] || placeholder;
+  // };
 
   const resetEvent = () => {
     setSelectedVenue(null);
     setSelectedDates([]);
     setForm({
-      id: "",
       estate_id: "",
       venue_id: "",
       venue_name: "",
       start_date: "",
       end_date: "",
-      start_time: "",
-      end_time: "",
       booked_dates: [],
       isPaid: false,
     });
@@ -351,8 +624,8 @@ export default function CreateEventScreen() {
                 ? "bg-gm-navy border-gm-gold"
                 : "bg-gm-navy border-gray-200"
               : isDarkMode
-              ? "bg-gm-charcoal border-slate-800"
-              : "bg-white border-slate-100"
+                ? "bg-gm-charcoal border-slate-800"
+                : "bg-white border-slate-100"
           }`}
         >
           <FileText
@@ -361,8 +634,8 @@ export default function CreateEventScreen() {
               activeTab === "CREATE BOOKING"
                 ? "#D4AF37"
                 : isDarkMode
-                ? "#A0AEC0"
-                : "#0A1F44"
+                  ? "#A0AEC0"
+                  : "#0A1F44"
             }
           />
           <Text
@@ -370,8 +643,8 @@ export default function CreateEventScreen() {
               activeTab === "CREATE BOOKING"
                 ? "text-gm-gold"
                 : isDarkMode
-                ? "text-slate-400"
-                : "text-gm-navy"
+                  ? "text-slate-400"
+                  : "text-gm-navy"
             }`}
           >
             NEW BOOKING
@@ -386,8 +659,8 @@ export default function CreateEventScreen() {
                 ? "bg-gm-navy border-gm-gold"
                 : "bg-gm-navy border-gray-200"
               : isDarkMode
-              ? "bg-gm-charcoal border-slate-800"
-              : "bg-white border-slate-100"
+                ? "bg-gm-charcoal border-slate-800"
+                : "bg-white border-slate-100"
           }`}
         >
           <History
@@ -396,8 +669,8 @@ export default function CreateEventScreen() {
               activeTab === "ALL BOOKINGS"
                 ? "#D4AF37"
                 : isDarkMode
-                ? "#A0AEC0"
-                : "#0A1F44"
+                  ? "#A0AEC0"
+                  : "#0A1F44"
             }
           />
           <Text
@@ -405,8 +678,8 @@ export default function CreateEventScreen() {
               activeTab === "ALL BOOKINGS"
                 ? "text-gm-gold"
                 : isDarkMode
-                ? "text-slate-400"
-                : "text-gm-navy"
+                  ? "text-slate-400"
+                  : "text-gm-navy"
             }`}
           >
             ALL BOOKINGS
@@ -437,7 +710,7 @@ export default function CreateEventScreen() {
                   isDarkMode ? "text-gm-gold" : "text-amber-900"
                 }`}
               >
-                Scheduling Requirement
+                Scheduling Requirement for paid locations
               </Text>
               <Text
                 className={`text-xs font-bold leading-relaxed ${
@@ -559,8 +832,7 @@ export default function CreateEventScreen() {
               }`}
             >
               Select Booking Dates{" "}
-              {selectedDates.length > 0 &&
-                `(${selectedDates.length} Selected)`}
+              {selectedDates.length > 0 && `(${selectedDates.length} Selected)`}
             </Text>
 
             {!selectedVenue ? (
@@ -602,8 +874,8 @@ export default function CreateEventScreen() {
                           new Date(
                             currentCalendarDate.getFullYear(),
                             currentCalendarDate.getMonth() - 1,
-                            1
-                          )
+                            1,
+                          ),
                         )
                       }
                       className={`p-2 rounded-lg border ${
@@ -623,8 +895,8 @@ export default function CreateEventScreen() {
                           new Date(
                             currentCalendarDate.getFullYear(),
                             currentCalendarDate.getMonth() + 1,
-                            1
-                          )
+                            1,
+                          ),
                         )
                       }
                       className={`p-2 rounded-lg border ${
@@ -663,7 +935,9 @@ export default function CreateEventScreen() {
                         />
                       );
 
-                    const isTaken = completelyTakenDatesSet.has(cell.dateStr);
+                    const hasBooking = hasBookingOnDate(cell.dateStr);
+                    const isTaken =
+                      completelyTakenDatesSet.has(cell.dateStr) || hasBooking;
                     const isSelected = selectedDates.includes(cell.dateStr);
 
                     return (
@@ -671,6 +945,11 @@ export default function CreateEventScreen() {
                         key={cell.dateStr}
                         disabled={isTaken}
                         onPress={() => toggleDateSelection(cell.dateStr)}
+                        onLongPress={() => {
+                          if (hasBooking) {
+                            setLongPressedDate(cell.dateStr);
+                          }
+                        }}
                         style={{ width: "14.28%" }}
                         className="h-10 p-[2px]"
                       >
@@ -678,24 +957,35 @@ export default function CreateEventScreen() {
                           className={`w-full h-full rounded-xl border items-center justify-center ${
                             isTaken
                               ? isDarkMode
-                                ? "bg-slate-950 border-transparent text-slate-700"
-                                : "bg-slate-200/60 border-transparent text-slate-400"
+                                ? "bg-black border-transparent"
+                                : "bg-slate-200 border-transparent"
                               : isSelected
-                              ? "bg-indigo-600 border-indigo-600"
-                              : isDarkMode
-                              ? "bg-gm-navy border-slate-800"
-                              : "bg-white border-slate-200"
+                                ? "bg-indigo-600 border-indigo-600"
+                                : hasBooking
+                                  ? isDarkMode
+                                    ? "bg-gm-navy border-yellow-500"
+                                    : "bg-white border-indigo-500"
+                                  : isDarkMode
+                                    ? "bg-gm-navy border-slate-800"
+                                    : "bg-white border-slate-200"
                           }`}
                         >
+                          {hasBooking && !isTaken && (
+                            <View
+                              className={`absolute bottom-1 w-1.5 h-1.5 rounded-full ${
+                                isDarkMode ? "bg-yellow-400" : "bg-indigo-500"
+                              }`}
+                            />
+                          )}
                           <Text
                             className={`text-xs font-black ${
                               isTaken
                                 ? "line-through"
                                 : isSelected
-                                ? "text-white"
-                                : isDarkMode
-                                ? "text-slate-200"
-                                : "text-slate-700"
+                                  ? "text-white"
+                                  : isDarkMode
+                                    ? "text-slate-200"
+                                    : "text-slate-700"
                             }`}
                           >
                             {cell.date.getDate()}
@@ -711,7 +1001,7 @@ export default function CreateEventScreen() {
 
           {/* Time Picker Inputs */}
           <SectionHeader title="Duration & Timing" isDarkMode={isDarkMode} />
-          <View className="flex-row gap-3 mb-6">
+          {/* <View className="flex-row gap-3 mb-6">
             <TouchableOpacity
               onPress={() => setShowPicker("start_time")}
               className={`flex-1 p-5 rounded-2xl border flex-row items-center ${
@@ -747,8 +1037,181 @@ export default function CreateEventScreen() {
                 {getDisplayValue("end_time", "End Time")}
               </Text>
             </TouchableOpacity>
-          </View>
+          </View> */}
+          {selectedDates.length > 0 && (
+            <View className="mb-6">
+              <View className="flex-row items-center justify-between mb-3">
+                <Text
+                  className={`text-xs font-black uppercase tracking-wider ${
+                    isDarkMode ? "text-slate-300" : "text-slate-600"
+                  }`}
+                >
+                  Booking Times
+                </Text>
 
+                {selectedDates.length > 1 && (
+                  <View
+                    className={`p-4 rounded-2xl border mb-4 flex-row items-center justify-between ${
+                      isDarkMode
+                        ? "bg-gm-navy border-slate-800"
+                        : "bg-indigo-50/60 border-indigo-100"
+                    }`}
+                  >
+                    <View className="flex-row items-center flex-1 mr-2">
+                      <Zap
+                        size={16}
+                        color={isDarkMode ? "#D4AF37" : "#4f46e5"}
+                      />
+                      <Text
+                        className={`ml-2 text-xs font-bold ${
+                          isDarkMode ? "text-slate-200" : "text-indigo-950"
+                        }`}
+                      >
+                        Apply Same Time to All Dates
+                      </Text>
+                    </View>
+
+                    <View className="flex-row gap-2">
+                      <TouchableOpacity
+                        onPress={() => {
+                          setApplyTimeToAll(true);
+                          setShowPicker("start_time");
+                        }}
+                        className="px-3 py-2 rounded-xl bg-indigo-600"
+                      >
+                        <Text className="text-[10px] font-black uppercase text-white">
+                          Set All Start
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        onPress={() => {
+                          setApplyTimeToAll(true);
+                          setShowPicker("end_time");
+                        }}
+                        className="px-3 py-2 rounded-xl bg-indigo-600"
+                      >
+                        <Text className="text-[10px] font-black uppercase text-white">
+                          Set All End
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+              </View>
+              {selectedDates.sort().map((date) => {
+                const dateTime = dateTimes[date] || {
+                  start_time: "",
+                  end_time: "",
+                };
+                const hasBooking = hasBookingOnDate(date);
+
+                return (
+                  <View
+                    key={date}
+                    className={`p-4 rounded-2xl border mb-3 ${
+                      isDarkMode
+                        ? "bg-gm-navy border-slate-800"
+                        : "bg-white border-slate-200"
+                    }`}
+                  >
+                    <View className="flex-row items-center justify-between mb-3">
+                      <TouchableOpacity
+                        onLongPress={() => {
+                          if (hasBooking) {
+                            setLongPressedDate(date);
+                          }
+                        }}
+                      >
+                        <Text
+                          className={`font-black ${
+                            isDarkMode ? "text-white" : "text-slate-800"
+                          }`}
+                        >
+                          {new Date(`${date}T00:00:00`).toLocaleDateString(
+                            "en-US",
+                            {
+                              weekday: "short",
+                              month: "short",
+                              day: "numeric",
+                            },
+                          )}
+                        </Text>
+                      </TouchableOpacity>
+
+                      {hasBookingOnDate(date) && (
+                        <View className="px-2 py-1 rounded-lg bg-yellow-500/10">
+                          <Text className="text-[10px] font-black text-yellow-500">
+                            PARTIALLY BOOKED
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+
+                    <View className="flex-row gap-3">
+                      <TouchableOpacity
+                        onPress={() => {
+                          setApplyTimeToAll(false);
+                          setTimePickerDate(date); // e.g., '15-09-2026'
+                          setShowPicker("start_time");
+                        }}
+                        className={`flex-1 p-4 rounded-xl border ${
+                          isDarkMode
+                            ? "bg-slate-900 border-slate-800"
+                            : "bg-slate-50 border-slate-200"
+                        }`}
+                      >
+                        <Text className="text-[10px] font-black text-slate-400 uppercase">
+                          Start
+                        </Text>
+
+                        <Text
+                          className={`mt-1 font-bold ${
+                            dateTime.start_time
+                              ? isDarkMode
+                                ? "text-white"
+                                : "text-slate-800"
+                              : "text-slate-400"
+                          }`}
+                        >
+                          {dateTime.start_time || "Set time"}
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        onPress={() => {
+                          setApplyTimeToAll(false);
+                          setTimePickerDate(date); // e.g., '15-09-2026'
+                          setShowPicker("end_time");
+                        }}
+                        className={`flex-1 p-4 rounded-xl border ${
+                          isDarkMode
+                            ? "bg-slate-900 border-slate-800"
+                            : "bg-slate-50 border-slate-200"
+                        }`}
+                      >
+                        <Text className="text-[10px] font-black text-slate-400 uppercase">
+                          End
+                        </Text>
+
+                        <Text
+                          className={`mt-1 font-bold ${
+                            dateTime.end_time
+                              ? isDarkMode
+                                ? "text-white"
+                                : "text-slate-800"
+                              : "text-slate-400"
+                          }`}
+                        >
+                          {dateTime.end_time || "Set time"}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          )}
           {/* Pending Payment Info Banner */}
           {chosenLocationData?.is_paid && (
             <View
@@ -764,8 +1227,9 @@ export default function CreateEventScreen() {
                   isDarkMode ? "text-slate-400" : "text-slate-600"
                 }`}
               >
-                This is a paid facility. Complete details and payment options will
-                be provided once your booking dates are confirmed by administration.
+                This is a paid facility. Complete details and payment options
+                will be provided once your booking dates are confirmed by
+                administration.
               </Text>
             </View>
           )}
@@ -818,7 +1282,7 @@ export default function CreateEventScreen() {
           mode="time"
           display={Platform.OS === "ios" ? "spinner" : "default"}
           is24Hour={true}
-          onChange={handleDateChange}
+          onChange={handleTimeChange}
         />
       )}
 
@@ -927,7 +1391,9 @@ export default function CreateEventScreen() {
         <View className="flex-1 justify-center items-center bg-black/50 p-6">
           <View
             className={`w-full max-h-[70%] p-6 rounded-[2.5rem] border ${
-              isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100"
+              isDarkMode
+                ? "bg-slate-900 border-slate-800"
+                : "bg-white border-slate-100"
             }`}
           >
             <Text
@@ -940,9 +1406,7 @@ export default function CreateEventScreen() {
 
             <FlatList
               data={(user?.estates || []).filter((e) =>
-                e.name
-                  .toLowerCase()
-                  .includes(estateSearchQuery.toLowerCase())
+                e.name.toLowerCase().includes(estateSearchQuery.toLowerCase()),
               )}
               keyExtractor={(item) => item.id.toString()}
               renderItem={({ item }) => (
@@ -977,6 +1441,102 @@ export default function CreateEventScreen() {
                 <Text className="text-slate-700 font-bold">Cancel</Text>
               </TouchableOpacity>
             )}
+          </View>
+        </View>
+      </Modal>
+      {/* --- BOOKED SLOTS DETAILS BOTTOM MODAL --- */}
+      <Modal
+        visible={!!longPressedDate}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setLongPressedDate(null)}
+      >
+        <View className="flex-1 justify-end bg-black/60">
+          <View
+            className={`w-full rounded-t-[2.5rem] p-6 border-t ${
+              isDarkMode
+                ? "bg-slate-900 border-slate-800"
+                : "bg-white border-slate-100"
+            }`}
+          >
+            {/* Drag handle pill */}
+            <View className="w-12 h-1.5 bg-slate-400/40 rounded-full self-center mb-4" />
+
+            <Text
+              className={`text-base font-black uppercase mb-1 tracking-wide ${
+                isDarkMode ? "text-gm-gold" : "text-gm-navy"
+              }`}
+            >
+              Existing Bookings
+            </Text>
+
+            <Text
+              className={`text-xs font-bold mb-4 ${
+                isDarkMode ? "text-slate-400" : "text-slate-500"
+              }`}
+            >
+              {longPressedDate &&
+                new Date(`${longPressedDate}T00:00:00`).toLocaleDateString(
+                  "en-US",
+                  {
+                    weekday: "long",
+                    month: "long",
+                    day: "numeric",
+                    year: "numeric",
+                  },
+                )}
+            </Text>
+
+            {/* Booked Time Intervals List */}
+            <View className="mb-4 max-h-60">
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {(bookedSlotsByDate[longPressedDate || ""] || []).map(
+                  (slot, idx) => (
+                    <View
+                      key={idx}
+                      className={`p-4 rounded-2xl border mb-2 flex-row justify-between items-center ${
+                        isDarkMode
+                          ? "bg-gm-navy border-slate-800"
+                          : "bg-slate-50 border-slate-100"
+                      }`}
+                    >
+                      <View className="flex-row items-center gap-3">
+                        <Clock
+                          size={16}
+                          color={isDarkMode ? "#D4AF37" : "#6366f1"}
+                        />
+                        <Text
+                          className={`font-black text-sm ${
+                            isDarkMode ? "text-white" : "text-slate-800"
+                          }`}
+                        >
+                          {slot.start_time} - {slot.end_time}
+                        </Text>
+                      </View>
+
+                      <View className="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                        <Text className="text-[10px] font-black uppercase text-amber-500">
+                          Reserved
+                        </Text>
+                      </View>
+                    </View>
+                  ),
+                )}
+              </ScrollView>
+            </View>
+
+            <TouchableOpacity
+              onPress={() => setLongPressedDate(null)}
+              className={`p-4 rounded-2xl items-center border ${
+                isDarkMode
+                  ? "bg-gm-charcoal border-gm-gold"
+                  : "bg-slate-900 border-transparent"
+              }`}
+            >
+              <Text className="text-white font-black text-xs uppercase tracking-wider">
+                Close
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>

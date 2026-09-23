@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { useNavigation } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
 import { Check, ChevronDown, UserPlus } from "lucide-react-native";
@@ -27,7 +28,7 @@ interface FlatLocationItem {
 
 interface GroupedBlockPayload {
   block: string;
-  units: string[];
+  unit: string[];
 }
 
 export default function AddUserForm() {
@@ -155,7 +156,7 @@ export default function AddUserForm() {
 
     return Object.keys(groupedMap).map((blockName) => ({
       block: blockName,
-      units: groupedMap[blockName],
+      unit: groupedMap[blockName],
     }));
   };
 

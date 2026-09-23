@@ -320,7 +320,7 @@ export interface LocationBooking {
   end_date: string;
   start_time: string; // HH:mm:ss
   end_time: string;
-  booked_dates: string[];
+  booked_dates: BookedDateSlot[];
 
   is_paid: boolean;
   total_amount: number;
@@ -330,6 +330,13 @@ export interface LocationBooking {
   payment_url?: string;
 
   created_at: string;
+}
+
+export interface BookedDateSlot {
+  date: string;
+  start_time: string;
+  end_time: string;
+  resident_id: string | undefined;
 }
 
 export interface EstateFacility {
@@ -342,12 +349,14 @@ export interface EstateFacility {
     string,
     {
       venue_name: string;
-      dates: string[];
+      dates: BookedDateSlot[];
     }
   >;
   capacity?: number;
   is_paid?: boolean;
   bookingRate?: number;
+  bookingDurationHours: number;
+  bookingDurationMinutes:  number;
   bookingRateUnit?: "per_hour" | "per_day" | "per_event";
   is_active: boolean;
   created_at: string;
@@ -372,15 +381,12 @@ export interface EventRegistration {
  * Data required to create a new event (Frontend Form State)
  */
 export interface CreateBookingRequest {
-  id: string;
   estate_id: string;
   venue_id: number;
   venue_name: string;
-  start_date: string; // ISO Date string (YYYY-MM-DD)
+  start_date: string;
   end_date: string;
-  start_time: string; // HH:mm:ss
-  end_time: string;
-  booked_dates: string[];
+  booked_dates: BookedDateSlot[];
 }
 
 /**
