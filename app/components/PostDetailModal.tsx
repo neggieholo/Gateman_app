@@ -1,11 +1,13 @@
 import { useUser } from "@/app/UserContext";
 import { Directory, File, Paths } from "expo-file-system";
 import * as MediaLibrary from "expo-media-library";
+import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import {
   Download,
   Heart,
   ImageIcon,
+  MessageSquare,
   Send,
   Trash,
   X,
@@ -59,8 +61,33 @@ export default function PostDetailModal({
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<"comments" | "likes">("comments");
   const { user, isDarkMode } = useUser();
+  const router = useRouter();
 
   if (!post) return null;
+
+  const handleDirectMessage = () => {
+    // 1. First close the modal sheet
+    onClose();
+
+    const authorId = post.author_id;
+
+    if (!authorId) {
+      Alert.alert("Error", "Author details unavailable.");
+      return;
+    }
+
+    // 3. Prevent opening a chat with oneself
+    if (authorId === user?.id) {
+      Alert.alert("Notice", "You cannot send a direct message to yourself.");
+      return;
+    }
+
+    // 4. Navigate to Chat screen with autoId route parameter
+    router.push({
+      pathname: "/ChatScreen", // Or your exact route, e.g. "/(tabs)/Chat"
+      params: { autoId: authorId },
+    });
+  };
 
   const handleSaveImage = async (url: string) => {
     try {
@@ -149,51 +176,85 @@ export default function PostDetailModal({
                   : "bg-white border-slate-50"
               }`}
             >
+              {/* Author Meta Row */}
+              <View className="flex-row items-center justify-between mb-3">
+                <View className="flex-row items-center gap-2">
+                  <Text
+                    style={{ fontFamily: "oswald-semibold" }}
+                    className={`text-xs uppercase tracking-wider ${
+                      isDarkMode ? "text-gm-gold" : "text-indigo-600"
+                    }`}
+                  >
+                    {`By ${post.author_name}`}
+                  </Text>
+
+                  {/* Message Icon Button */}
+                  {(post.author_id !== user?.id && post.author_name !== 'ADMIN') && (
+                    <TouchableOpacity
+                      onPress={handleDirectMessage}
+                      className={`p-1.5 rounded-full ${
+                        isDarkMode
+                          ? "bg-slate-900 border border-slate-800"
+                          : "bg-indigo-50 border border-indigo-100"
+                      }`}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <MessageSquare
+                        size={13}
+                        color={isDarkMode ? "#D4AF37" : "#4f46e5"}
+                      />
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                <Text
+                  style={{ fontFamily: "oswald-semibold" }}
+                  className={`text-[10px] uppercase tracking-wider ${
+                    isDarkMode ? "text-slate-500" : "text-slate-400"
+                  }`}
+                >
+                  {getRelativeTime(post.created_at)}
+                </Text>
+              </View>
+
+              {/* Title */}
               <Text
                 style={{ fontFamily: "montserrat-bold" }}
-                className={`text-xl mb-2 ${isDarkMode ? "text-white" : "text-slate-900"}`}
+                className={`text-xl mb-3 ${isDarkMode ? "text-white" : "text-slate-900"}`}
               >
                 {post.title}
               </Text>
 
+              {/* 🌟 PRETTIER INLINE IMAGE CARD (Between Title & Description) */}
+              {post.image_url && (
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  onPress={() => setImageModalVisible(true)}
+                  className="relative w-full h-52 rounded-2xl overflow-hidden mb-4 border border-slate-200/20 shadow-sm"
+                >
+                  <Image
+                    source={{ uri: post.image_url }}
+                    className="w-full h-full bg-slate-800"
+                    resizeMode="cover"
+                  />
+                  {/* Tap to expand overlay indicator */}
+                  <View className="absolute bottom-2 right-2 bg-black/60 px-2.5 py-1 rounded-full flex-row items-center gap-1">
+                    <ImageIcon size={12} color="#ffffff" />
+                    <Text className="text-white text-[10px] font-bold uppercase tracking-wider">
+                      Expand
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+
+              {/* Content Description */}
               <Text
                 style={{ fontFamily: "roboto-regular" }}
-                className={`text-sm mb-4 leading-6 ${
+                className={`text-sm leading-6 ${
                   isDarkMode ? "text-slate-300" : "text-slate-600"
                 }`}
               >
                 {post.content}
-              </Text>
-
-              {post.image_url && (
-                <TouchableOpacity
-                  onPress={() => setImageModalVisible(true)}
-                  className={`flex-row items-center self-start px-3 py-1.5 rounded-lg mb-3 ${
-                    isDarkMode ? "bg-gm-navy" : "bg-indigo-50"
-                  }`}
-                >
-                  <ImageIcon
-                    size={14}
-                    color={isDarkMode ? "#D4AF37" : "#4f46e5"}
-                  />
-                  <Text
-                    style={{ fontFamily: "oswald-semibold" }}
-                    className={`text-[10px] ml-1.5 uppercase tracking-wide ${
-                      isDarkMode ? "text-gm-gold" : "text-indigo-600"
-                    }`}
-                  >
-                    View Image
-                  </Text>
-                </TouchableOpacity>
-              )}
-
-              <Text
-                style={{ fontFamily: "oswald-semibold" }}
-                className={`text-[10px] uppercase tracking-wider ${
-                  isDarkMode ? "text-slate-500" : "text-slate-400"
-                }`}
-              >
-                {`By ${post.author_name} • ${getRelativeTime(post.created_at)}`}
               </Text>
             </View>
 

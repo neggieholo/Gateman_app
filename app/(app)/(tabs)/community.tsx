@@ -33,6 +33,7 @@ import React, {
 import {
   Alert,
   FlatList,
+  Image,
   Keyboard,
   Modal,
   RefreshControl,
@@ -89,7 +90,7 @@ export default function Community() {
       // setSelectedEstateId(user.estate_ids[0]);
       setSelectedEstateId(contextEstateId);
     }
-  }, [user?.estate_ids,contextEstateId]);
+  }, [user?.estate_ids, contextEstateId]);
 
   // 2. Resolve the currently active workspace object mapping references dynamically
   const activeEstate = useMemo(() => {
@@ -98,7 +99,7 @@ export default function Community() {
   }, [selectedEstateId, user?.estates]);
 
   // Updated query loader engine to leverage the local property selector context state
-  const loadPosts = async () => {
+  const loadPosts = useCallback(async () => {
     if (!selectedEstateId) return;
     setLoading(true);
     try {
@@ -109,7 +110,7 @@ export default function Community() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedEstateId]);
 
   useEffect(() => {
     setNewComment("");
@@ -141,7 +142,7 @@ export default function Community() {
 
       syncFeedData();
     }
-  }, [selectedEstateId]);
+  }, [selectedEstateId,loadPosts]);
 
   const filteredPosts = useMemo(() => {
     let result = posts;
@@ -194,7 +195,7 @@ export default function Community() {
       image_url: overrideImageUrl ?? postImageUrl,
       category: "General",
     };
-    console.log('Post payload:',payload)
+    console.log("Post payload:", payload);
 
     await communityApi.createPost(payload);
 
@@ -613,24 +614,35 @@ export default function Community() {
               const lastReadString =
                 localLastPostRead[selectedEstateId!] ||
                 "1970-01-01T00:00:00.000Z";
-              // console.log("Last read string:", lastReadString);
               const lastReadTime = parsePostgresTimestamp(lastReadString);
               const postCreatedTime = new Date(post.created_at).getTime();
               const isNewPost =
                 postCreatedTime > lastReadTime &&
                 !sessionReadPostIds.includes(post.id);
+
               return (
                 <View
                   key={post.id}
-                  className={`p-4 rounded-2xl mb-4 shadow border ${isDarkMode ? "bg-gm-navy border-gm-gold" : "bg-white border border-gray-200"}`}
+                  className={`p-4 rounded-2xl mb-4 shadow border ${
+                    isDarkMode
+                      ? "bg-gm-navy border-gm-gold"
+                      : "bg-white border border-gray-200"
+                  }`}
                 >
                   <TouchableOpacity
-                    className={`items-start mb-2 w-full rounded-2xl p-2 border ${isDarkMode ? "border-gm-gold" : "border-gray-200"}`}
+                    className={`items-start mb-2 w-full rounded-2xl p-2 border ${
+                      isDarkMode ? "border-gm-gold" : "border-gray-200"
+                    }`}
                     onPress={() => handleOpenPost(post)}
                   >
                     <View className="flex-row items-center gap-2">
                       <View
-                        className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-white ${post.author_role === "admin" || post.author_role === "superadmin" ? "bg-gm-charcoal" : "bg-gray-400"}`}
+                        className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-white ${
+                          post.author_role === "admin" ||
+                          post.author_role === "superadmin"
+                            ? "bg-gm-charcoal"
+                            : "bg-gray-400"
+                        }`}
                       >
                         <Text className={"text-white font-montserrat-bold"}>
                           {post.author_name
@@ -638,10 +650,12 @@ export default function Community() {
                             : "?"}
                         </Text>
                       </View>
-                      <View>
+                      <View className="flex-1">
                         <View className="flex items-start justify-center">
                           <Text
-                            className={`font-montserrat-bold ${isDarkMode ? "text-gm-gold" : "text-gm-navy"}`}
+                            className={`font-montserrat-bold ${
+                              isDarkMode ? "text-gm-gold" : "text-gm-navy"
+                            }`}
                           >
                             {post.author_name}
                           </Text>
@@ -658,21 +672,49 @@ export default function Community() {
                         </View>
                       )}
                     </View>
-                    <View className="p-3">
-                      <Text
-                        className={`font-oswald-semibold ${isDarkMode ? "text-gm-gold" : "text-gm-navy"} text-lg mb-1`}
-                      >
-                        {post.title}
-                      </Text>
-                      <Text
-                        className={`mb-2 ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}
-                      >
-                        {post.content}
-                      </Text>
+
+                    {/* POST BODY & COMPACT THUMBNAIL CONTAINER */}
+                    <View className="flex-row items-start justify-between w-full pt-3 px-1">
+                      <View className="flex-1 pr-3">
+                        <Text
+                          className={`font-oswald-semibold ${
+                            isDarkMode ? "text-gm-gold" : "text-gm-navy"
+                          } text-lg mb-1`}
+                          numberOfLines={2}
+                        >
+                          {post.title}
+                        </Text>
+                        <Text
+                          className={`text-sm ${
+                            isDarkMode ? "text-gray-300" : "text-gray-600"
+                          }`}
+                          numberOfLines={3}
+                        >
+                          {post.content}
+                        </Text>
+                      </View>
+
+                      {/* 🌟 EYE-CATCHING MINI THUMBNAIL BADGE */}
+                      {post.image_url ? (
+                        <TouchableOpacity
+                          activeOpacity={0.85}
+                          onPress={() => handleOpenPost(post)}
+                          className="relative rounded-2xl overflow-hidden shadow-md border border-amber-500/30"
+                        >
+                          <Image
+                            source={{ uri: post.image_url }}
+                            className="w-20 h-20 bg-gray-100"
+                            resizeMode="cover"
+                          />
+                          <View className="absolute bottom-1 right-1 bg-black/60 p-1 rounded-lg backdrop-blur-sm">
+                            <ImageIcon size={12} color="#ffffff" />
+                          </View>
+                        </TouchableOpacity>
+                      ) : null}
                     </View>
                   </TouchableOpacity>
 
-                  <View className="flex-row items-center justify-between my-3">
+                  <View className="flex-row items-center justify-between mt-2 pt-2 border-t border-gray-100/10">
                     <TouchableOpacity
                       className="flex-row items-center"
                       onPress={() => handleLike(post.id)}
@@ -682,42 +724,31 @@ export default function Community() {
                         color={post.has_liked ? "#2563eb" : "#9ca3af"}
                       />
                       <Text
-                        className={`ml-1 font-roboto-regular ${isDarkMode ? "text-gm-gold" : "text-gm-navy"} text-sm`}
+                        className={`ml-1 font-roboto-regular ${
+                          isDarkMode ? "text-gm-gold" : "text-gm-navy"
+                        } text-sm`}
                       >
                         {post.likes_count}
                       </Text>
                     </TouchableOpacity>
+
                     <View className="flex-row items-center">
                       <MessageSquare size={18} color="#9ca3af" />
                       <Text
-                        className={`ml-1 font-roboto-regular ${isDarkMode ? "text-gm-gold" : "text-gm-navy"} text-sm`}
+                        className={`ml-1 font-roboto-regular ${
+                          isDarkMode ? "text-gm-gold" : "text-gm-navy"
+                        } text-sm`}
                       >
                         {post.comments_count}
                       </Text>
                     </View>
-                  </View>
-                  <View className="flex-row items-center justify-between">
-                    {post.image_url ? (
-                      <View
-                        className={`flex-row items-center mt-3 ${isDarkMode ? "bg-gm-charcoal" : "bg-indigo-50"} self-start px-2 py-1 rounded-md`}
-                      >
-                        <ImageIcon size={14} color="#4f46e5" />
-                        <Text
-                          className={`text-xs ml-1 font-roboto-regular ${isDarkMode ? "text-white" : "text-gm-navy"}`}
-                        >
-                          Image attached
-                        </Text>
-                      </View>
-                    ) : (
-                      <View className="mt-3" />
-                    )}
 
                     {user?.id === post.author_id && (
                       <TouchableOpacity
                         onPress={() => handleDelete(post.id)}
-                        className="mt-3 p-1"
+                        className="p-1"
                       >
-                        <Trash size={20} color="#ef4444" />
+                        <Trash size={18} color="#ef4444" />
                       </TouchableOpacity>
                     )}
                   </View>

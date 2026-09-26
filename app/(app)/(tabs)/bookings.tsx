@@ -1,11 +1,12 @@
 import AllEventsScreen from "@/app/AllEvents";
-import { createEvent, getAllLocations } from "@/app/services/api";
+import { createEvent, formatDate, getAllLocations } from "@/app/services/api";
 import { BookedDateSlot, EstateFacility } from "@/app/services/interfaces";
 import { useUser } from "@/app/UserContext";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { router } from "expo-router";
 
 import {
+  AlertCircle,
   AlertTriangle,
   ChevronDown,
   ChevronLeft,
@@ -78,10 +79,9 @@ export default function CreateEventScreen() {
   >({});
 
   const [longPressedDate, setLongPressedDate] = useState<string | null>(null);
-
   const [applyTimeToAll, setApplyTimeToAll] = useState(false);
-
   const [timePickerDate, setTimePickerDate] = useState<string | null>(null);
+  const [planError, setPlanError] = useState<string | null>(null);
 
   // Form State
   const [form, setForm] = useState({
@@ -104,11 +104,29 @@ export default function CreateEventScreen() {
   const fetchLocations = async (estateId: string | null) => {
     if (!estateId) return;
     setLoadingLocations(true);
+    setPlanError(null); 
+    setLocations([]);
     try {
       const locationsData = await getAllLocations(estateId);
       setLocations(locationsData);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to fetch locations:", error);
+      const isModuleError =
+        error?.code === "MODULE_NOT_IN_PLAN" ||
+        error?.message?.includes("facility_bookings") ||
+        error?.includes?.("facility_bookings");
+
+      if (isModuleError) {
+        setPlanError(
+          "This estate does not have the Facility Bookings add-on active in its subscription plan.",
+        );
+      } else {
+        setPlanError(
+          error?.error ||
+            error?.message ||
+            "Failed to load locations for this estate.",
+        );
+      }
     } finally {
       setLoadingLocations(false);
     }
@@ -155,8 +173,8 @@ export default function CreateEventScreen() {
 
     // Calculate required facility booking duration in total minutes
     const requiredDurationMinutes =
-      (chosenLocationData.bookingDurationHours || 0) * 60 +
-      (chosenLocationData.bookingDurationMinutes || 0);
+      (chosenLocationData.booking_duration_hours || 0) * 60 +
+      (chosenLocationData.booking_duration_minutes || 0);
 
     // Fallback: Default to at least 1 hour (60 min) if not specified
     const minRequiredMinutes =
@@ -336,96 +354,68 @@ export default function CreateEventScreen() {
   }, [locations, venueSearchQuery]);
 
   const handleTimeChange = (event: any, selectedDate?: Date) => {
-  // Guard: cancel if picker was dismissed, date is missing, or neither target mode is active
-  if (
-    event.type === "dismissed" ||
-    !selectedDate ||
-    (!applyTimeToAll && !timePickerDate)
-  ) {
-    setShowPicker(null);
-    setTimePickerDate(null);
-    setApplyTimeToAll(false);
-    return;
-  }
-
-  const timeString = selectedDate.toTimeString().split(" ")[0]; // "HH:MM:SS"
-  const field = showPicker;
-
-  if (field === "start_time" || field === "end_time") {
-    const datesToCheck = applyTimeToAll ? selectedDates : [timePickerDate!];
-
-    // 1. Prevent multiple bookings on the same day for this resident
-    for (const dateStr of datesToCheck) {
-      const residentBookingsOnDate = (
-        bookedSlotsByDate[dateStr] || []
-      ).filter((slot) => slot.resident_id === user?.id);
-
-      if (residentBookingsOnDate.length > 0) {
-        Alert.alert(
-          "Booking Limit Reached",
-          `You already have an existing booking on ${dateStr}. Multiple bookings on the same day are not allowed.`
-        );
-        setShowPicker(null);
-        setTimePickerDate(null);
-        setApplyTimeToAll(false);
-        return;
-      }
+    // Guard: cancel if picker was dismissed, date is missing, or neither target mode is active
+    if (
+      event.type === "dismissed" ||
+      !selectedDate ||
+      (!applyTimeToAll && !timePickerDate)
+    ) {
+      setShowPicker(null);
+      setTimePickerDate(null);
+      setApplyTimeToAll(false);
+      return;
     }
 
-    // 2. Check time validity and interval overlaps
-    for (const dateStr of datesToCheck) {
-      const existingTimes = dateTimes[dateStr] || {
-        start_time: "",
-        end_time: "",
-      };
-      const newStartTime =
-        field === "start_time" ? timeString : existingTimes.start_time;
-      const newEndTime =
-        field === "end_time" ? timeString : existingTimes.end_time;
+    const hours = String(selectedDate.getHours()).padStart(2, "0"); // Always 24-hour integer (e.g., 19)
+    const minutes = String(selectedDate.getMinutes()).padStart(2, "0"); // Always 2-digit integer (e.g., 50)
+    const timeString = `${hours}:${minutes}:00`;
+    const field = showPicker;
 
-      if (newStartTime && newEndTime) {
-        const [newStartH, newStartM] = newStartTime.split(":").map(Number);
-        const [newEndH, newEndM] = newEndTime.split(":").map(Number);
-        const proposedStart = newStartH * 60 + newStartM;
-        const proposedEnd = newEndH * 60 + newEndM;
-        const maxAllowedMinutes =
-          (chosenLocationData?.bookingDurationHours || 0) * 60 +
-          (chosenLocationData?.bookingDurationMinutes || 0);
+    if (field === "start_time" || field === "end_time") {
+      const datesToCheck = applyTimeToAll ? selectedDates : [timePickerDate!];
 
-        if (proposedStart >= proposedEnd) {
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      const minAllowedStartMinutes = currentMinutes + 30;
+
+      // 1. Prevent multiple bookings on the same day for this resident
+      for (const dateStr of datesToCheck) {
+        const residentBookingsOnDate = (
+          bookedSlotsByDate[dateStr] || []
+        ).filter((slot) => slot.resident_id === user?.id);
+
+        if (residentBookingsOnDate.length > 0) {
           Alert.alert(
-            "Invalid Time Range",
-            "End time must be strictly after start time within the same day."
+            "Booking Limit Reached",
+            `You already have an existing booking on ${dateStr}. Multiple bookings on the same day are not allowed.`,
           );
           setShowPicker(null);
           setTimePickerDate(null);
           setApplyTimeToAll(false);
           return;
         }
+      }
 
-        if (proposedEnd > 1439) {
-          Alert.alert(
-            "Invalid End Time",
-            "Bookings cannot extend past 11:59 PM on the same day."
-          );
-          setShowPicker(null);
-          setTimePickerDate(null);
-          setApplyTimeToAll(false);
-          return;
-        }
+      // 2. Check time validity and interval overlaps
+      for (const dateStr of datesToCheck) {
+        const existingTimes = dateTimes[dateStr] || {
+          start_time: "",
+          end_time: "",
+        };
+        const newStartTime =
+          field === "start_time" ? timeString : existingTimes.start_time;
+        const newEndTime =
+          field === "end_time" ? timeString : existingTimes.end_time;
 
-        // --- DURATION LIMIT GUARD ---
-        if (maxAllowedMinutes > 0) {
-          const selectedDuration = proposedEnd - proposedStart;
-          if (selectedDuration > maxAllowedMinutes) {
-            const maxHours = Math.floor(maxAllowedMinutes / 60);
-            const maxMins = maxAllowedMinutes % 60;
-            const durationLabel =
-              `${maxHours > 0 ? `${maxHours}h ` : ""}${maxMins > 0 ? `${maxMins}m` : ""}`.trim();
+        if (dateStr === todayStr && newStartTime) {
+          const [startH, startM] = newStartTime.split(":").map(Number);
+          const proposedStartMinutes = startH * 60 + startM;
 
+          if (proposedStartMinutes < minAllowedStartMinutes) {
             Alert.alert(
-              "Duration Exceeded",
-              `The maximum allowed booking duration for this facility is ${durationLabel}.`
+              "Invalid Start Time",
+              "Bookings for today must be scheduled at least 30 minutes in advance.",
             );
             setShowPicker(null);
             setTimePickerDate(null);
@@ -434,51 +424,102 @@ export default function CreateEventScreen() {
           }
         }
 
-        // Validate collision against existing booked slots
-        const existingSlots = bookedSlotsByDate[dateStr] || [];
-        const hasConflict = existingSlots.some((slot) => {
-          const [sH, sM] = slot.start_time.split(":").map(Number);
-          const [eH, eM] = slot.end_time.split(":").map(Number);
-          const slotStart = sH * 60 + sM;
-          const slotEnd = eH * 60 + eM;
+        if (newStartTime && newEndTime) {
+          const [newStartH, newStartM] = newStartTime.split(":").map(Number);
+          const [newEndH, newEndM] = newEndTime.split(":").map(Number);
+          const proposedStart = newStartH * 60 + newStartM;
+          const proposedEnd = newEndH * 60 + newEndM;
+          const maxAllowedMinutes =
+            (chosenLocationData?.booking_duration_hours || 0) * 60 +
+            (chosenLocationData?.booking_duration_minutes || 0);
 
-          return (
-            Math.max(proposedStart, slotStart) <
-            Math.min(proposedEnd, slotEnd)
-          );
-        });
+          if (proposedStart >= proposedEnd) {
+            Alert.alert(
+              "Invalid Time Range",
+              "End time must be strictly after start time within the same day.",
+            );
+            setShowPicker(null);
+            setTimePickerDate(null);
+            setApplyTimeToAll(false);
+            return;
+          }
 
-        if (hasConflict) {
-          Alert.alert(
-            "Time Conflict Error",
-            `The selected time range overlaps with an existing booking on ${dateStr}. Please select a different time window.`
-          );
-          setShowPicker(null);
-          setTimePickerDate(null);
-          setApplyTimeToAll(false);
-          return;
+          if (proposedEnd > 1439) {
+            Alert.alert(
+              "Invalid End Time",
+              "Bookings cannot extend past 11:59 PM on the same day.",
+            );
+            setShowPicker(null);
+            setTimePickerDate(null);
+            setApplyTimeToAll(false);
+            return;
+          }
+
+          // --- DURATION LIMIT GUARD ---
+          if (maxAllowedMinutes > 0) {
+            const selectedDuration = proposedEnd - proposedStart;
+            if (selectedDuration > maxAllowedMinutes) {
+              const maxHours = Math.floor(maxAllowedMinutes / 60);
+              const maxMins = maxAllowedMinutes % 60;
+              const durationLabel =
+                `${maxHours > 0 ? `${maxHours}h ` : ""}${maxMins > 0 ? `${maxMins}m` : ""}`.trim();
+
+              Alert.alert(
+                "Duration Exceeded",
+                `The maximum allowed booking duration for this facility is ${durationLabel}.`,
+              );
+              setShowPicker(null);
+              setTimePickerDate(null);
+              setApplyTimeToAll(false);
+              return;
+            }
+          }
+
+          // Validate collision against existing booked slots
+          const existingSlots = bookedSlotsByDate[dateStr] || [];
+          const hasConflict = existingSlots.some((slot) => {
+            const [sH, sM] = slot.start_time.split(":").map(Number);
+            const [eH, eM] = slot.end_time.split(":").map(Number);
+            const slotStart = sH * 60 + sM;
+            const slotEnd = eH * 60 + eM;
+
+            return (
+              Math.max(proposedStart, slotStart) <
+              Math.min(proposedEnd, slotEnd)
+            );
+          });
+
+          if (hasConflict) {
+            Alert.alert(
+              "Time Conflict Error",
+              `The selected time range overlaps with an existing booking on ${dateStr}. Please select a different time window.`,
+            );
+            setShowPicker(null);
+            setTimePickerDate(null);
+            setApplyTimeToAll(false);
+            return;
+          }
         }
       }
+
+      // Apply valid time update across resolved targets
+      setDateTimes((prev) => {
+        const next = { ...prev };
+        datesToCheck.forEach((d) => {
+          next[d] = {
+            ...(next[d] || { start_time: "", end_time: "" }),
+            [field]: timeString,
+          };
+        });
+        return next;
+      });
     }
 
-    // Apply valid time update across resolved targets
-    setDateTimes((prev) => {
-      const next = { ...prev };
-      datesToCheck.forEach((d) => {
-        next[d] = {
-          ...(next[d] || { start_time: "", end_time: "" }),
-          [field]: timeString,
-        };
-      });
-      return next;
-    });
-  }
-
-  // Always reset controls on exit
-  setShowPicker(null);
-  setTimePickerDate(null);
-  setApplyTimeToAll(false);
-};
+    // Always reset controls on exit
+    setShowPicker(null);
+    setTimePickerDate(null);
+    setApplyTimeToAll(false);
+  };
 
   const booked_dates_list = selectedDates.sort().map((date) => ({
     date,
@@ -528,16 +569,25 @@ export default function CreateEventScreen() {
         venue_name: form.venue_name,
         start_date: start_date,
         end_date: end_date,
-        booked_dates: booked_dates_list,
+        booked_dates_list,
         isPaid: chosenLocationData?.is_paid || false,
       };
 
       await createEvent(payload);
-      Alert.alert(
-        "Booking Requested",
-        "Your event request has been submitted for approval. You will receive payment instructions once confirmed by admin.",
-      );
+      if (chosenLocationData?.is_paid) {
+        Alert.alert(
+          "Booking Requested",
+          "Your event request has been submitted for approval. Once approved by admin, you will be allowed to complete payment.",
+        );
+      } else {
+        Alert.alert(
+          "Booking Confirmed",
+          "Your facility reservation has been successfully booked and approved!",
+        );
+      }
+
       resetEvent();
+      await fetchLocations(selectedEstateId);
       setActiveTab("ALL BOOKINGS");
     } catch (error: any) {
       Alert.alert("Error", error.toString());
@@ -764,64 +814,92 @@ export default function CreateEventScreen() {
           )}
 
           {/* --- FACILITY SELECTION DROPDOWN WITH PAID BADGE --- */}
-          <SectionHeader
-            title="Facility & Date Selection"
-            isDarkMode={isDarkMode}
-          />
+          <SectionHeader title="Facility Selection" isDarkMode={isDarkMode} />
           <View className="mb-4">
-            <TouchableOpacity
-              onPress={() => setShowVenueModal(true)}
-              className={`p-5 rounded-2xl border flex-row justify-between items-center ${
-                isDarkMode
-                  ? "bg-gm-navy border-slate-800"
-                  : "bg-slate-50 border-slate-100"
-              }`}
-            >
-              <View className="flex-row items-center flex-1 pr-2">
-                <MapPin size={18} color={isDarkMode ? "#D4AF37" : "#6366f1"} />
-                <Text
-                  className={`ml-3 font-bold flex-shrink ${
-                    chosenLocationData
-                      ? isDarkMode
-                        ? "text-white"
-                        : "text-slate-800"
-                      : "text-slate-400"
-                  }`}
-                  numberOfLines={1}
-                >
-                  {chosenLocationData
-                    ? `${chosenLocationData.name} ${
-                        chosenLocationData.capacity
-                          ? `(${chosenLocationData.capacity} Max)`
-                          : ""
-                      }`
-                    : "Choose Facility"}
-                </Text>
-              </View>
-
-              <View className="flex-row items-center gap-2">
-                {chosenLocationData && (
-                  <View
-                    className={`px-2.5 py-1 rounded-lg ${
-                      chosenLocationData.is_paid
-                        ? "bg-amber-500/10 border border-amber-500/30"
-                        : "bg-emerald-500/10 border border-emerald-500/30"
+            {planError ? (
+              <View
+                className={`p-5 rounded-2xl border flex-row justify-between items-center ${
+                  isDarkMode
+                    ? "bg-gm-navy border-amber-500/30"
+                    : "bg-amber-500/5 border-amber-500/20"
+                }`}
+              >
+                <View className="flex-row items-center flex-1 pr-2">
+                  <AlertCircle size={18} color="#f59e0b" />
+                  <Text
+                    className={`ml-3 text-xs font-semibold flex-shrink ${
+                      isDarkMode ? "text-amber-400" : "text-amber-600"
                     }`}
+                    numberOfLines={2}
                   >
-                    <Text
-                      className={`text-[10px] font-black uppercase ${
+                    {planError}
+                  </Text>
+                </View>
+
+                <View className="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                  <Text className="text-[10px] font-black uppercase text-amber-500">
+                    UNAVAILABLE
+                  </Text>
+                </View>
+              </View>
+            ) : (
+              <TouchableOpacity
+                onPress={() => setShowVenueModal(true)}
+                className={`p-5 rounded-2xl border flex-row justify-between items-center ${
+                  isDarkMode
+                    ? "bg-gm-navy border-slate-800"
+                    : "bg-slate-50 border-slate-100"
+                }`}
+              >
+                <View className="flex-row items-center flex-1 pr-2">
+                  <MapPin
+                    size={18}
+                    color={isDarkMode ? "#D4AF37" : "#6366f1"}
+                  />
+                  <Text
+                    className={`ml-3 font-bold flex-shrink ${
+                      chosenLocationData
+                        ? isDarkMode
+                          ? "text-white"
+                          : "text-slate-800"
+                        : "text-slate-400"
+                    }`}
+                    numberOfLines={1}
+                  >
+                    {chosenLocationData
+                      ? `${chosenLocationData.name} ${
+                          chosenLocationData.capacity
+                            ? `(${chosenLocationData.capacity} Max)`
+                            : ""
+                        }`
+                      : "Choose Facility"}
+                  </Text>
+                </View>
+
+                <View className="flex-row items-center gap-2">
+                  {chosenLocationData && (
+                    <View
+                      className={`px-2.5 py-1 rounded-lg ${
                         chosenLocationData.is_paid
-                          ? "text-amber-500"
-                          : "text-emerald-500"
+                          ? "bg-amber-500/10 border border-amber-500/30"
+                          : "bg-emerald-500/10 border border-emerald-500/30"
                       }`}
                     >
-                      {chosenLocationData.is_paid ? "Paid" : "Free"}
-                    </Text>
-                  </View>
-                )}
-                <ChevronDown size={18} color="#94a3b8" />
-              </View>
-            </TouchableOpacity>
+                      <Text
+                        className={`text-[10px] font-black uppercase ${
+                          chosenLocationData.is_paid
+                            ? "text-amber-500"
+                            : "text-emerald-500"
+                        }`}
+                      >
+                        {chosenLocationData.is_paid ? "Paid" : "Free"}
+                      </Text>
+                    </View>
+                  )}
+                  <ChevronDown size={18} color="#94a3b8" />
+                </View>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* --- DYNAMIC CALENDAR GRID --- */}
@@ -936,8 +1014,7 @@ export default function CreateEventScreen() {
                       );
 
                     const hasBooking = hasBookingOnDate(cell.dateStr);
-                    const isTaken =
-                      completelyTakenDatesSet.has(cell.dateStr) || hasBooking;
+                    const isTaken = completelyTakenDatesSet.has(cell.dateStr);
                     const isSelected = selectedDates.includes(cell.dateStr);
 
                     return (
@@ -1000,64 +1077,20 @@ export default function CreateEventScreen() {
           </View>
 
           {/* Time Picker Inputs */}
-          <SectionHeader title="Duration & Timing" isDarkMode={isDarkMode} />
-          {/* <View className="flex-row gap-3 mb-6">
-            <TouchableOpacity
-              onPress={() => setShowPicker("start_time")}
-              className={`flex-1 p-5 rounded-2xl border flex-row items-center ${
-                isDarkMode
-                  ? "bg-gm-navy border-slate-800"
-                  : "bg-slate-50 border-slate-100"
-              }`}
-            >
-              <Clock size={18} color={isDarkMode ? "#D4AF37" : "#6366f1"} />
-              <Text
-                className={`ml-3 font-bold ${
-                  isDarkMode ? "text-white" : "text-slate-700"
-                }`}
-              >
-                {getDisplayValue("start_time", "Start Time")}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => setShowPicker("end_time")}
-              className={`flex-1 p-5 rounded-2xl border flex-row items-center ${
-                isDarkMode
-                  ? "bg-gm-navy border-slate-800"
-                  : "bg-slate-50 border-slate-100"
-              }`}
-            >
-              <Clock size={18} color={isDarkMode ? "#D4AF37" : "#6366f1"} />
-              <Text
-                className={`ml-3 font-bold ${
-                  isDarkMode ? "text-white" : "text-slate-700"
-                }`}
-              >
-                {getDisplayValue("end_time", "End Time")}
-              </Text>
-            </TouchableOpacity>
-          </View> */}
+          <SectionHeader title="Booking Times" isDarkMode={isDarkMode} />
           {selectedDates.length > 0 && (
-            <View className="mb-6">
-              <View className="flex-row items-center justify-between mb-3">
-                <Text
-                  className={`text-xs font-black uppercase tracking-wider ${
-                    isDarkMode ? "text-slate-300" : "text-slate-600"
-                  }`}
-                >
-                  Booking Times
-                </Text>
-
+            <View>
+              <View className="flex-row items-center justify-between">
                 {selectedDates.length > 1 && (
                   <View
-                    className={`p-4 rounded-2xl border mb-4 flex-row items-center justify-between ${
+                    className={`p-3.5 rounded-2xl border mb-4 w-full ${
                       isDarkMode
                         ? "bg-gm-navy border-slate-800"
                         : "bg-indigo-50/60 border-indigo-100"
                     }`}
                   >
-                    <View className="flex-row items-center flex-1 mr-2">
+                    {/* Header Section */}
+                    <View className="flex-row items-center mb-2.5">
                       <Zap
                         size={16}
                         color={isDarkMode ? "#D4AF37" : "#4f46e5"}
@@ -1071,15 +1104,16 @@ export default function CreateEventScreen() {
                       </Text>
                     </View>
 
+                    {/* Buttons Grid */}
                     <View className="flex-row gap-2">
                       <TouchableOpacity
                         onPress={() => {
                           setApplyTimeToAll(true);
                           setShowPicker("start_time");
                         }}
-                        className="px-3 py-2 rounded-xl bg-indigo-600"
+                        className="flex-1 py-2.5 rounded-xl bg-indigo-600 items-center justify-center active:opacity-80"
                       >
-                        <Text className="text-[10px] font-black uppercase text-white">
+                        <Text className="text-[11px] font-black uppercase text-white tracking-wider">
                           Set All Start
                         </Text>
                       </TouchableOpacity>
@@ -1089,9 +1123,9 @@ export default function CreateEventScreen() {
                           setApplyTimeToAll(true);
                           setShowPicker("end_time");
                         }}
-                        className="px-3 py-2 rounded-xl bg-indigo-600"
+                        className="flex-1 py-2.5 rounded-xl bg-indigo-600 items-center justify-center active:opacity-80"
                       >
-                        <Text className="text-[10px] font-black uppercase text-white">
+                        <Text className="text-[11px] font-black uppercase text-white tracking-wider">
                           Set All End
                         </Text>
                       </TouchableOpacity>
@@ -1128,14 +1162,7 @@ export default function CreateEventScreen() {
                             isDarkMode ? "text-white" : "text-slate-800"
                           }`}
                         >
-                          {new Date(`${date}T00:00:00`).toLocaleDateString(
-                            "en-US",
-                            {
-                              weekday: "short",
-                              month: "short",
-                              day: "numeric",
-                            },
-                          )}
+                          {formatDate(date.split("-").reverse().join("-"))}
                         </Text>
                       </TouchableOpacity>
 
@@ -1451,7 +1478,7 @@ export default function CreateEventScreen() {
         transparent
         onRequestClose={() => setLongPressedDate(null)}
       >
-        <View className="flex-1 justify-end bg-black/60">
+        <View className="flex-1 justify-end bg-black/60 pb-safe-or-16">
           <View
             className={`w-full rounded-t-[2.5rem] p-6 border-t ${
               isDarkMode
@@ -1475,16 +1502,9 @@ export default function CreateEventScreen() {
                 isDarkMode ? "text-slate-400" : "text-slate-500"
               }`}
             >
-              {longPressedDate &&
-                new Date(`${longPressedDate}T00:00:00`).toLocaleDateString(
-                  "en-US",
-                  {
-                    weekday: "long",
-                    month: "long",
-                    day: "numeric",
-                    year: "numeric",
-                  },
-                )}
+              {longPressedDate
+                ? formatDate(longPressedDate.split("-").reverse().join("-"))
+                : ""}
             </Text>
 
             {/* Booked Time Intervals List */}

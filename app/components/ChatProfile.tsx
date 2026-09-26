@@ -161,26 +161,6 @@ export default function UserProfileModal({
 
             {/* Information List */}
             <View className="space-y-6">
-              <View className="flex-row items-center mb-4">
-                <View
-                  className={`p-3 rounded-xl mr-4 ${isDarkMode ? "bg-slate-950" : "bg-gray-100"}`}
-                >
-                  <Mail size={20} color={isDarkMode ? "#818cf8" : "#4b5563"} />
-                </View>
-                <View>
-                  <Text
-                    className={`text-xs ${isDarkMode ? "text-slate-500" : "text-gray-400"}`}
-                  >
-                    Email Address
-                  </Text>
-                  <Text
-                    className={`font-semibold text-base ${isDarkMode ? "text-slate-200" : "text-gray-900"}`}
-                  >
-                    {user.email}
-                  </Text>
-                </View>
-              </View>
-
               <View className="flex-row items-center">
                 <View
                   className={`p-3 rounded-xl mr-4 ${isDarkMode ? "bg-slate-950" : "bg-gray-100"}`}

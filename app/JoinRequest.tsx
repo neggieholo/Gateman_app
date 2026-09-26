@@ -8,9 +8,11 @@ import {
   FileText,
   FileUp,
   Plus,
+  Search,
   Trash2,
+  X,
 } from "lucide-react-native";
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -63,6 +65,7 @@ export default function JoinRequestForm() {
     ids: false,
     utility_bill: false,
   });
+  const [estateSearchQuery, setEstateSearchQuery] = useState("");
 
   const [selfie, setSelfie] = useState<string | null>(null);
   const [idType, setIdType] = useState<IDType>("nin");
@@ -103,10 +106,21 @@ export default function JoinRequestForm() {
     setContracts(list);
   }, [locations]);
 
+  const filteredEstates = useMemo(() => {
+    if (!estateSearchQuery.trim()) return estates;
+    const query = estateSearchQuery.toLowerCase().trim();
+    return estates.filter(
+      (item) =>
+        item.name.toLowerCase().includes(query) ||
+        item.estate_code.toLowerCase().includes(query),
+    );
+  }, [estates, estateSearchQuery]);
+
   const handleEstateSelect = (selected: Estate) => {
     setEstateId(selected.id);
     setEstateLabel(`${selected.name} (${selected.estate_code})`);
     setSelectorOpen(false);
+    setEstateSearchQuery("");
     if (selected.kyc_selection) setActiveConfig(selected.kyc_selection);
   };
 
@@ -354,18 +368,52 @@ export default function JoinRequestForm() {
           </View>
 
           <Modal visible={selectorOpen} transparent animationType="fade">
+            {/* Dark Overlay Backdrop */}
             <TouchableOpacity
               className="flex-1 bg-black/60 justify-center p-5"
+              activeOpacity={1}
               onPress={() => setSelectorOpen(false)}
             >
-              <View className="bg-[#1e293b] rounded-2xl max-h-[70%] p-2 border border-[#475569]">
+              {/* Modal Card Content (stops backdrop tap closing) */}
+              <TouchableOpacity
+                activeOpacity={1}
+                className="bg-[#1e293b] rounded-2xl max-h-[80%] p-4 border border-[#475569]"
+              >
+                {/* Search Bar Input */}
+                <View className="flex-row items-center bg-[#0f172a] border border-[#334155] rounded-xl px-3 mb-3">
+                  <Search size={16} color="#94a3b8" className="mr-2" />
+                  <TextInput
+                    value={estateSearchQuery}
+                    onChangeText={setEstateSearchQuery}
+                    placeholder="Search estate name or code..."
+                    placeholderTextColor="#64748b"
+                    className="flex-1 p-3 text-slate-200 text-sm font-medium"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  {estateSearchQuery.length > 0 && (
+                    <TouchableOpacity onPress={() => setEstateSearchQuery("")}>
+                      <X size={16} color="#94a3b8" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {/* Filtered FlatList */}
                 <FlatList
-                  data={estates}
+                  data={filteredEstates}
                   keyExtractor={(item) => item.id}
+                  keyboardShouldPersistTaps="handled"
+                  ListEmptyComponent={
+                    <View className="p-6 items-center">
+                      <Text className="text-slate-400 text-xs font-medium">
+                        No properties found matching &quot;{estateSearchQuery}&quot;
+                      </Text>
+                    </View>
+                  }
                   renderItem={({ item }) => (
                     <TouchableOpacity
                       onPress={() => handleEstateSelect(item)}
-                      className="p-4 border-b border-[#334155]"
+                      className="p-4 border-b border-[#334155] active:bg-[#0f172a]"
                     >
                       <Text className="font-bold text-slate-200">
                         {item.name}
@@ -376,7 +424,7 @@ export default function JoinRequestForm() {
                     </TouchableOpacity>
                   )}
                 />
-              </View>
+              </TouchableOpacity>
             </TouchableOpacity>
           </Modal>
 

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { router, useFocusEffect } from "expo-router";
 import {
   Building,
@@ -55,7 +56,7 @@ export default function AccountWorkspace() {
   const hasNoEstates = !user?.estate_ids || user.estate_ids.length === 0;
   const isSubAccount = !!user?.parent_account_id;
 
-  const fetchWorkspaceDetails = async () => {
+  const fetchWorkspaceDetails = useCallback(async () => {
     try {
       const res = await fetch(`${BASE_URL}/resident/accounts-details`);
       const data = await res.json();
@@ -68,12 +69,12 @@ export default function AccountWorkspace() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [BASE_URL]);
 
   useFocusEffect(
     useCallback(() => {
       fetchWorkspaceDetails();
-    }, []),
+    }, [fetchWorkspaceDetails]),
   );
 
   const handleOpenUserDetail = (subUser: Partial<User>) => {
@@ -87,7 +88,7 @@ export default function AccountWorkspace() {
   };
 
   const handleDeleteSubUser = async () => {
-    if (!selectedUser?.id) return;
+    if (!selectedUser?.id || selectedUser.estate_ids?.[0].length === 0) return;
 
     Alert.alert(
       "Confirm Removal",
@@ -100,7 +101,10 @@ export default function AccountWorkspace() {
           onPress: async () => {
             setDeleting(true);
             try {
-              const res = await deleteSubUser(selectedUser.id!);
+              const res = await deleteSubUser(
+                selectedUser.id!,
+                selectedUser.estate_ids?.[0]!,
+              );
               if (res.success) {
                 setSubUsers((prev) =>
                   prev.filter((u) => u.id !== selectedUser.id),

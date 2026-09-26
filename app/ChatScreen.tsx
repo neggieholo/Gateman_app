@@ -31,7 +31,13 @@ import {
   Users,
   X,
 } from "lucide-react-native";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -81,7 +87,7 @@ import {
   IFileMessage,
   LocationPair,
   User,
-} from "./services/interfaces"
+} from "./services/interfaces";
 
 const ChatManager = () => {
   const insets = useSafeAreaInsets();
@@ -182,7 +188,23 @@ const ChatManager = () => {
             : Promise.resolve(),
         ]);
 
-        if (tenantRes.success) setTenants(tenantRes.tenants);
+        if (tenantRes.success) {
+          const fetchedTenants = tenantRes.tenants || [];
+          setTenants(fetchedTenants);
+
+          // --- ADD SEARCH PARAM LOGIC HERE ---
+          const targetId = autoId?.toString();
+          if (targetId && fetchedTenants.length > 0) {
+            const matchingTenant = fetchedTenants.find(
+              (t: Partial<User>) => t.id?.toString() === targetId,
+            );
+            if (matchingTenant) {
+              setSelectedTenant(matchingTenant);
+              // Optionally clear the search param so back navigation works smoothly
+              router.setParams({ autoId: undefined });
+            }
+          }
+        }
       } catch (err) {
         console.error("Initialization failed", err);
       } finally {
@@ -371,9 +393,13 @@ const ChatManager = () => {
       memberCount: g.memberIds?.length || 0,
     }));
 
-    const forwardList = [...visibleTenants, ...formattedGroups];
-    return forwardList;
-  }, [visibleTenants, groups]);
+    const currentUserId = user?.id?.toString();
+    const forwardTenants = visibleTenants.filter(
+      (tenant) => tenant.id?.toString() !== currentUserId,
+    );
+
+    return [...forwardTenants, ...formattedGroups];
+  }, [visibleTenants, groups, user]);
 
   //chatroom fetch
   useEffect(() => {
@@ -667,7 +693,7 @@ const ChatManager = () => {
     setReplyMessage(null);
   };
 
-  const markAsRead = async () => {
+  const markAsRead = useCallback(async () => {
     if (!selectedTenant || !selectedEstateId) return;
     const myId = user?.id?.toString();
     const roomId = isGroupChat
@@ -706,14 +732,14 @@ const ChatManager = () => {
         { merge: true },
       );
     }
-  };
+  }, [selectedTenant, selectedEstateId, user?.id, isGroupChat]);
 
   //mark as read
   useEffect(() => {
     if (selectedTenant && selectedEstateId) {
       markAsRead();
     }
-  }, [selectedTenant, messages.length, selectedEstateId]);
+  }, [selectedTenant, messages.length, selectedEstateId, markAsRead]);
 
   const handleToggleReadReceipts = async () => {
     if (!user || !user.chat_settings) return;
@@ -1184,6 +1210,7 @@ const ChatManager = () => {
   };
 
   const handleForwardMessage = async (selectedIds: string[]) => {
+    console.log("selected ids:", selectedIds);
     if (!messageToForward || selectedIds.length === 0) return;
     setIsForwarding(true);
     try {
@@ -1199,8 +1226,9 @@ const ChatManager = () => {
       const summary = getSummaryText();
 
       for (const targetId of selectedIds) {
-        // 1. Determine if this ID belongs to a Group
-        // We check if the ID exists in our 'groups' state or has the 'group_' prefix
+        console.log("Traget id:", targetId);
+        if (!targetId) continue;
+
         const isGroup = groups.some((g) => (g.id || g._id) === targetId);
 
         const chatCollection = isGroup ? "groups" : "private_chats";
@@ -1248,11 +1276,14 @@ const ChatManager = () => {
           isForwarded: true,
         });
 
-        // 5. Update Metadata for the Chat List
-        await roomRef.update({
-          lastMessage: summary,
-          updatedAt: firestore.FieldValue.serverTimestamp(),
-        });
+        // 5. Update Metadata for the Chat List (Safely set/merge)
+        await roomRef.set(
+          {
+            lastMessage: summary,
+            updatedAt: firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true },
+        );
       }
 
       setForwardModalVisible(false);
@@ -1740,14 +1771,12 @@ const ChatManager = () => {
         >
           <Image
             source={{
-                uri:
-                  (typeof item?.avatar === "object" &&
-                  item.avatar
-                    ? item.avatar[selectedEstateId!] ||
-                      Object.values(item.avatar)[0]
-                    : item?.avatar) ||
-                  "https://via.placeholder.com/300",
-              }}
+              uri:
+                (typeof item?.avatar === "object" && item.avatar
+                  ? item.avatar[selectedEstateId!] ||
+                    Object.values(item.avatar)[0]
+                  : item?.avatar) || "https://via.placeholder.com/300",
+            }}
             className={`w-12 h-12 rounded-full ${isDarkMode ? "bg-slate-800" : "bg-gray-200"}`}
           />
           <View className="ml-4">
@@ -1953,6 +1982,7 @@ const ChatManager = () => {
           header="Forward Message"
           count={0}
           estateId={selectedEstateId}
+          isForwarding={isForwarding}
         />
 
         {/* --- Chat Header --- */}
@@ -2258,6 +2288,14 @@ const ChatManager = () => {
               return (
                 <Bubble
                   {...props}
+                  textStyle={{
+                    left: {
+                      color: isDarkMode ? "#ffffff" : "#000000",
+                    },
+                    right: {
+                      color: "#ffffff",
+                    },
+                  }}
                   renderTicks={(currentMessage) => {
                     // console.log("Curentmessage:", currentMessage)
                     const message = currentMessage as IFileMessage;
@@ -2699,11 +2737,17 @@ const ChatManager = () => {
         onClose={() => {
           setIsCreateGroupMode(false);
           setSelectedGroupMembers([]);
+          setGroupNameModalVisible(false);
         }}
         tenants={visibleTenants}
         selectedMembers={selectedGroupMembers}
         onToggleMember={toggleMember}
-        onNext={() => setGroupNameModalVisible(true)}
+        onNext={() => {
+          setIsCreateGroupMode(false);
+          setTimeout(() => {
+            setGroupNameModalVisible(true);
+          }, 300);
+        }}
         insets={insets}
         buttonText="Next"
         header="New Group"
@@ -2824,6 +2868,9 @@ const ChatManager = () => {
           Math.random().toString()
         }
         renderItem={renderItem}
+        contentContainerStyle={{
+          paddingBottom: insets.bottom + 16,
+        }}
       />
     </View>
   );

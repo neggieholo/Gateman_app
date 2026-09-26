@@ -1,6 +1,7 @@
 import { Search, X } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   Image,
   Modal,
@@ -9,7 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { User } from "../services/interfaces";
+import { LocationPair, User } from "../services/interfaces";
 import { useUser } from "../UserContext";
 
 interface CreateGroupModalProps {
@@ -24,6 +25,7 @@ interface CreateGroupModalProps {
   header: string;
   count: number;
   estateId: string | null;
+  isForwarding?: boolean;
 }
 
 interface GroupNameModalProps {
@@ -55,6 +57,7 @@ const CreateGroupModal = ({
   header,
   count,
   estateId,
+  isForwarding,
 }: CreateGroupModalProps) => {
   const [searchQuery, setSearchQuery] = useState("");
   const { isDarkMode } = useUser();
@@ -108,17 +111,21 @@ const CreateGroupModal = ({
             onPress={onNext}
             disabled={selectedMembers.length < count}
           >
-            <Text
-              className={`font-bold ${
-                selectedMembers.length <= count
-                  ? isDarkMode
-                    ? "text-slate-700"
-                    : "text-gray-300"
-                  : "text-indigo-600"
-              }`}
-            >
-              {buttonText}
-            </Text>
+            {isForwarding ? (
+              <ActivityIndicator size="small" color="#4F46E5" />
+            ) : (
+              <Text
+                className={`font-bold ${
+                  selectedMembers.length < count
+                    ? isDarkMode
+                      ? "text-slate-700"
+                      : "text-gray-300"
+                    : "text-indigo-600"
+                }`}
+              >
+                {buttonText}
+              </Text>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -167,6 +174,8 @@ const CreateGroupModal = ({
           renderItem={({ item }) => {
             const id = item.id!.toString();
             const isSelected = selectedMembers.includes(id);
+            const estateLocations: LocationPair[] =
+              item.locations && estateId ? item.locations[estateId] || [] : [];
 
             return (
               <TouchableOpacity
@@ -197,16 +206,41 @@ const CreateGroupModal = ({
                   >
                     {item.name}
                   </Text>
+
                   {item.isGroup ? (
                     <Text className="text-indigo-500 text-[11px] font-bold">
                       COMMUNITY GROUP • {item.memberCount} MEMBERS
                     </Text>
                   ) : (
-                    <Text
-                      className={`text-xs ${isDarkMode ? "text-slate-500" : "text-gray-400"}`}
-                    >
-                      Block {item.block} • Unit {item.unit}
-                    </Text>
+                    <>
+                      {estateLocations.map((loc: LocationPair, idx: number) => {
+                        const unitString =
+                          loc.unit && loc.unit.length > 0
+                            ? loc.unit.join(", ")
+                            : "—";
+
+                        return (
+                          <Text
+                            key={`loc-${idx}`}
+                            className={`text-xs font-medium ${
+                              isDarkMode ? "text-slate-500" : "text-gray-400"
+                            }`}
+                          >
+                            Block {loc.block} • Unit {unitString}
+                          </Text>
+                        );
+                      })}
+
+                      {estateLocations.length === 0 && (
+                        <Text
+                          className={`text-xs italic ${
+                            isDarkMode ? "text-slate-600" : "text-gray-400"
+                          }`}
+                        >
+                          No Location Assigned
+                        </Text>
+                      )}
+                    </>
                   )}
                 </View>
                 <View
@@ -284,7 +318,7 @@ export const GroupNameModal = ({
             autoFocus={true}
           />
 
-          <View className="flex-row space-x-3">
+          <View className="flex-row space-x-3 gap-3">
             <TouchableOpacity
               onPress={onClose}
               className={`flex-1 py-4 items-center rounded-xl ${isDarkMode ? "bg-slate-800" : "bg-gray-50"}`}

@@ -297,7 +297,7 @@ export const fetchNotifications = async (
       credentials: "include",
     });
     const data = await res.json();
-    return data
+    return data;
   } catch (err) {
     return { success: false, list: [], lastReadAt: "1970-01-01" };
   }
@@ -508,10 +508,11 @@ export const createSubUser = async (payload: object) => {
   }
 };
 
-export const deleteSubUser = async (subUserId: string) => {
+export const deleteSubUser = async (subUserId: string, estateId: string) => {
+  console.log("deleting subaccount");
   try {
     const res = await fetch(
-      `${BASE_URL}/resident/delete-subuser/${subUserId}`,
+      `${BASE_URL}/resident/delete-subuser/${subUserId}?estate_id=${estateId}`,
       {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
@@ -673,7 +674,7 @@ export const invitationApi = {
   // --- 1. GET ALL INVITATIONS (BY ESTATE) ---
   getInvitations: async (estateId: string) => {
     try {
-      console.log('Estate_id for invites:', estateId)
+      console.log("Estate_id for invites:", estateId);
       const response = await fetch(
         `${BASE_URL}/invitations/resident/get-all?estate_id=${estateId}`,
       );
@@ -1077,6 +1078,7 @@ export const getAllLocations = async (
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ estate_id }),
   });
+  // console.log("Location response:", response);
   return await handleResponse(response);
 };
 
@@ -1361,7 +1363,8 @@ export const getBookingStatusBadge = (status: BookingStatus) => {
 
 export const submitBookingPayment = async (id: string, payload: any) => {
   try {
-    const response = await fetch(`${BASE_URL}/event/${id}/submit-payment`, {
+    console.log("Submitting event payment with id:", id, "payload:", payload);
+    const response = await fetch(`${BASE_URL}/event/submit-payment/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),

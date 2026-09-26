@@ -106,30 +106,10 @@ const InviteGuestForm = ({
     { label: "Sun", value: 0 },
   ];
 
-
   const handleTypeChange = (type: string) => {
     setGuestType(type);
 
-    setGuestName("");
-    setStaffPosition("");
-    setGuestImage(null);
-    setPhone("");
-    setFormattedPhone("");
-    setExcludedDates([]);
-    setPermittedDays([1, 2, 3, 4, 5, 6, 0]);
-    setStartDate(new Date());
-    setFromTime(new Date());
-    setToTime(new Date(new Date().setHours(new Date().getHours() + 2)));
-
-    if (phoneInputRef.current) {
-      phoneInputRef.current.setState({ number: "" });
-    }
-    // Type-specific logic
-    if (type === "multi_entry") {
-      setEndDate(new Date(new Date().setDate(new Date().getDate() + 7)));
-    } else {
-      setEndDate(null);
-    }
+    reset(type)
   };
 
   const toggleDay = (dayValue: number) => {
@@ -222,7 +202,11 @@ const InviteGuestForm = ({
 
       if (contact) {
         // Auto-fill guest name if field is clear
-         setGuestName(contact.name || contact.firstName || contact.lastName || "");
+        if (!guestName) {
+          setGuestName(
+            contact.name || contact.firstName || contact.lastName || "",
+          );
+        }
 
         // 1. 🛠️ RESOLVE ARRAY TYPE OUTSIDE THE IF-GATEKEEPER
         const phoneArray =
@@ -439,6 +423,29 @@ const InviteGuestForm = ({
       setPermittedDays([1, 2, 3, 4, 5, 6, 0]);
     }
   };
+
+  const reset = (type?: string) =>{
+    setGuestName("");
+    setStaffPosition("");
+    setGuestImage(null);
+    setPhone("");
+    setFormattedPhone("");
+    setExcludedDates([]);
+    setPermittedDays([1, 2, 3, 4, 5, 6, 0]);
+    setStartDate(new Date());
+    setFromTime(new Date());
+    setToTime(new Date(new Date().setHours(new Date().getHours() + 2)));
+
+    if (phoneInputRef.current) {
+      phoneInputRef.current.setState({ number: "" });
+    }
+    // Type-specific logic
+    if (type && type === "multi_entry") {
+      setEndDate(new Date(new Date().setDate(new Date().getDate() + 7)));
+    } else {
+      setEndDate(null);
+    }
+  }
 
   return (
     <>

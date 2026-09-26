@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { useUser } from "@/app/UserContext";
 import * as ImagePicker from "expo-image-picker";
 import {
@@ -24,6 +25,7 @@ import {
   FlatList,
   Linking,
   Modal,
+  RefreshControl,
   ScrollView,
   Text,
   TextInput,
@@ -35,8 +37,8 @@ import {
   getAllBookings,
   getAllLocations,
   getBookingStatusBadge,
-  getS3UploadedUrl,
   getEstatePaymentSettings,
+  getS3UploadedUrl,
   submitBookingPayment,
 } from "./services/api";
 import {
@@ -63,7 +65,7 @@ export default function AllEventsScreen() {
   const [submittingPayment, setSubmittingPayment] = useState(false);
   const [paymentForm, setPaymentForm] = useState({
     payment_type: "bank_transfer",
-    transaction_ref: "",
+    // transaction_ref: "",
     receipt_url: "",
   });
 
@@ -83,6 +85,7 @@ export default function AllEventsScreen() {
 
   // Modal state for viewing the proof of payment / receipt image
   const [showPaymentImageModal, setShowPaymentImageModal] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const flyerRef = useRef<View>(null);
 
@@ -235,7 +238,10 @@ export default function AllEventsScreen() {
 
       if (!result.canceled && result.assets[0].uri) {
         setUploadingImage(true);
-        const cloudUrl = await getS3UploadedUrl(result.assets[0].uri, "Event-Receipts");
+        const cloudUrl = await getS3UploadedUrl(
+          result.assets[0].uri,
+          "Event-Receipts",
+        );
         if (cloudUrl) {
           setPaymentForm((prev) => ({ ...prev, receipt_url: cloudUrl }));
         }
@@ -249,13 +255,16 @@ export default function AllEventsScreen() {
   };
 
   const handleSubmitPayment = async (id: string) => {
-    if (!paymentForm.transaction_ref.trim()) {
-      Alert.alert(
-        "Validation Error",
-        "Please enter the transaction reference code.",
-      );
-      return;
-    }
+    // if (!paymentForm.transaction_ref.trim()) {
+    //   Alert.alert(
+    //     "Validation Error",
+    //     "Please enter the transaction reference code.",
+    //   );
+    //   return;
+    // }
+    const idToFetch = selectedEstateId || user?.estate_ids?.[0];
+
+    if (!idToFetch) return;
 
     if (!paymentForm.receipt_url) {
       Alert.alert(
@@ -270,8 +279,9 @@ export default function AllEventsScreen() {
 
       const paymentRes = await submitBookingPayment(id, {
         payment_url: paymentForm.receipt_url,
-        transaction_ref: paymentForm.transaction_ref,
+        // transaction_ref: paymentForm.transaction_ref,
         payment_type: paymentForm.payment_type,
+        estate_id: selectedEstateId
       });
 
       if (paymentRes.success) {
@@ -284,7 +294,6 @@ export default function AllEventsScreen() {
           paymentRes.message || "Failed to submit payment proof.",
         );
       }
-
       // Update local state so UI reflects PAYMENT_SUBMITTED instantly
       setSelectedEvent((prev) =>
         prev
@@ -292,23 +301,43 @@ export default function AllEventsScreen() {
               ...prev,
               status: "PAYMENT_SUBMITTED",
               payment_url: paymentForm.receipt_url,
-              transaction_ref: paymentForm.transaction_ref,
+              // transaction_ref: paymentForm.transaction_ref,
               payment_type: paymentForm.payment_type,
             }
           : null,
       );
 
+      await getAllBookings(idToFetch);
       // Reset payment form state
       setPaymentForm({
         payment_type: "bank_transfer",
-        transaction_ref: "",
+        // transaction_ref: "",
         receipt_url: "",
       });
+      setSelectedEvent(null);
     } catch (error: any) {
       console.error("Payment Submission Error:", error);
       Alert.alert("Error", error.message || "Something went wrong.");
     } finally {
       setSubmittingPayment(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    const idToFetch = selectedEstateId || user?.estate_ids?.[0];
+    if (!idToFetch) return;
+
+    setRefreshing(true);
+    try {
+      const [bookingsData] = await Promise.all([
+        getAllBookings(idToFetch.toString()),
+        fetchLocations(idToFetch.toString()),
+      ]);
+      setEvents(bookingsData);
+    } catch (err) {
+      Alert.alert("Error", "Could not refresh events or facilities");
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -393,6 +422,14 @@ export default function AllEventsScreen() {
               No events found matching criteria
             </Text>
           </View>
+        }
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={isDarkMode ? "#D4AF37" : "#0A1F44"}
+            colors={[isDarkMode ? "#D4AF37" : "#0A1F44"]}
+          />
         }
         renderItem={({ item }) => {
           const badge = getBookingStatusBadge(item.status);
@@ -545,7 +582,7 @@ export default function AllEventsScreen() {
                   className="px-4 py-2"
                   contentContainerStyle={{
                     flexGrow: 1,
-                    paddingBottom: 60, 
+                    paddingBottom: 60,
                   }}
                   showsVerticalScrollIndicator={false}
                 >
@@ -1014,7 +1051,7 @@ export default function AllEventsScreen() {
                         </View>
 
                         {/* 2. Transaction Reference Input */}
-                        <View
+                        {/* <View
                           className={`p-4 rounded-3xl ${
                             isDarkMode
                               ? "bg-gm-navy border border-slate-800"
@@ -1046,7 +1083,7 @@ export default function AllEventsScreen() {
                                 : "bg-white border-slate-200 text-slate-900"
                             }`}
                           />
-                        </View>
+                        </View> */}
 
                         {/* 3. Upload Receipt Section */}
                         <TouchableOpacity
