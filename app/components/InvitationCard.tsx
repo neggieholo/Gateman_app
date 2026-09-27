@@ -147,7 +147,7 @@ export const InvitationCard = ({
             <Text className="text-base text-slate-500 font-medium text-center">
               {isStaff ? "is a staff of " : "has been invited by "}
               <Text className="text-[#0A1F44] text-2xl font-black">
-                {inviterName.split("")[0] || "Resident"}
+                {inviterName.split(" ")[0] || "Resident"}
               </Text>
             </Text>
 

@@ -55,11 +55,6 @@ export default function NotificationCard({ item }: Props) {
 
   const theme = getTheme();
 
-  // Format date (e.g., "Today at 2:30 PM")
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  };
 
   return (
     <View
@@ -90,7 +85,7 @@ export default function NotificationCard({ item }: Props) {
             style={{ marginRight: 4 }}
           />
           <Text className="text-gray-400 text-[10px]">
-            {(item.created_at.split(" ")[0])} {item.created_at.split(" ")[1].split(".")[0]}
+            {formatDate((item.created_at.split(" ")[0]))} {item.created_at.split(" ")[1].split(".")[0]}
           </Text>
         </View>
       </View>

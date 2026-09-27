@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import {
+  formatDate,
   getEventDateLabel,
   getResidentDashboardStats,
 } from "@/app/services/api";
@@ -468,7 +469,7 @@ export default function Dashboard() {
                     <Text
                       className={`${isDarkMode ? "text-emerald-400" : "text-emerald-700"} text-xs font-roboto-regular`}
                     >
-                      {getEventDateLabel(mainEvent.start_date)}
+                      {formatDate(mainEvent.start_date)}
                     </Text>
                   </View>
                 </View>

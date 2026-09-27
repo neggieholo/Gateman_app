@@ -1363,7 +1363,6 @@ export const getBookingStatusBadge = (status: BookingStatus) => {
 
 export const submitBookingPayment = async (id: string, payload: any) => {
   try {
-    console.log("Submitting event payment with id:", id, "payload:", payload);
     const response = await fetch(`${BASE_URL}/event/submit-payment/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },

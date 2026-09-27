@@ -4,7 +4,6 @@ import * as ImagePicker from "expo-image-picker";
 import {
   Calendar,
   ChevronLeft,
-  Clock,
   CreditCard,
   DollarSign,
   ExternalLink,
@@ -33,6 +32,10 @@ import {
   View,
 } from "react-native";
 import {
+  BookedSlotDetailItem,
+  BookingListItem,
+} from "./components/BookingListItem";
+import {
   deleteEvent,
   getAllBookings,
   getAllLocations,
@@ -48,6 +51,12 @@ import {
   UtilityPaymentInfo,
 } from "./services/interfaces";
 import { DetailRow, MissingDetailsMessage } from "./UtilityPayment";
+
+interface BookedSlot {
+  date: string;
+  start_time: string;
+  end_time: string;
+}
 
 export default function AllEventsScreen() {
   const { user, isDarkMode, theme } = useUser();
@@ -65,7 +74,6 @@ export default function AllEventsScreen() {
   const [submittingPayment, setSubmittingPayment] = useState(false);
   const [paymentForm, setPaymentForm] = useState({
     payment_type: "bank_transfer",
-    // transaction_ref: "",
     receipt_url: "",
   });
 
@@ -83,7 +91,6 @@ export default function AllEventsScreen() {
     !!config.details?.bank_account_number &&
     !!config.details?.bank_account_name;
 
-  // Modal state for viewing the proof of payment / receipt image
   const [showPaymentImageModal, setShowPaymentImageModal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -143,7 +150,6 @@ export default function AllEventsScreen() {
     );
   }, [events, search]);
 
-  // Retrieve the matched facility/venue details for capacity & pricing
   const selectedVenue = useMemo(() => {
     if (!selectedEvent) return null;
     return (
@@ -151,6 +157,21 @@ export default function AllEventsScreen() {
       locations.find((loc) => loc.name === selectedEvent.venue_name)
     );
   }, [selectedEvent, locations]);
+
+  // Safely parse booked_dates for selected event
+  const parsedSelectedSlots = useMemo<BookedSlot[]>(() => {
+    if (!selectedEvent || !selectedEvent.booked_dates) return [];
+    if (typeof selectedEvent.booked_dates === "string") {
+      try {
+        return JSON.parse(selectedEvent.booked_dates);
+      } catch (e) {
+        return [];
+      }
+    }
+    return Array.isArray(selectedEvent.booked_dates)
+      ? selectedEvent.booked_dates
+      : [];
+  }, [selectedEvent]);
 
   const formatEventDate = () => {
     if (selectedEvent) {
@@ -162,36 +183,7 @@ export default function AllEventsScreen() {
       }
       return start;
     }
-  };
-
-  const formatEventTime = () => {
-    if (selectedEvent) {
-      return `${selectedEvent.start_time} - ${selectedEvent.end_time}`;
-    }
-  };
-
-  const handleOpenURL = async (url: string) => {
-    if (!url) return;
-
-    // Ensure protocol exists
-    const finalUrl = url.toLowerCase().startsWith("http")
-      ? url
-      : `https://${url}`;
-
-    try {
-      const supported = await Linking.canOpenURL(finalUrl);
-      if (supported) {
-        await Linking.openURL(finalUrl);
-      } else {
-        Alert.alert(
-          "Invalid Link",
-          "The estate portal link is not properly formatted.",
-        );
-      }
-    } catch (err) {
-      console.error("GateMan Linking Error:", err);
-      Alert.alert("Error", "Could not open the portal at this time.");
-    }
+    return "N/A";
   };
 
   const handleDelete = (id: string) => {
@@ -219,8 +211,6 @@ export default function AllEventsScreen() {
           payment_type: res.data.payment_type,
           details: res.data.details,
         });
-      } else {
-        console.warn("Settings fetched but data block is empty");
       }
     } catch (err) {
       console.error("Fetch Settings Error:", err);
@@ -281,7 +271,7 @@ export default function AllEventsScreen() {
         payment_url: paymentForm.receipt_url,
         // transaction_ref: paymentForm.transaction_ref,
         payment_type: paymentForm.payment_type,
-        estate_id: selectedEstateId
+        estate_id: selectedEstateId,
       });
 
       if (paymentRes.success) {
@@ -307,7 +297,8 @@ export default function AllEventsScreen() {
           : null,
       );
 
-      await getAllBookings(idToFetch);
+      const bookingsData = await getAllBookings(idToFetch);
+      setEvents(bookingsData);
       // Reset payment form state
       setPaymentForm({
         payment_type: "bank_transfer",
@@ -320,6 +311,30 @@ export default function AllEventsScreen() {
       Alert.alert("Error", error.message || "Something went wrong.");
     } finally {
       setSubmittingPayment(false);
+    }
+  };
+
+  const handleOpenURL = async (url: string) => {
+    if (!url) return;
+
+    // Ensure protocol exists
+    const finalUrl = url.toLowerCase().startsWith("http")
+      ? url
+      : `https://${url}`;
+
+    try {
+      const supported = await Linking.canOpenURL(finalUrl);
+      if (supported) {
+        await Linking.openURL(finalUrl);
+      } else {
+        Alert.alert(
+          "Invalid Link",
+          "The estate portal link is not properly formatted.",
+        );
+      }
+    } catch (err) {
+      console.error("GateMan Linking Error:", err);
+      Alert.alert("Error", "Could not open the portal at this time.");
     }
   };
 
@@ -432,13 +447,10 @@ export default function AllEventsScreen() {
           />
         }
         renderItem={({ item }) => {
-          const badge = getBookingStatusBadge(item.status);
-          const isApproved = item.status === "APPROVED";
-          const isRejected = item.status === "REJECTED";
           const isPaymentPending = item.status === "PAYMENT_PENDING";
-
           return (
-            <TouchableOpacity
+            <BookingListItem
+              booking={item}
               onPress={() => {
                 setSelectedEvent(item);
                 if (
@@ -448,47 +460,8 @@ export default function AllEventsScreen() {
                   fetchPaymentInfo(selectedEstateId);
                 }
               }}
-              className={`flex-row items-center p-4 rounded-3xl mb-4 border ${
-                isDarkMode
-                  ? "bg-gm-navy border-slate-800"
-                  : "bg-slate-50 border-slate-100"
-              }`}
-            >
-              <View className="ml-4 flex-1">
-                <Text
-                  className={`font-black ${
-                    isDarkMode ? "text-white" : "text-slate-900"
-                  }`}
-                  numberOfLines={1}
-                >
-                  {item.venue_name}
-                </Text>
-                <Text className="text-slate-500 text-xs font-bold">
-                  {item.start_date.split("T")[0]}
-                </Text>
-              </View>
-              <View
-                className={`px-3 py-1 rounded-full ${
-                  isApproved
-                    ? isDarkMode
-                      ? "bg-emerald-950/40 border border-emerald-900/30"
-                      : "bg-emerald-100"
-                    : isRejected
-                      ? isDarkMode
-                        ? "bg-red-950/40 border border-red-900/30"
-                        : "bg-red-50"
-                      : isDarkMode
-                        ? "bg-amber-950/40 border border-amber-900/30"
-                        : "bg-amber-50"
-                }`}
-              >
-                <Text
-                  className={`text-[10px] font-black uppercase ${badge.color}`}
-                >
-                  {badge.label}
-                </Text>
-              </View>
-            </TouchableOpacity>
+              isDarkMode={isDarkMode}
+            />
           );
         }}
       />
@@ -567,7 +540,6 @@ export default function AllEventsScreen() {
             const badge = getBookingStatusBadge(selectedEvent.status);
             return (
               <View className="flex-1 bg-black/95 justify-center pb-12">
-                {/* Top action bar: Close & Delete */}
                 <View className="flex-row justify-between p-6 pt-12 items-center">
                   <TouchableOpacity onPress={() => setSelectedEvent(null)}>
                     <ChevronLeft color="white" size={28} />
@@ -578,6 +550,7 @@ export default function AllEventsScreen() {
                     <Trash2 color="#ef4444" size={24} />
                   </TouchableOpacity>
                 </View>
+
                 <ScrollView
                   className="px-4 py-2"
                   contentContainerStyle={{
@@ -617,7 +590,7 @@ export default function AllEventsScreen() {
                                 isDarkMode ? "text-gm-gold" : "text-white"
                               }`}
                             >
-                              {selectedVenue?.is_paid
+                              {selectedEvent.is_paid
                                 ? "Paid Venue"
                                 : "Free Venue"}
                             </Text>
@@ -635,17 +608,6 @@ export default function AllEventsScreen() {
                           }
                           label="DATE"
                           value={formatEventDate()}
-                          isDarkMode={isDarkMode}
-                        />
-                        <InfoBox
-                          icon={
-                            <Clock
-                              size={20}
-                              color={isDarkMode ? "#D4AF37" : "#6366f1"}
-                            />
-                          }
-                          label="TIME"
-                          value={formatEventTime()}
                           isDarkMode={isDarkMode}
                         />
                         <InfoBox
@@ -675,8 +637,7 @@ export default function AllEventsScreen() {
                           isDarkMode={isDarkMode}
                         />
 
-                        {/* Conditional Payment Details */}
-                        {selectedVenue?.is_paid && (
+                        {selectedEvent.is_paid && (
                           <>
                             <InfoBox
                               icon={
@@ -689,7 +650,7 @@ export default function AllEventsScreen() {
                               value={
                                 selectedVenue?.bookingRate
                                   ? `₦${selectedVenue.bookingRate}`
-                                  : "N/A"
+                                  : `₦${Number(selectedEvent.total_amount).toLocaleString()}`
                               }
                               isDarkMode={isDarkMode}
                             />
@@ -707,14 +668,13 @@ export default function AllEventsScreen() {
                                       "_",
                                       " ",
                                     )
-                                  : "N/A"
+                                  : "per slot"
                               }
                               isDarkMode={isDarkMode}
                             />
                           </>
                         )}
 
-                        {/* Conditional Transaction Ref */}
                         {selectedEvent.transaction_ref && (
                           <InfoBox
                             icon={
@@ -730,7 +690,6 @@ export default function AllEventsScreen() {
                         )}
                       </View>
 
-                      {/* Payment Proof Button */}
                       {selectedEvent.payment_url && (
                         <TouchableOpacity
                           onPress={() => setShowPaymentImageModal(true)}
@@ -771,6 +730,22 @@ export default function AllEventsScreen() {
                       {badge.label.toUpperCase()}
                     </Text>
                   </View>
+
+                  {/* Booked Time Slots Breakdown */}
+                  {parsedSelectedSlots.length > 0 && (
+                    <View className="mt-4">
+                      <Text className="text-slate-400 font-black text-[10px] uppercase mb-2 px-1">
+                        BOOKED SLOTS BREAKDOWN
+                      </Text>
+                      {parsedSelectedSlots.map((slot, idx) => (
+                        <BookedSlotDetailItem
+                          key={`${slot.date}-${slot.start_time}-${idx}`}
+                          slot={slot}
+                          isDarkMode={isDarkMode}
+                        />
+                      ))}
+                    </View>
+                  )}
 
                   {selectedEvent.status === "PAYMENT_PENDING" && (
                     <>
