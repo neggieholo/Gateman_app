@@ -81,7 +81,6 @@ export default function CreateEventScreen() {
   const [longPressedDate, setLongPressedDate] = useState<string | null>(null);
   const [applyTimeToAll, setApplyTimeToAll] = useState(false);
   const [timePickerDate, setTimePickerDate] = useState<string | null>(null);
-  const [planError, setPlanError] = useState<string | null>(null);
 
   // Form State
   const [form, setForm] = useState({
@@ -101,40 +100,33 @@ export default function CreateEventScreen() {
     }
   }, [user, contextEstateId]);
 
+  const activeEstatePlan = useMemo(() => {
+    if (!user?.estates || !selectedEstateId) return null;
+    return user.estates.find((e) => e.id === selectedEstateId)?.plan || null;
+  }, [selectedEstateId, user?.estates]);
+
+  const canBook =
+    activeEstatePlan?.selected_add_ons?.includes("facility_bookings");
+
   const fetchLocations = async (estateId: string | null) => {
     if (!estateId) return;
     setLoadingLocations(true);
-    setPlanError(null); 
     setLocations([]);
     try {
       const locationsData = await getAllLocations(estateId);
       setLocations(locationsData);
     } catch (error: any) {
       console.error("Failed to fetch locations:", error);
-      const isModuleError =
-        error?.code === "MODULE_NOT_IN_PLAN" ||
-        error?.message?.includes("facility_bookings") ||
-        error?.includes?.("facility_bookings");
-
-      if (isModuleError) {
-        setPlanError(
-          "This estate does not have the Facility Bookings add-on active in its subscription plan.",
-        );
-      } else {
-        setPlanError(
-          error?.error ||
-            error?.message ||
-            "Failed to load locations for this estate.",
-        );
-      }
     } finally {
       setLoadingLocations(false);
     }
   };
 
   useEffect(() => {
-    fetchLocations(selectedEstateId);
-  }, [selectedEstateId]);
+    if (canBook) {
+      fetchLocations(selectedEstateId);
+    }
+  }, [selectedEstateId, canBook]);
 
   // Chosen venue helper context
   const chosenLocationData = useMemo(() => {
@@ -369,6 +361,11 @@ export default function CreateEventScreen() {
     const hours = String(selectedDate.getHours()).padStart(2, "0"); // Always 24-hour integer (e.g., 19)
     const minutes = String(selectedDate.getMinutes()).padStart(2, "0"); // Always 2-digit integer (e.g., 50)
     const timeString = `${hours}:${minutes}:00`;
+    const now = new Date();
+    const todayStr = formatDate(now.toISOString().split("T")[0]);
+    console.log("Selected Date:", selectedDate.toISOString());
+    console.log("TimePicker date:", timePickerDate);
+    console.log("Todaystr:", todayStr);
     const field = showPicker;
 
     if (field === "start_time" || field === "end_time") {
@@ -377,7 +374,20 @@ export default function CreateEventScreen() {
       const now = new Date();
       const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
       const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      console.log("Current time:", currentMinutes);
       const minAllowedStartMinutes = currentMinutes + 30;
+      const selectedMinutes =
+        selectedDate.getHours() * 60 + selectedDate.getMinutes();
+      const isTodayStr = formatDate(now.toISOString().split("T")[0]);
+      const isToday = timePickerDate === isTodayStr;
+
+      if (isToday && selectedMinutes < minAllowedStartMinutes) {
+        Alert.alert("Selected time must be at least 30mins ahead");
+        setShowPicker(null);
+        setTimePickerDate(null);
+        setApplyTimeToAll(false);
+        return;
+      }
 
       // 1. Prevent multiple bookings on the same day for this resident
       for (const dateStr of datesToCheck) {
@@ -816,7 +826,7 @@ export default function CreateEventScreen() {
           {/* --- FACILITY SELECTION DROPDOWN WITH PAID BADGE --- */}
           <SectionHeader title="Facility Selection" isDarkMode={isDarkMode} />
           <View className="mb-4">
-            {planError ? (
+            {!canBook ? (
               <View
                 className={`p-5 rounded-2xl border flex-row justify-between items-center ${
                   isDarkMode
@@ -832,7 +842,8 @@ export default function CreateEventScreen() {
                     }`}
                     numberOfLines={2}
                   >
-                    {planError}
+                    This estate does not have the Facility Bookings feature
+                    active in its subscription plan.
                   </Text>
                 </View>
 

@@ -56,7 +56,8 @@ export interface User {
   email: string;
   phone: string;
   password?: string;
-  isTemp: boolean;
+  isTemp?: boolean;
+  isTempPassword: boolean;
   created_at: string | null;
   biometric_login: boolean;
   password_changed: boolean;

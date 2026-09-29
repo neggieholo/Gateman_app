@@ -10,6 +10,7 @@ import {
 import { Comment, Like, Post } from "@/app/services/interfaces";
 import { useRouter } from "expo-router";
 import {
+  AlertCircle,
   ChevronDown,
   ImageIcon,
   MapPin,
@@ -87,7 +88,6 @@ export default function Community() {
   // 1. Establish the baseline default estate context layout on initialization
   useEffect(() => {
     if (user?.estate_ids && user.estate_ids.length > 0) {
-      // setSelectedEstateId(user.estate_ids[0]);
       setSelectedEstateId(contextEstateId);
     }
   }, [user?.estate_ids, contextEstateId]);
@@ -97,6 +97,9 @@ export default function Community() {
     if (!user?.estates || !selectedEstateId) return null;
     return user.estates.find((e) => e.id === selectedEstateId) || null;
   }, [selectedEstateId, user?.estates]);
+
+  const canAccessCommunity =
+    activeEstate?.plan?.selected_add_ons?.includes("community");
 
   // Updated query loader engine to leverage the local property selector context state
   const loadPosts = useCallback(async () => {
@@ -116,7 +119,7 @@ export default function Community() {
     setNewComment("");
     Keyboard.dismiss();
 
-    if (selectedEstateId) {
+    if (selectedEstateId && canAccessCommunity) {
       const syncFeedData = async () => {
         try {
           const savedIds = await AsyncStorage.getItem(STORAGE_KEY);
@@ -142,7 +145,7 @@ export default function Community() {
 
       syncFeedData();
     }
-  }, [selectedEstateId,loadPosts]);
+  }, [selectedEstateId, loadPosts, canAccessCommunity]);
 
   const filteredPosts = useMemo(() => {
     let result = posts;
@@ -451,7 +454,7 @@ export default function Community() {
             isDarkMode
               ? "bg-gm-navy border-slate-800"
               : "bg-white border-slate-200"
-          } shadow-sm`}
+          }`}
         >
           <View className="flex-row items-center flex-1">
             <MapPin size={16} color={isDarkMode ? "#D4AF37" : "#4f46e5"} />
@@ -468,355 +471,390 @@ export default function Community() {
         </TouchableOpacity>
       )}
 
-      <View className="flex-row mx-4 mt-3 p-1 bg-gray-200/70 rounded-2xl border border-gray-200">
-        <TouchableOpacity
-          onPress={() => setActiveMainTab("communication")}
-          className={`flex-1 py-3 rounded-xl items-center justify-center ${
-            activeMainTab === "communication"
-              ? isDarkMode
-                ? "bg-gm-navy"
-                : "bg-white"
-              : ""
-          }`}
-        >
-          <Text
-            className={`font-oswald-semibold tracking-wider text-md ${activeMainTab === "communication" ? (isDarkMode ? "text-gm-gold" : "text-gm-navy") : isDarkMode ? "text-gray-800" : "text-gray-500"}`}
+      {!canAccessCommunity ? (
+        <View className="h-full flex items-center justify-center">
+          <View
+            className={`p-5 rounded-2xl border flex-row justify-between items-center ${
+              isDarkMode
+                ? "bg-gm-navy border-amber-500/30"
+                : "bg-amber-500/5 border-amber-500/20"
+            }`}
           >
-            Communication Board
-          </Text>
-        </TouchableOpacity>
+            <View className="flex-row items-center flex-1 pr-2">
+              <AlertCircle size={18} color="#f59e0b" />
+              <Text
+                className={`ml-3 text-xs font-semibold flex-shrink ${
+                  isDarkMode ? "text-amber-400" : "text-amber-600"
+                }`}
+                numberOfLines={2}
+              >
+                This estate does not have the Community feature active in its
+                subscription plan.
+              </Text>
+            </View>
 
-        <TouchableOpacity
-          onPress={() => setActiveMainTab("marketplace")}
-          className={`flex-1 py-3 rounded-xl items-center justify-center ${
-            activeMainTab === "marketplace"
-              ? isDarkMode
-                ? "bg-gm-navy"
-                : "bg-white"
-              : ""
-          }`}
-        >
-          <Text
-            className={`font-oswald-semibold tracking-wider text-md ${activeMainTab === "marketplace" ? (isDarkMode ? "text-gm-gold" : "text-gm-navy") : isDarkMode ? "text-gray-800" : "text-gray-500"}`}
-          >
-            Marketplace
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {activeMainTab === "marketplace" ? (
-        /* MARKETPLACE PLACEHOLDER VIEW */
-        <View className="flex-1 justify-center items-center">
-          <View className="w-20 h-20 bg-indigo-50 rounded-full items-center justify-center mb-4">
-            <ShoppingBag size={36} color="#0A1F44" />
+            <View className="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30">
+              <Text className="text-[10px] font-black uppercase text-amber-500">
+                UNAVAILABLE
+              </Text>
+            </View>
           </View>
-          <Text className={`text-xl font-oswald-semibold text-gray-900 mb-1`}>
-            Marketplace
-          </Text>
-          <Text className="text-sm text-gray-500 font-roboto-regular text-center px-8">
-            Trade and unlock estate listings with trusted neighbors. Coming
-            soon!
-          </Text>
         </View>
       ) : (
-        <View className="flex-1">
-          <View className="flex-row px-4 pt-3 gap-2">
+        <>
+          <View className="flex-row mx-4 mt-3 p-1 bg-gray-200/70 rounded-2xl border border-gray-200">
             <TouchableOpacity
-              onPress={() => setActiveSubFilter("all")}
-              className={`px-5 py-2 rounded-full border items-center justify-center ${
-                activeSubFilter === "all"
+              onPress={() => setActiveMainTab("communication")}
+              className={`flex-1 py-3 rounded-xl items-center justify-center ${
+                activeMainTab === "communication"
                   ? isDarkMode
-                    ? "bg-gm-navy border-gm-gold"
-                    : "bg-indigo-600 border-indigo-600"
-                  : isDarkMode
-                    ? "bg-gm-charcoal border-slate-800"
-                    : "bg-white border-gray-200"
+                    ? "bg-gm-navy"
+                    : "bg-white"
+                  : ""
               }`}
             >
               <Text
-                className={`text-xs font-oswald-semibold ${activeSubFilter === "all" ? (isDarkMode ? "text-gm-gold" : "text-white") : "text-gray-600"}`}
+                className={`font-oswald-semibold tracking-wider text-md ${activeMainTab === "communication" ? (isDarkMode ? "text-gm-gold" : "text-gm-navy") : isDarkMode ? "text-gray-800" : "text-gray-500"}`}
               >
-                All Posts
+                Communication Board
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={() => setActiveSubFilter("my_posts")}
-              className={`px-5 py-2 rounded-full border items-center justify-center ${
-                activeSubFilter === "my_posts"
+              onPress={() => setActiveMainTab("marketplace")}
+              className={`flex-1 py-3 rounded-xl items-center justify-center ${
+                activeMainTab === "marketplace"
                   ? isDarkMode
-                    ? "bg-gm-navy border-gm-gold"
-                    : "bg-indigo-600 border-indigo-600"
-                  : isDarkMode
-                    ? "bg-gm-charcoal border-slate-800"
-                    : "bg-white border-gray-200"
+                    ? "bg-gm-navy"
+                    : "bg-white"
+                  : ""
               }`}
             >
               <Text
-                className={`text-xs font-oswald-semibold ${activeSubFilter === "my_posts" ? (isDarkMode ? "text-gm-gold" : "text-white") : isDarkMode ? "text-white" : "text-gray-500"}`}
+                className={`font-oswald-semibold tracking-wider text-md ${activeMainTab === "marketplace" ? (isDarkMode ? "text-gm-gold" : "text-gm-navy") : isDarkMode ? "text-gray-800" : "text-gray-500"}`}
               >
-                My Posts
+                Marketplace
               </Text>
             </TouchableOpacity>
           </View>
 
-          <View
-            className={`${isDarkMode ? "bg-gm-navy border-gm-gold" : "bg-white border border-gray-200"} mx-4 my-3 flex-row items-center rounded-lg px-4 py-1.5`}
-          >
-            <Search
-              size={18}
-              color={isDarkMode ? "#D4AF37" : "#9ca3af"}
-              className="mr-2"
-            />
-            <TextInput
-              className="flex-1 py-2 text-sm text-gray-900 font-roboto-regular"
-              placeholder={
-                activeSubFilter === "my_posts"
-                  ? "Search by title..."
-                  : "Search by title or poster name..."
-              }
-              placeholderTextColor={isDarkMode ? "#D4AF37" : "#9ca3af"}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              returnKeyType="search"
-              clearButtonMode="while-editing"
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity
-                onPress={() => setSearchQuery("")}
-                className="p-1"
-              >
-                <X size={16} color="#6b7280" />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          <ScrollView
-            ref={scrollRef}
-            className="px-4 pb-24"
-            refreshControl={
-              <RefreshControl
-                refreshing={isRefreshing}
-                onRefresh={() => handleRefresh(false)}
-                colors={["#4f46e5"]}
-                tintColor="#4f46e5"
-              />
-            }
-          >
-            {filteredPosts.length === 0 && (
-              <View className="py-12 items-center">
-                <Text className="text-gray-400 text-lg">
-                  {loading ? "Retrieving Posts ..." : "No posts yet"}
-                </Text>
+          {activeMainTab === "marketplace" ? (
+            /* MARKETPLACE PLACEHOLDER VIEW */
+            <View className="flex-1 justify-center items-center">
+              <View className="w-20 h-20 bg-indigo-50 rounded-full items-center justify-center mb-4">
+                <ShoppingBag size={36} color="#0A1F44" />
               </View>
-            )}
-            {filteredPosts.map((post) => {
-              const lastReadString =
-                localLastPostRead[selectedEstateId!] ||
-                "1970-01-01T00:00:00.000Z";
-              const lastReadTime = parsePostgresTimestamp(lastReadString);
-              const postCreatedTime = new Date(post.created_at).getTime();
-              const isNewPost =
-                postCreatedTime > lastReadTime &&
-                !sessionReadPostIds.includes(post.id);
-
-              return (
-                <View
-                  key={post.id}
-                  className={`p-4 rounded-2xl mb-4 shadow border ${
-                    isDarkMode
-                      ? "bg-gm-navy border-gm-gold"
-                      : "bg-white border border-gray-200"
+              <Text
+                className={`text-xl font-oswald-semibold text-gray-900 mb-1`}
+              >
+                Marketplace
+              </Text>
+              <Text className="text-sm text-gray-500 font-roboto-regular text-center px-8">
+                Trade and unlock estate listings with trusted neighbors. Coming
+                soon!
+              </Text>
+            </View>
+          ) : (
+            <View className="flex-1">
+              <View className="flex-row px-4 pt-3 gap-2">
+                <TouchableOpacity
+                  onPress={() => setActiveSubFilter("all")}
+                  className={`px-5 py-2 rounded-full border items-center justify-center ${
+                    activeSubFilter === "all"
+                      ? isDarkMode
+                        ? "bg-gm-navy border-gm-gold"
+                        : "bg-indigo-600 border-indigo-600"
+                      : isDarkMode
+                        ? "bg-gm-charcoal border-slate-800"
+                        : "bg-white border-gray-200"
                   }`}
                 >
-                  <TouchableOpacity
-                    className={`items-start mb-2 w-full rounded-2xl p-2 border ${
-                      isDarkMode ? "border-gm-gold" : "border-gray-200"
-                    }`}
-                    onPress={() => handleOpenPost(post)}
+                  <Text
+                    className={`text-xs font-oswald-semibold ${activeSubFilter === "all" ? (isDarkMode ? "text-gm-gold" : "text-white") : "text-gray-600"}`}
                   >
-                    <View className="flex-row items-center gap-2">
-                      <View
-                        className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-white ${
-                          post.author_role === "admin" ||
-                          post.author_role === "superadmin"
-                            ? "bg-gm-charcoal"
-                            : "bg-gray-400"
+                    All Posts
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => setActiveSubFilter("my_posts")}
+                  className={`px-5 py-2 rounded-full border items-center justify-center ${
+                    activeSubFilter === "my_posts"
+                      ? isDarkMode
+                        ? "bg-gm-navy border-gm-gold"
+                        : "bg-indigo-600 border-indigo-600"
+                      : isDarkMode
+                        ? "bg-gm-charcoal border-slate-800"
+                        : "bg-white border-gray-200"
+                  }`}
+                >
+                  <Text
+                    className={`text-xs font-oswald-semibold ${activeSubFilter === "my_posts" ? (isDarkMode ? "text-gm-gold" : "text-white") : isDarkMode ? "text-white" : "text-gray-500"}`}
+                  >
+                    My Posts
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <View
+                className={`${isDarkMode ? "bg-gm-navy border-gm-gold" : "bg-white border border-gray-200"} mx-4 my-3 flex-row items-center rounded-lg px-4 py-1.5`}
+              >
+                <Search
+                  size={18}
+                  color={isDarkMode ? "#D4AF37" : "#9ca3af"}
+                  className="mr-2"
+                />
+                <TextInput
+                  className={`flex-1 text-sm ${isDarkMode ? "text-gm-gold" : "text-gray-900"} font-roboto-regular`}
+                  placeholder={
+                    activeSubFilter === "my_posts"
+                      ? "Search by title..."
+                      : "Search by title or poster name..."
+                  }
+                  placeholderTextColor={isDarkMode ? "#D4AF37" : "#9ca3af"}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  returnKeyType="search"
+                  clearButtonMode="while-editing"
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity
+                    onPress={() => setSearchQuery("")}
+                    className="p-1"
+                  >
+                    <X size={16} color="#6b7280" />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <ScrollView
+                ref={scrollRef}
+                className="px-4 pb-24"
+                refreshControl={
+                  <RefreshControl
+                    refreshing={isRefreshing}
+                    onRefresh={() => handleRefresh(false)}
+                    colors={["#4f46e5"]}
+                    tintColor="#4f46e5"
+                  />
+                }
+              >
+                {filteredPosts.length === 0 && (
+                  <View className="py-12 items-center">
+                    <Text className="text-gray-400 text-lg">
+                      {loading ? "Retrieving Posts ..." : "No posts yet"}
+                    </Text>
+                  </View>
+                )}
+                {filteredPosts.map((post) => {
+                  const lastReadString =
+                    localLastPostRead[selectedEstateId!] ||
+                    "1970-01-01T00:00:00.000Z";
+                  const lastReadTime = parsePostgresTimestamp(lastReadString);
+                  const postCreatedTime = new Date(post.created_at).getTime();
+                  const isNewPost =
+                    postCreatedTime > lastReadTime &&
+                    !sessionReadPostIds.includes(post.id);
+
+                  return (
+                    <View
+                      key={post.id}
+                      className={`p-4 rounded-2xl mb-4 shadow border ${
+                        isDarkMode
+                          ? "bg-gm-navy border-gm-gold"
+                          : "bg-white border border-gray-200"
+                      }`}
+                    >
+                      <TouchableOpacity
+                        className={`items-start mb-2 w-full rounded-2xl p-2 border ${
+                          isDarkMode ? "border-gm-gold" : "border-gray-200"
                         }`}
+                        onPress={() => handleOpenPost(post)}
                       >
-                        <Text className={"text-white font-montserrat-bold"}>
-                          {post.author_name
-                            ? post.author_name.charAt(0).toUpperCase()
-                            : "?"}
-                        </Text>
-                      </View>
-                      <View className="flex-1">
-                        <View className="flex items-start justify-center">
-                          <Text
-                            className={`font-montserrat-bold ${
-                              isDarkMode ? "text-gm-gold" : "text-gm-navy"
+                        <View className="flex-row items-center gap-2">
+                          <View
+                            className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-white ${
+                              post.author_role === "admin" ||
+                              post.author_role === "superadmin"
+                                ? "bg-gm-charcoal"
+                                : "bg-gray-400"
                             }`}
                           >
-                            {post.author_name}
-                          </Text>
-                        </View>
-                        <Text className="text-xs text-gray-400 font-roboto-regular">
-                          {getRelativeTime(post.created_at)}
-                        </Text>
-                      </View>
-                      {isNewPost && (
-                        <View className="bg-amber-500 px-2.5 py-1 rounded-full border border-amber-600">
-                          <Text className="text-white text-[10px] font-black uppercase tracking-wider">
-                            New
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-
-                    {/* POST BODY & COMPACT THUMBNAIL CONTAINER */}
-                    <View className="flex-row items-start justify-between w-full pt-3 px-1">
-                      <View className="flex-1 pr-3">
-                        <Text
-                          className={`font-oswald-semibold ${
-                            isDarkMode ? "text-gm-gold" : "text-gm-navy"
-                          } text-lg mb-1`}
-                          numberOfLines={2}
-                        >
-                          {post.title}
-                        </Text>
-                        <Text
-                          className={`text-sm ${
-                            isDarkMode ? "text-gray-300" : "text-gray-600"
-                          }`}
-                          numberOfLines={3}
-                        >
-                          {post.content}
-                        </Text>
-                      </View>
-
-                      {/* 🌟 EYE-CATCHING MINI THUMBNAIL BADGE */}
-                      {post.image_url ? (
-                        <TouchableOpacity
-                          activeOpacity={0.85}
-                          onPress={() => handleOpenPost(post)}
-                          className="relative rounded-2xl overflow-hidden shadow-md border border-amber-500/30"
-                        >
-                          <Image
-                            source={{ uri: post.image_url }}
-                            className="w-20 h-20 bg-gray-100"
-                            resizeMode="cover"
-                          />
-                          <View className="absolute bottom-1 right-1 bg-black/60 p-1 rounded-lg backdrop-blur-sm">
-                            <ImageIcon size={12} color="#ffffff" />
+                            <Text className={"text-white font-montserrat-bold"}>
+                              {post.author_name
+                                ? post.author_name.charAt(0).toUpperCase()
+                                : "?"}
+                            </Text>
                           </View>
-                        </TouchableOpacity>
-                      ) : null}
-                    </View>
-                  </TouchableOpacity>
+                          <View className="flex-1">
+                            <View className="flex items-start justify-center">
+                              <Text
+                                className={`font-montserrat-bold ${
+                                  isDarkMode ? "text-gm-gold" : "text-gm-navy"
+                                }`}
+                              >
+                                {post.author_name}
+                              </Text>
+                            </View>
+                            <Text className="text-xs text-gray-400 font-roboto-regular">
+                              {getRelativeTime(post.created_at)}
+                            </Text>
+                          </View>
+                          {isNewPost && (
+                            <View className="bg-amber-500 px-2.5 py-1 rounded-full border border-amber-600">
+                              <Text className="text-white text-[10px] font-black uppercase tracking-wider">
+                                New
+                              </Text>
+                            </View>
+                          )}
+                        </View>
 
-                  <View className="flex-row items-center justify-between mt-2 pt-2 border-t border-gray-100/10">
-                    <TouchableOpacity
-                      className="flex-row items-center"
-                      onPress={() => handleLike(post.id)}
-                    >
-                      <ThumbsUp
-                        size={18}
-                        color={post.has_liked ? "#2563eb" : "#9ca3af"}
-                      />
-                      <Text
-                        className={`ml-1 font-roboto-regular ${
-                          isDarkMode ? "text-gm-gold" : "text-gm-navy"
-                        } text-sm`}
-                      >
-                        {post.likes_count}
-                      </Text>
-                    </TouchableOpacity>
+                        {/* POST BODY & COMPACT THUMBNAIL CONTAINER */}
+                        <View className="flex-row items-start justify-between w-full pt-3 px-1">
+                          <View className="flex-1 pr-3">
+                            <Text
+                              className={`font-oswald-semibold ${
+                                isDarkMode ? "text-gm-gold" : "text-gm-navy"
+                              } text-lg mb-1`}
+                              numberOfLines={2}
+                            >
+                              {post.title}
+                            </Text>
+                            <Text
+                              className={`text-sm ${
+                                isDarkMode ? "text-gray-300" : "text-gray-600"
+                              }`}
+                              numberOfLines={3}
+                            >
+                              {post.content}
+                            </Text>
+                          </View>
 
-                    <View className="flex-row items-center">
-                      <MessageSquare size={18} color="#9ca3af" />
-                      <Text
-                        className={`ml-1 font-roboto-regular ${
-                          isDarkMode ? "text-gm-gold" : "text-gm-navy"
-                        } text-sm`}
-                      >
-                        {post.comments_count}
-                      </Text>
-                    </View>
-
-                    {user?.id === post.author_id && (
-                      <TouchableOpacity
-                        onPress={() => handleDelete(post.id)}
-                        className="p-1"
-                      >
-                        <Trash size={18} color="#ef4444" />
+                          {/* 🌟 EYE-CATCHING MINI THUMBNAIL BADGE */}
+                          {post.image_url ? (
+                            <TouchableOpacity
+                              activeOpacity={0.85}
+                              onPress={() => handleOpenPost(post)}
+                              className="relative rounded-2xl overflow-hidden shadow-md border border-amber-500/30"
+                            >
+                              <Image
+                                source={{ uri: post.image_url }}
+                                className="w-20 h-20 bg-gray-100"
+                                resizeMode="cover"
+                              />
+                              <View className="absolute bottom-1 right-1 bg-black/60 p-1 rounded-lg backdrop-blur-sm">
+                                <ImageIcon size={12} color="#ffffff" />
+                              </View>
+                            </TouchableOpacity>
+                          ) : null}
+                        </View>
                       </TouchableOpacity>
-                    )}
-                  </View>
-                </View>
-              );
-            })}
-          </ScrollView>
 
-          <View className="absolute bottom-10 right-6 items-center">
-            <TouchableOpacity
-              onPress={() => {
-                handleRefresh(true);
-              }}
-              disabled={loading || isRefreshing}
-              className={`mb-4 w-16 h-16 rounded-full items-center justify-center shadow-lg border border-gray-100 ${
-                isRefreshing
-                  ? "bg-gray-100"
-                  : isDarkMode
-                    ? "bg-gray-500"
-                    : "bg-white"
-              }`}
-            >
-              <RefreshCw
-                size={20}
-                color={isDarkMode ? "#ffffff" : "#4f46e5"}
-                className={isRefreshing ? "animate-spin" : ""}
-              />
-            </TouchableOpacity>
+                      <View className="flex-row items-center justify-between mt-2 pt-2 border-t border-gray-100/10">
+                        <TouchableOpacity
+                          className="flex-row items-center"
+                          onPress={() => handleLike(post.id)}
+                        >
+                          <ThumbsUp
+                            size={18}
+                            color={post.has_liked ? "#2563eb" : "#9ca3af"}
+                          />
+                          <Text
+                            className={`ml-1 font-roboto-regular ${
+                              isDarkMode ? "text-gm-gold" : "text-gm-navy"
+                            } text-sm`}
+                          >
+                            {post.likes_count}
+                          </Text>
+                        </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={() => setIsModalVisible(true)}
-              className={`${isDarkMode ? "bg-gm-charcoal border border-white" : "bg-gm-navy"} w-16 h-16 rounded-full items-center justify-center shadow-xl`}
-            >
-              <Plus size={28} color="white" />
-            </TouchableOpacity>
-          </View>
-        </View>
+                        <View className="flex-row items-center">
+                          <MessageSquare size={18} color="#9ca3af" />
+                          <Text
+                            className={`ml-1 font-roboto-regular ${
+                              isDarkMode ? "text-gm-gold" : "text-gm-navy"
+                            } text-sm`}
+                          >
+                            {post.comments_count}
+                          </Text>
+                        </View>
+
+                        {user?.id === post.author_id && (
+                          <TouchableOpacity
+                            onPress={() => handleDelete(post.id)}
+                            className="p-1"
+                          >
+                            <Trash size={18} color="#ef4444" />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </View>
+                  );
+                })}
+              </ScrollView>
+
+              <View className="absolute bottom-10 right-6 items-center">
+                <TouchableOpacity
+                  onPress={() => {
+                    handleRefresh(true);
+                  }}
+                  disabled={loading || isRefreshing}
+                  className={`mb-4 w-16 h-16 rounded-full items-center justify-center shadow-lg border border-gray-100 ${
+                    isRefreshing
+                      ? "bg-gray-100"
+                      : isDarkMode
+                        ? "bg-gray-500"
+                        : "bg-white"
+                  }`}
+                >
+                  <RefreshCw
+                    size={20}
+                    color={isDarkMode ? "#ffffff" : "#4f46e5"}
+                    className={isRefreshing ? "animate-spin" : ""}
+                  />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => setIsModalVisible(true)}
+                  className={`${isDarkMode ? "bg-gm-charcoal border border-white" : "bg-gm-navy"} w-16 h-16 rounded-full items-center justify-center shadow-xl`}
+                >
+                  <Plus size={28} color="white" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          <CreatePostModal
+            isVisible={isModalVisible}
+            onClose={() => setIsModalVisible(false)}
+            onSubmit={handleCreatePost}
+            category="General"
+            title={postTitle}
+            setTitle={setPostTitle}
+            content={postContent}
+            setContent={setPostContent}
+            setImageUrl={setPostImageUrl}
+          />
+
+          <PostDetailModal
+            isVisible={isDetailVisible}
+            onClose={() => {
+              setIsDetailVisible(false);
+              setSelectedPost(null);
+            }}
+            post={selectedPost}
+            comments={comments}
+            likes={likes}
+            newComment={newComment}
+            setNewComment={setNewComment}
+            onAddComment={handleModalCommentSubmit}
+            onLike={handleLike}
+            isLoadingComments={loadingComments}
+            uploadingComment={upLoadingNewComment}
+            handleDelete={handleDeleteComment}
+          />
+        </>
       )}
-
-      <CreatePostModal
-        isVisible={isModalVisible}
-        onClose={() => setIsModalVisible(false)}
-        onSubmit={handleCreatePost}
-        category="General"
-        title={postTitle}
-        setTitle={setPostTitle}
-        content={postContent}
-        setContent={setPostContent}
-        setImageUrl={setPostImageUrl}
-      />
-
-      <PostDetailModal
-        isVisible={isDetailVisible}
-        onClose={() => {
-          setIsDetailVisible(false);
-          setSelectedPost(null);
-        }}
-        post={selectedPost}
-        comments={comments}
-        likes={likes}
-        newComment={newComment}
-        setNewComment={setNewComment}
-        onAddComment={handleModalCommentSubmit}
-        onLike={handleLike}
-        isLoadingComments={loadingComments}
-        uploadingComment={upLoadingNewComment}
-        handleDelete={handleDeleteComment}
-      />
 
       {/* Slide-Up Property Choice Sheets Workspace */}
       <Modal

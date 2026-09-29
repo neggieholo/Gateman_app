@@ -48,6 +48,8 @@ interface UserContextType {
   setIsDarkMode: (value: boolean) => void;
   contextEstateId: string | null;
   setContextEstateId: (value: string) => void;
+  showBiometricBtn: boolean;
+  setShowBiometricBtn: (value: boolean) => void;
   theme: Theme;
   // zim: ZIM | null;
 }
@@ -100,6 +102,8 @@ export const UserContext = createContext<UserContextType>({
   contextEstateId: "",
   setContextEstateId: () => {},
   theme: Colors.light,
+  showBiometricBtn: false,
+  setShowBiometricBtn: () => {},
   // zim: null,
 });
 
@@ -119,6 +123,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     {},
   );
   const [contextEstateId, setContextEstateId] = useState<string | null>(null);
+  const [showBiometricBtn, setShowBiometricBtn] = useState(false);
 
   const socketRef = useRef<Socket | null>(null);
   const triggerRefresh = () => setRefreshTrigger((prev) => !prev);
@@ -467,6 +472,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         contextEstateId,
         setContextEstateId,
         theme,
+        showBiometricBtn,
+        setShowBiometricBtn,
         // zim,
       }}
     >

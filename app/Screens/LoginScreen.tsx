@@ -44,14 +44,19 @@ export default function LoginScreen() {
   const [isLogin, setIsLogin] = useState<boolean>(true);
   const [isForgot, setIsForgot] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
-  const { setUser, setSessionId, setPushToken } = useContext(UserContext);
+  const {
+    setUser,
+    setSessionId,
+    setPushToken,
+    showBiometricBtn,
+    setShowBiometricBtn,
+  } = useContext(UserContext);
   const BASE_URL = `${process.env.EXPO_PUBLIC_BASE_URL}`;
   const [otp, setOtp] = useState<string[]>(["", "", "", "", "", ""]);
   const [metadata, setMetadata] = useState("");
   const [showOtpInput, setShowOtpInput] = useState(false);
   const [otpLoading, setOtpLoading] = useState(false);
   const [verifyingOtp, setverifyingOtp] = useState(false);
-  const [showBiometricBtn, setShowBiometricBtn] = useState(false);
   const phoneInputRef = useRef<PhoneInput>(null);
   const [verifyingField, setVerifyingField] = useState<
     "email" | "phone" | null
@@ -164,7 +169,7 @@ export default function LoginScreen() {
           ]).catch((err) => console.error("Vault sync failed", err));
         }
 
-        if (response.user.biometric_login) {
+        if (response.user.biometric_login && !response.user.isTempPassword) {
           await AsyncStorage.setItem("biometrics_active", "true");
           setShowBiometricBtn(true);
         }
@@ -189,7 +194,16 @@ export default function LoginScreen() {
 
         // console.log("Login successful, session ID:", response.sessionId);
         setSessionId?.(response.sessionId);
-        router.replace("/dashboard");
+        if (response.user.isTempPassword) {
+          await AsyncStorage.setItem("biometrics_active", "false");
+          setShowBiometricBtn(false);
+          router.replace({
+            pathname: "/ChangePassword",
+            params: { mandatory: "true" },
+          });
+        } else {
+          router.replace("/dashboard");
+        }
       } else {
         setError(
           response.message === "PASSWORD_CHANGED"
@@ -269,7 +283,7 @@ export default function LoginScreen() {
     try {
       const otpRes = await sendOtpApi(actualTarget, type);
       if (otpRes.success) {
-        console.log("otp matadata:", otpRes.metadata)
+        console.log("otp matadata:", otpRes.metadata);
         setMetadata(otpRes.metadata);
         setShowOtpInput(true);
       } else {
@@ -323,10 +337,10 @@ export default function LoginScreen() {
         setOtp(["", "", "", "", "", ""]);
 
         if (verifyingField === "phone") {
-            setPhoneVerified(true);
-          } else {
-            setEmailVerified(true);
-          }
+          setPhoneVerified(true);
+        } else {
+          setEmailVerified(true);
+        }
       } else {
         setError(data.message || "Invalid Code");
       }
@@ -403,8 +417,8 @@ export default function LoginScreen() {
       if (response.success) {
         Alert.alert(
           "Success",
-          "Check your email for the reset link.",
-          [{ text: "OK", onPress: () => setIsForgot(false) }], // Send them back to login
+          "A temporary password has been sent to this email. You will be required to change your password upon logging in.",
+          [{ text: "OK", onPress: () => setIsForgot(false) }],
         );
       } else {
         setError(response.message);
@@ -692,7 +706,7 @@ export default function LoginScreen() {
                 ) : null}
 
                 <Button
-                  title={loading ? "Sending..." : "Send Reset Link"}
+                  title={loading ? "Sending..." : "Send Temporary Password"}
                   onPress={handleForgotPassword}
                   disabled={loading}
                 />

@@ -748,13 +748,14 @@ export const changePassword = async (
   currentPassword: string,
   newPassword: string,
   role: string,
+  isMandatory: boolean,
 ) => {
   console.log("Passwords in api:", currentPassword, newPassword, role);
   try {
     const response = await fetch(`${BASE_URL}/change-password`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ currentPassword, newPassword, role }),
+      body: JSON.stringify({ currentPassword, newPassword, role, isMandatory }),
     });
     return await response.json();
   } catch (err) {
