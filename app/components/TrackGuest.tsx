@@ -1,5 +1,6 @@
 import * as Sharing from "expo-sharing";
 import {
+  AlertCircle,
   Briefcase,
   ChevronDown,
   ChevronUp,
@@ -7,7 +8,6 @@ import {
   MapPin,
   Search,
   Share2,
-  SlidersHorizontal,
   Trash2,
   User,
   X,
@@ -22,6 +22,7 @@ import React, {
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   Image,
   LayoutAnimation,
   Modal,
@@ -82,10 +83,6 @@ const TrackGuestView = ({
     }
   }, [selectedEstateId]);
 
-  useEffect(() => {
-    fetchInvitations();
-  }, [fetchInvitations]);
-
   const activeEstateFilterName = useMemo(() => {
     if (!selectedEstateId || !user?.estates) return "Select Estate";
     const found = user.estates.find(
@@ -103,6 +100,14 @@ const TrackGuestView = ({
     if (!user?.locations || !selectedEstateId) return [];
     return user.locations[selectedEstateId] || [];
   }, [selectedEstateId, user?.locations]);
+
+  const canInvite = activeEstate?.plan?.selected_add_ons?.includes("security");
+
+  useEffect(() => {
+    if (canInvite) {
+      fetchInvitations();
+    } else return;
+  }, [fetchInvitations, canInvite]);
 
   const filteredInvitations = useMemo(() => {
     const activeInvitations = invitations.filter((inv) => !inv.is_cancelled);
@@ -451,219 +456,264 @@ const TrackGuestView = ({
   return (
     <View className={`flex-1 ${isDarkMode ? "bg-slate-950" : "bg-white"}`}>
       {/* Search Header and Filter Group */}
-      <View className="px-4 mb-3 flex-row gap-2 items-center">
-        <View
-          className={`flex-1 flex-row items-center border rounded-xl px-3 py-2.5 shadow-xs ${
+      {user?.estate_ids && user.estate_ids.length > 1 && (
+        <TouchableOpacity
+          onPress={() => setShowEstateFilterModal(true)}
+          className={`mb-4 flex-row items-center justify-between p-4 rounded-2xl border ${
             isDarkMode
-              ? "bg-gm-navy border-slate-800"
-              : "bg-slate-50 border-gray-200"
-          }`}
+              ? "bg-slate-900 border-slate-800"
+              : "bg-white border-slate-200"
+          } shadow-sm`}
         >
-          <Search size={18} color={isDarkMode ? "#475569" : "#9CA3AF"} />
-          <TextInput
-            className={`flex-1 ml-2 text-sm font-semibold ${isDarkMode ? "text-white" : "text-gray-900"}`}
-            placeholder="Search guest name or code..."
-            placeholderTextColor={isDarkMode ? "#475569" : "#9CA3AF"}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            autoCapitalize="none"
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery("")}>
-              <X size={16} color={isDarkMode ? "#64748b" : "#9CA3AF"} />
-            </TouchableOpacity>
-          )}
-        </View>
+          <View className="flex-row items-center flex-1">
+            <MapPin size={14} color="#6366f1" />
+            <Text
+              className={`ml-2 text-xs font-black uppercase tracking-wider ${
+                isDarkMode ? "text-slate-300" : "text-slate-600"
+              } flex-1`}
+              numberOfLines={1}
+            >
+              Estate Scope: {activeEstateFilterName}
+            </Text>
+          </View>
+          <ChevronDown size={16} color="#94a3b8" />
+        </TouchableOpacity>
+      )}
 
-        {/* Filter button triggers if resident belongs to multiple estates */}
-        {user?.estate_ids && user.estate_ids.length > 1 && (
-          <TouchableOpacity
-            onPress={() => setShowEstateFilterModal(true)}
-            className={`p-3 rounded-xl border items-center justify-center ${
+      {!canInvite ? (
+        <View className="h-full flex items-center justify-center">
+          <View
+            className={`p-5 rounded-2xl border flex-row justify-between items-center ${
               isDarkMode
-                ? "bg-gm-navy border-slate-800"
-                : "bg-indigo-50 border-indigo-100"
+                ? "bg-gm-navy border-amber-500/30"
+                : "bg-amber-500/5 border-amber-500/20"
             }`}
           >
-            <SlidersHorizontal
-              size={18}
-              color={isDarkMode ? "#D4AF37" : "#4f46e5"}
-            />
-          </TouchableOpacity>
-        )}
-      </View>
+            <View className="flex-row items-center flex-1 pr-2">
+              <AlertCircle size={18} color="#f59e0b" />
+              <Text
+                className={`ml-3 text-xs font-semibold flex-shrink ${
+                  isDarkMode ? "text-amber-400" : "text-amber-600"
+                }`}
+                numberOfLines={2}
+              >
+                This estate does not have the Community feature active in its
+                subscription plan.
+              </Text>
+            </View>
 
-      {/* Mini Current Filter Status Bar */}
-      <View
-        className={`mx-4 mb-4 flex-row items-center rounded-full py-1.5 px-3 self-start border ${
-          isDarkMode
-            ? "bg-gm-navy/40 border-slate-800/60"
-            : "bg-slate-50 border-slate-100"
-        }`}
-      >
-        <MapPin size={12} color={isDarkMode ? "#D4AF37" : "#4f46e5"} />
-        <Text
-          className={`text-[10px] font-black uppercase tracking-wider ml-1 ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
-        >
-          Estate Scope: {activeEstateFilterName}
-        </Text>
-      </View>
-
-      {isLoading ? (
-        <View className="flex-1 justify-center items-center">
-          <ActivityIndicator
-            size="large"
-            color={isDarkMode ? "#D4AF37" : "#4f46e5"}
-          />
-        </View>
-      ) : filteredInvitations.length === 0 ? (
-        <View className="flex-1 items-center justify-center p-6">
-          <View
-            className={`w-20 h-20 rounded-2xl items-center justify-center mb-4 ${isDarkMode ? "bg-gm-navy" : "bg-gray-100"}`}
-          >
-            <User size={36} color={isDarkMode ? "#64748b" : "#4B5563"} />
+            <View className="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30">
+              <Text className="text-[10px] font-black uppercase text-amber-500">
+                UNAVAILABLE
+              </Text>
+            </View>
           </View>
-          <Text
-            className={`text-lg font-semibold mb-2 ${isDarkMode ? "text-slate-300" : "text-gray-700"}`}
-          >
-            {searchQuery ? "No matches found" : "No active invitations"}
-          </Text>
-          <TouchableOpacity
-            onPress={onInvitePress}
-            className={`py-3 px-6 rounded-xl border ${isDarkMode ? "bg-slate-900 border-gm-gold" : "bg-indigo-600 border-transparent"}`}
-          >
-            <Text
-              className={`font-bold ${isDarkMode ? "text-gm-gold" : "text-white"}`}
-            >
-              Invite a guest
-            </Text>
-          </TouchableOpacity>
         </View>
       ) : (
         <>
-          <Text className="text-gray-500 font-medium mb-4 px-4">
-            {searchQuery
-              ? `Search Results (${filteredInvitations.length})`
-              : `Active Passes (${invitations.length})`}
-          </Text>
-
-          <ScrollView
-            className="flex-1 px-4"
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl
-                refreshing={isRefreshing}
-                tintColor={isDarkMode ? "#D4AF37" : "#4f46e5"}
-                onRefresh={() => {
-                  setIsRefreshing(true);
-                  fetchInvitations();
-                }}
-              />
-            }
+          <View
+            className={`flex-row items-center border rounded-xl px-3 py-1 shadow-xs ${
+              isDarkMode
+                ? "bg-gm-navy border-slate-800"
+                : "bg-slate-50 border-gray-200"
+            }`}
           >
-            {filteredInvitations.map((item) => {
-              const isExpired = isPastTime(item.end_date, item.end_time);
-              const isPending = item.status === "pending";
-              const isExpanded = expandedId === item.id;
-              const isMultiEntry = item.invite_type === "multi_entry";
-              const isStaffEntry = item.invite_type === "staff_entry";
-              const isDone =
-                item.status === "checked_out" || (isPending && isExpired);
+            <Search size={18} color={isDarkMode ? "#475569" : "#9CA3AF"} />
+            <TextInput
+              className={`flex-1 ml-2 text-sm font-semibold ${isDarkMode ? "text-white" : "text-gray-900"}`}
+              placeholder="Search guest name or code..."
+              placeholderTextColor={isDarkMode ? "#475569" : "#9CA3AF"}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoCapitalize="none"
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery("")}>
+                <X size={16} color={isDarkMode ? "#64748b" : "#9CA3AF"} />
+              </TouchableOpacity>
+            )}
+          </View>
 
-              const canEdit =
-                isStaffEntry || (item.status !== "checked_out" && !isExpired);
-              const canCancel = isPending && !isExpired && !isStaffEntry;
-              const canShare = isPending && !isExpired;
-
-              const statusInfo = isMultiEntry
-                ? getMultiEntryStatus(item)
-                : getStatusDetails(
-                    item.status,
-                    isExpired,
-                    item.start_date,
-                    item.is_cancelled,
-                    item.start_time,
-                  );
-
-              return (
-                <View
-                  key={item.id}
-                  className={`mb-4 p-4 rounded-2xl border shadow-sm ${
-                    isStaffEntry
-                      ? isDarkMode
-                        ? "border-gm-gold/20 bg-gm-navy/30"
-                        : "border-indigo-100 bg-indigo-50/5"
-                      : isDarkMode
-                        ? "border-slate-800 bg-gm-navy"
-                        : "border-gray-100 bg-white"
-                  }`}
+          {isLoading ? (
+            <View className="flex-1 justify-center items-center">
+              <ActivityIndicator
+                size="large"
+                color={isDarkMode ? "#D4AF37" : "#4f46e5"}
+              />
+            </View>
+          ) : filteredInvitations.length === 0 ? (
+            <View className="flex-1 items-center justify-center p-6">
+              <View
+                className={`w-20 h-20 rounded-2xl items-center justify-center mb-4 ${isDarkMode ? "bg-gm-navy" : "bg-gray-100"}`}
+              >
+                <User size={36} color={isDarkMode ? "#64748b" : "#4B5563"} />
+              </View>
+              <Text
+                className={`text-lg font-semibold mb-2 ${isDarkMode ? "text-slate-300" : "text-gray-700"}`}
+              >
+                {searchQuery ? "No matches found" : "No active invitations"}
+              </Text>
+              <TouchableOpacity
+                onPress={onInvitePress}
+                className={`py-3 px-6 rounded-xl border ${isDarkMode ? "bg-slate-900 border-gm-gold" : "bg-indigo-600 border-transparent"}`}
+              >
+                <Text
+                  className={`font-bold ${isDarkMode ? "text-gm-gold" : "text-white"}`}
                 >
-                  <View className="flex-row items-center">
-                    <View className="mr-4">
-                      {item.guest_image_url ? (
-                        <Image
-                          source={{ uri: item.guest_image_url }}
-                          className="w-14 h-14 rounded-full"
-                        />
-                      ) : (
-                        <View
-                          className={`w-14 h-14 rounded-full items-center justify-center ${
-                            isStaffEntry
-                              ? isDarkMode
-                                ? "bg-slate-900"
-                                : "bg-indigo-100"
-                              : isDarkMode
-                                ? "bg-slate-900"
-                                : "bg-indigo-50"
-                          }`}
-                        >
-                          {isStaffEntry ? (
-                            <Briefcase
-                              size={22}
-                              color={isDarkMode ? "#D4AF37" : "#4f46e5"}
+                  Invite a guest
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              <Text className="text-gray-500 font-medium mb-4 px-4 mt-2">
+                {searchQuery
+                  ? `Search Results (${filteredInvitations.length})`
+                  : `Active Passes (${invitations.length})`}
+              </Text>
+
+              <ScrollView
+                className="flex-1 px-4"
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={isRefreshing}
+                    tintColor={isDarkMode ? "#D4AF37" : "#4f46e5"}
+                    onRefresh={() => {
+                      setIsRefreshing(true);
+                      fetchInvitations();
+                    }}
+                  />
+                }
+              >
+                {filteredInvitations.map((item) => {
+                  const isExpired = isPastTime(item.end_date, item.end_time);
+                  const isPending = item.status === "pending";
+                  const isExpanded = expandedId === item.id;
+                  const isMultiEntry = item.invite_type === "multi_entry";
+                  const isStaffEntry = item.invite_type === "staff_entry";
+                  const isDone =
+                    item.status === "checked_out" || (isPending && isExpired);
+
+                  const canEdit =
+                    isStaffEntry ||
+                    (item.status !== "checked_out" && !isExpired);
+                  const canCancel = isPending && !isExpired && !isStaffEntry;
+                  const canShare = isPending && !isExpired;
+
+                  const statusInfo = isMultiEntry
+                    ? getMultiEntryStatus(item)
+                    : getStatusDetails(
+                        item.status,
+                        isExpired,
+                        item.start_date,
+                        item.is_cancelled,
+                        item.start_time,
+                      );
+
+                  return (
+                    <View
+                      key={item.id}
+                      className={`mb-4 p-4 rounded-2xl border shadow-sm ${
+                        isStaffEntry
+                          ? isDarkMode
+                            ? "border-gm-gold/20 bg-gm-navy/30"
+                            : "border-indigo-100 bg-indigo-50/5"
+                          : isDarkMode
+                            ? "border-slate-800 bg-gm-navy"
+                            : "border-gray-100 bg-white"
+                      }`}
+                    >
+                      <View className="flex-row items-center">
+                        <View className="mr-4">
+                          {item.guest_image_url ? (
+                            <Image
+                              source={{ uri: item.guest_image_url }}
+                              className="w-14 h-14 rounded-full"
                             />
                           ) : (
-                            <User
-                              size={24}
-                              color={isDarkMode ? "#D4AF37" : "#4f46e5"}
-                            />
+                            <View
+                              className={`w-14 h-14 rounded-full items-center justify-center ${
+                                isStaffEntry
+                                  ? isDarkMode
+                                    ? "bg-slate-900"
+                                    : "bg-indigo-100"
+                                  : isDarkMode
+                                    ? "bg-slate-900"
+                                    : "bg-indigo-50"
+                              }`}
+                            >
+                              {isStaffEntry ? (
+                                <Briefcase
+                                  size={22}
+                                  color={isDarkMode ? "#D4AF37" : "#4f46e5"}
+                                />
+                              ) : (
+                                <User
+                                  size={24}
+                                  color={isDarkMode ? "#D4AF37" : "#4f46e5"}
+                                />
+                              )}
+                            </View>
                           )}
                         </View>
-                      )}
-                    </View>
 
-                    <View className="flex-1">
-                      <Text
-                        className={`text-lg font-bold capitalize ${isDarkMode ? "text-white" : "text-gray-900"}`}
-                        numberOfLines={1}
-                      >
-                        {item.guest_name}
-                      </Text>
+                        <View className="flex-1">
+                          <Text
+                            className={`text-lg font-bold capitalize ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                            numberOfLines={1}
+                          >
+                            {item.guest_name}
+                          </Text>
 
-                      {/* Staff Position Card Text */}
-                      {isStaffEntry && item.staff_position && (
-                        <Text
-                          className={`font-bold text-xs mt-0.5 mb-1 ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
-                        >
-                          💼 {item.staff_position}
-                        </Text>
-                      )}
+                          {/* Staff Position Card Text */}
+                          {isStaffEntry && item.staff_position && (
+                            <Text
+                              className={`font-bold text-xs mt-0.5 mb-1 ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
+                            >
+                              💼 {item.staff_position}
+                            </Text>
+                          )}
 
-                      <Text
-                        className={`font-mono font-bold tracking-widest ${isDarkMode ? "text-gm-gold" : "text-indigo-600"}`}
-                      >
-                        {item.access_code}
-                      </Text>
+                          <Text
+                            className={`font-mono font-bold tracking-widest ${isDarkMode ? "text-gm-gold" : "text-indigo-600"}`}
+                          >
+                            {item.access_code}
+                          </Text>
 
-                      <View className="mt-1">
-                        {isStaffEntry ? (
-                          <>
-                            {item.is_activated && item.end_date ? (
+                          <View className="mt-1">
+                            {isStaffEntry ? (
+                              <>
+                                {item.is_activated && item.end_date ? (
+                                  <>
+                                    <Text
+                                      className={`${isDarkMode ? "text-slate-300" : "text-gray-600"} text-xs font-semibold`}
+                                    >
+                                      Valid:{" "}
+                                      {formatDisplayName(item.start_date)} -{" "}
+                                      {formatDisplayName(item.end_date)}
+                                    </Text>
+                                    <Text className="text-gray-400 text-[10px]">
+                                      Daily:{" "}
+                                      {formatDisplayTime(item.start_time)} —{" "}
+                                      {formatDisplayTime(item.end_time)}
+                                    </Text>
+                                  </>
+                                ) : (
+                                  <Text
+                                    className={`${isDarkMode ? "text-slate-300" : "text-gray-600"} text-xs font-semibold`}
+                                  >
+                                    Activated:{" "}
+                                    {formatDisplayName(item.start_date)}
+                                  </Text>
+                                )}
+                              </>
+                            ) : isMultiEntry ? (
                               <>
                                 <Text
                                   className={`${isDarkMode ? "text-slate-300" : "text-gray-600"} text-xs font-semibold`}
                                 >
-                                  Valid: {formatDisplayName(item.start_date)} -{" "}
+                                  {formatDisplayName(item.start_date)} -{" "}
                                   {formatDisplayName(item.end_date)}
                                 </Text>
                                 <Text className="text-gray-400 text-[10px]">
@@ -672,284 +722,266 @@ const TrackGuestView = ({
                                 </Text>
                               </>
                             ) : (
-                              <Text
-                                className={`${isDarkMode ? "text-slate-300" : "text-gray-600"} text-xs font-semibold`}
-                              >
-                                Activated: {formatDisplayName(item.start_date)}
-                              </Text>
+                              /* one_time entry block */
+                              <>
+                                <Text
+                                  className={`${isDarkMode ? "text-slate-300" : "text-gray-600"} text-xs font-semibold`}
+                                >
+                                  {item.end_date &&
+                                  item.end_date !== item.start_date
+                                    ? `${formatDisplayName(item.start_date)} - ${formatDisplayName(item.end_date)}`
+                                    : formatDisplayName(item.start_date)}
+                                </Text>
+                                <Text className="text-gray-400 text-[10px]">
+                                  {formatDisplayTime(item.start_time)} —{" "}
+                                  {formatDisplayTime(item.end_time)}
+                                </Text>
+                              </>
                             )}
-                          </>
-                        ) : isMultiEntry ? (
-                          <>
-                            <Text
-                              className={`${isDarkMode ? "text-slate-300" : "text-gray-600"} text-xs font-semibold`}
+                          </View>
+
+                          {!isStaffEntry && (
+                            <View
+                              className={`${statusInfo.container} px-2 py-0.5 rounded-md flex w-fit justify-center items-center mt-2 self-start`}
                             >
-                              {formatDisplayName(item.start_date)} -{" "}
-                              {formatDisplayName(item.end_date)}
-                            </Text>
-                            <Text className="text-gray-400 text-[10px]">
-                              Daily: {formatDisplayTime(item.start_time)} —{" "}
-                              {formatDisplayTime(item.end_time)}
-                            </Text>
-                          </>
-                        ) : (
-                          /* one_time entry block */
-                          <>
-                            <Text
-                              className={`${isDarkMode ? "text-slate-300" : "text-gray-600"} text-xs font-semibold`}
+                              <Text
+                                className={`${statusInfo.text} text-[10px] font-extrabold`}
+                              >
+                                {statusInfo.label}
+                              </Text>
+                            </View>
+                          )}
+
+                          {isStaffEntry && (
+                            <View
+                              className={`px-2 py-0.5 rounded-md flex w-fit justify-center items-center mt-2 self-start ${
+                                item.is_activated
+                                  ? isDarkMode
+                                    ? "bg-emerald-950/40 border border-emerald-900/30"
+                                    : "bg-emerald-100"
+                                  : isDarkMode
+                                    ? "bg-red-950/40 border border-red-900/30"
+                                    : "bg-rose-100"
+                              }`}
                             >
-                              {item.end_date &&
-                              item.end_date !== item.start_date
-                                ? `${formatDisplayName(item.start_date)} - ${formatDisplayName(item.end_date)}`
-                                : formatDisplayName(item.start_date)}
-                            </Text>
-                            <Text className="text-gray-400 text-[10px]">
-                              {formatDisplayTime(item.start_time)} —{" "}
-                              {formatDisplayTime(item.end_time)}
-                            </Text>
-                          </>
-                        )}
+                              <Text
+                                className={`text-[10px] font-extrabold ${item.is_activated ? "text-emerald-500" : "text-rose-500"}`}
+                              >
+                                {item.is_activated ? "ACTIVE" : "DISABLED"}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+
+                        <View className="flex items-center gap-3 mx-1">
+                          {canEdit && (
+                            <TouchableOpacity
+                              onPress={() => handleEditPress(item)}
+                              className={`p-3 rounded-full ${isDarkMode ? "bg-slate-900 border border-slate-800" : "bg-indigo-50"}`}
+                            >
+                              <Edit2
+                                size={18}
+                                color={isDarkMode ? "#D4AF37" : "#4f46e5"}
+                              />
+                            </TouchableOpacity>
+                          )}
+
+                          {canCancel && (
+                            <TouchableOpacity
+                              onPress={() =>
+                                handleCancel(item.id!, item.guest_name)
+                              }
+                              className={`p-3 rounded-full ${isDarkMode ? "bg-red-950/30 border border-red-900/20" : "bg-red-50"}`}
+                            >
+                              <Trash2 size={18} color="#ef4444" />
+                            </TouchableOpacity>
+                          )}
+
+                          {canShare && (
+                            <TouchableOpacity
+                              onPress={() => handleShare(item)}
+                              disabled={isSharing}
+                              className={`p-3 rounded-full ${isDarkMode ? "bg-emerald-950/30 border border-emerald-900/20" : "bg-green-50"}`}
+                            >
+                              <Share2 size={18} color="#10b981" />
+                            </TouchableOpacity>
+                          )}
+
+                          {isDone && !isStaffEntry && (
+                            <View className="px-2">
+                              <Text className="text-gray-400 text-[10px] font-bold">
+                                HISTORY
+                              </Text>
+                            </View>
+                          )}
+                        </View>
                       </View>
 
-                      {!isStaffEntry && (
+                      {isMultiEntry && (
                         <View
-                          className={`${statusInfo.container} px-2 py-0.5 rounded-md flex w-fit justify-center items-center mt-2 self-start`}
+                          className={`mt-2 border-t pt-2 ${isDarkMode ? "border-slate-800" : "border-gray-50"}`}
                         >
-                          <Text
-                            className={`${statusInfo.text} text-[10px] font-extrabold`}
+                          <TouchableOpacity
+                            onPress={() => toggleExpand(item.id!)}
+                            className="flex-row items-center justify-between"
                           >
-                            {statusInfo.label}
-                          </Text>
-                        </View>
-                      )}
-
-                      {isStaffEntry && (
-                        <View
-                          className={`px-2 py-0.5 rounded-md flex w-fit justify-center items-center mt-2 self-start ${
-                            item.is_activated
-                              ? isDarkMode
-                                ? "bg-emerald-950/40 border border-emerald-900/30"
-                                : "bg-emerald-100"
-                              : isDarkMode
-                                ? "bg-red-950/40 border border-red-900/30"
-                                : "bg-rose-100"
-                          }`}
-                        >
-                          <Text
-                            className={`text-[10px] font-extrabold ${item.is_activated ? "text-emerald-500" : "text-rose-500"}`}
-                          >
-                            {item.is_activated ? "ACTIVE" : "DISABLED"}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-
-                    <View className="flex items-center gap-3 mx-1">
-                      {canEdit && (
-                        <TouchableOpacity
-                          onPress={() => handleEditPress(item)}
-                          className={`p-3 rounded-full ${isDarkMode ? "bg-slate-900 border border-slate-800" : "bg-indigo-50"}`}
-                        >
-                          <Edit2
-                            size={18}
-                            color={isDarkMode ? "#D4AF37" : "#4f46e5"}
-                          />
-                        </TouchableOpacity>
-                      )}
-
-                      {canCancel && (
-                        <TouchableOpacity
-                          onPress={() =>
-                            handleCancel(item.id!, item.guest_name)
-                          }
-                          className={`p-3 rounded-full ${isDarkMode ? "bg-red-950/30 border border-red-900/20" : "bg-red-50"}`}
-                        >
-                          <Trash2 size={18} color="#ef4444" />
-                        </TouchableOpacity>
-                      )}
-
-                      {canShare && (
-                        <TouchableOpacity
-                          onPress={() => handleShare(item)}
-                          disabled={isSharing}
-                          className={`p-3 rounded-full ${isDarkMode ? "bg-emerald-950/30 border border-emerald-900/20" : "bg-green-50"}`}
-                        >
-                          <Share2 size={18} color="#10b981" />
-                        </TouchableOpacity>
-                      )}
-
-                      {isDone && !isStaffEntry && (
-                        <View className="px-2">
-                          <Text className="text-gray-400 text-[10px] font-bold">
-                            HISTORY
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                  </View>
-
-                  {isMultiEntry && (
-                    <View
-                      className={`mt-2 border-t pt-2 ${isDarkMode ? "border-slate-800" : "border-gray-50"}`}
-                    >
-                      <TouchableOpacity
-                        onPress={() => toggleExpand(item.id!)}
-                        className="flex-row items-center justify-between"
-                      >
-                        <Text className="text-gray-500 text-[10px] font-bold uppercase">
-                          Exclusion Dates
-                        </Text>
-                        {isExpanded ? (
-                          <ChevronUp
-                            size={18}
-                            color={isDarkMode ? "#64748b" : "#9CA3AF"}
-                          />
-                        ) : (
-                          <ChevronDown
-                            size={18}
-                            color={isDarkMode ? "#64748b" : "#9CA3AF"}
-                          />
-                        )}
-                      </TouchableOpacity>
-
-                      {isExpanded && (
-                        <View className="mt-2">
-                          {item.excluded_dates &&
-                          item.excluded_dates.length > 0 ? (
-                            <View className="flex-row flex-wrap gap-1">
-                              {item.excluded_dates.map((date) => (
-                                <View
-                                  key={date}
-                                  className={`px-2 py-1 rounded-md border ${
-                                    isDarkMode
-                                      ? "bg-red-950/30 border-red-900/20"
-                                      : "bg-red-50 border-red-100"
-                                  }`}
-                                >
-                                  <Text className="text-red-500 text-[10px] font-medium">
-                                    {date.split("-").reverse().join("/")}
-                                  </Text>
-                                </View>
-                              ))}
-                            </View>
-                          ) : (
-                            <Text className="text-gray-400 text-[10px] italic">
-                              No excluded dates for this guest.
+                            <Text className="text-gray-500 text-[10px] font-bold uppercase">
+                              Exclusion Dates
                             </Text>
+                            {isExpanded ? (
+                              <ChevronUp
+                                size={18}
+                                color={isDarkMode ? "#64748b" : "#9CA3AF"}
+                              />
+                            ) : (
+                              <ChevronDown
+                                size={18}
+                                color={isDarkMode ? "#64748b" : "#9CA3AF"}
+                              />
+                            )}
+                          </TouchableOpacity>
+
+                          {isExpanded && (
+                            <View className="mt-2">
+                              {item.excluded_dates &&
+                              item.excluded_dates.length > 0 ? (
+                                <View className="flex-row flex-wrap gap-1">
+                                  {item.excluded_dates.map((date) => (
+                                    <View
+                                      key={date}
+                                      className={`px-2 py-1 rounded-md border ${
+                                        isDarkMode
+                                          ? "bg-red-950/30 border-red-900/20"
+                                          : "bg-red-50 border-red-100"
+                                      }`}
+                                    >
+                                      <Text className="text-red-500 text-[10px] font-medium">
+                                        {date.split("-").reverse().join("/")}
+                                      </Text>
+                                    </View>
+                                  ))}
+                                </View>
+                              ) : (
+                                <Text className="text-gray-400 text-[10px] italic">
+                                  No excluded dates for this guest.
+                                </Text>
+                              )}
+                            </View>
                           )}
                         </View>
                       )}
                     </View>
-                  )}
-                </View>
-              );
-            })}
-            <View className="h-20" />
-          </ScrollView>
+                  );
+                })}
+                <View className="h-20" />
+              </ScrollView>
+            </>
+          )}
+
+          <InvitationCard
+            viewShotRef={viewShotRef}
+            guestName={selectedInvitation?.guest_name || ""}
+            inviterName={user?.name || "Resident"}
+            guestImage={selectedInvitation?.guest_image_url || null}
+            accessCode={selectedInvitation?.access_code || "000000"}
+            startDate={
+              selectedInvitation
+                ? formatDisplayName(selectedInvitation.start_date)
+                : ""
+            }
+            endDate={
+              selectedInvitation
+                ? formatDisplayName(selectedInvitation.end_date)
+                : ""
+            }
+            startTime={
+              selectedInvitation
+                ? formatDisplayTime(selectedInvitation.start_time)
+                : ""
+            }
+            endTime={
+              selectedInvitation
+                ? formatDisplayTime(selectedInvitation.end_time)
+                : ""
+            }
+            inviteType={
+              selectedInvitation ? selectedInvitation?.invite_type : ""
+            }
+            staffPosition={selectedInvitation?.staff_position}
+            estate_name={activeEstate?.name || ""}
+            estate_address={activeEstate?.street_address || ""}
+            estate_state={activeEstate?.state || ""}
+            estate_lga={activeEstate?.lga || ""}
+            locations={activeLocations}
+            permittedDays={selectedInvitation?.permitted_days}
+            excludedDates={selectedInvitation?.excluded_dates}
+          />
+
+          <EditInvitationModal
+            visible={editModalVisible}
+            invitation={selectedInvitation}
+            onClose={() => setEditModalVisible(false)}
+            onUpdate={handleUpdateInvitation}
+          />
         </>
       )}
-
       {/* Internal Estate Switcher Sheet */}
-      <Modal visible={showEstateFilterModal} animationType="slide" transparent>
-        <View className="flex-1 bg-black/50 justify-end">
+      <Modal
+        visible={showEstateFilterModal}
+        animationType="slide"
+        transparent={true}
+      >
+        <View className="flex-1 justify-center bg-black/50 px-4">
           <View
-            className={`h-[45%] rounded-t-[3rem] p-6 border-t ${isDarkMode ? "bg-slate-900 border-gm-gold" : "bg-white"}`}
+            className={`${isDarkMode ? "bg-slate-900" : "bg-white"} p-6 max-h-[65%]`}
           >
-            <View className="flex-row justify-between items-center mb-4 px-2">
-              <Text
-                className={`font-black text-xl ${isDarkMode ? "text-gm-gold" : "text-slate-900"}`}
-              >
-                Switch Estate Scope
-              </Text>
-              <TouchableOpacity onPress={() => setShowEstateFilterModal(false)}>
-                <Text
-                  className={`font-bold ${isDarkMode ? "text-white" : "text-gm-navy"}`}
+            <Text
+              className={`text-xl font-bold mb-4 ${isDarkMode ? "text-white" : "text-slate-900"}`}
+            >
+              Select Active Estate
+            </Text>
+            <FlatList
+              data={user?.estates || []}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  onPress={() => {
+                    setSelectedEstateId(item.id.toString());
+                    setShowEstateFilterModal(false);
+                  }}
+                  className={`p-4 rounded-2xl mb-3 border flex-row items-center ${
+                    selectedEstateId === item.id
+                      ? "border-indigo-500 bg-indigo-50/40"
+                      : isDarkMode
+                        ? "border-slate-800 bg-slate-800/40"
+                        : "border-slate-100 bg-slate-50"
+                  }`}
                 >
-                  Close
-                </Text>
-              </TouchableOpacity>
-            </View>
-            <ScrollView showsVerticalScrollIndicator={false} className="mt-2">
-              {(user?.estates || []).map((estate) => {
-                const isSelected = selectedEstateId === estate.id.toString();
-                return (
-                  <TouchableOpacity
-                    key={estate.id}
-                    className="p-5 border-b border-slate-800/10 flex-row items-center justify-between"
-                    onPress={() => {
-                      setSelectedEstateId(estate.id.toString());
-                      setShowEstateFilterModal(false);
-                    }}
-                  >
+                  <MapPin
+                    size={20}
+                    color={selectedEstateId === item.id ? "#4f46e5" : "#94a3b8"}
+                  />
+                  <View className="ml-3 flex-1">
                     <Text
-                      className={`font-bold text-base ${
-                        isSelected
-                          ? isDarkMode
-                            ? "text-gm-gold"
-                            : "text-indigo-600"
-                          : isDarkMode
-                            ? "text-slate-400"
-                            : "text-slate-700"
-                      }`}
+                      className={`font-bold text-sm ${isDarkMode ? "text-white" : "text-slate-800"}`}
                     >
-                      {estate.name}
+                      {item.name}
                     </Text>
-                    {isSelected && (
-                      <View
-                        className={`w-2.5 h-2.5 rounded-full ${isDarkMode ? "bg-gm-gold" : "bg-indigo-600"}`}
-                      />
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+                  </View>
+                </TouchableOpacity>
+              )}
+            />
+            {selectedEstateId && (
+              <TouchableOpacity
+                onPress={() => setShowEstateFilterModal(false)}
+                className="mt-2 p-4 bg-slate-200 rounded-2xl items-center"
+              >
+                <Text className="text-slate-700 font-bold">Cancel</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </Modal>
-
-      <InvitationCard
-        viewShotRef={viewShotRef}
-        guestName={selectedInvitation?.guest_name || ""}
-        inviterName={user?.name || "Resident"}
-        guestImage={selectedInvitation?.guest_image_url || null}
-        accessCode={selectedInvitation?.access_code || "000000"}
-        startDate={
-          selectedInvitation
-            ? formatDisplayName(selectedInvitation.start_date)
-            : ""
-        }
-        endDate={
-          selectedInvitation
-            ? formatDisplayName(selectedInvitation.end_date)
-            : ""
-        }
-        startTime={
-          selectedInvitation
-            ? formatDisplayTime(selectedInvitation.start_time)
-            : ""
-        }
-        endTime={
-          selectedInvitation
-            ? formatDisplayTime(selectedInvitation.end_time)
-            : ""
-        }
-        inviteType={selectedInvitation ? selectedInvitation?.invite_type : ""}
-        staffPosition={selectedInvitation?.staff_position}
-        estate_name={activeEstate?.name || ""}
-        estate_address={activeEstate?.address || ""}
-        estate_state={activeEstate?.state || ""}
-        estate_lga={activeEstate?.lga || ""}
-        locations={activeLocations}
-        permittedDays={selectedInvitation?.permitted_days}
-        excludedDates={selectedInvitation?.excluded_dates}
-      />
-
-      <EditInvitationModal
-        visible={editModalVisible}
-        invitation={selectedInvitation}
-        onClose={() => setEditModalVisible(false)}
-        onUpdate={handleUpdateInvitation}
-      />
     </View>
   );
 };

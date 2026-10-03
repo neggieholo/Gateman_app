@@ -26,7 +26,7 @@ import { SubmitReportPayload } from "./services/interfaces";
 import { useUser } from "./UserContext";
 
 export default function ResolutionCenter() {
-  const { user, isDarkMode, contextEstateId } = useUser();
+  const { user, isDarkMode } = useUser();
   const [activeTab, setActiveTab] = useState<"REPORT" | "HISTORY">("REPORT");
   const [loading, setLoading] = useState(false);
 
@@ -39,11 +39,14 @@ export default function ResolutionCenter() {
   const [description, setDescription] = useState("");
 
   useEffect(() => {
-    if (user?.estate_ids && user.estate_ids.length > 0) {
-      // setSelectedEstateId(user.estate_ids[0]);
-      setSelectedEstateId(contextEstateId);
+    if (!user?.estate_ids || user.estate_ids.length === 0) return;
+
+    if (user.estate_ids.length === 1) {
+      setSelectedEstateId(user.estate_ids[0]);
+    } else if (!selectedEstateId) {
+      setEstatePickerVisible(true);
     }
-  }, [user?.estate_ids, contextEstateId]);
+  }, [user?.estate_ids, selectedEstateId]);
 
   const activeEstateName = useMemo(() => {
     if (!user?.estates || !selectedEstateId) return "";
@@ -351,12 +354,14 @@ export default function ResolutionCenter() {
                 );
               }}
             />
-            <TouchableOpacity
-              onPress={() => setEstatePickerVisible(false)}
-              className="mt-2 p-4 bg-slate-200 rounded-2xl items-center"
-            >
-              <Text className="text-slate-700 font-bold">Cancel</Text>
-            </TouchableOpacity>
+            {selectedEstateId && (
+              <TouchableOpacity
+                onPress={() => setEstatePickerVisible(false)}
+                className="mt-2 p-4 bg-slate-200 rounded-2xl items-center"
+              >
+                <Text className="text-slate-700 font-bold">Cancel</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </Modal>

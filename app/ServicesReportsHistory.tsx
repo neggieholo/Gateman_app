@@ -145,26 +145,28 @@ export default function ServicesReportsHistory({
           </View>
           {selectedReport.admin_response && (
             <TouchableOpacity
-              onPress={() => {
-                setResponseModal(true);
-              }}
-              className={`${isDarkMode ? "bg-gray-400" : "bg-indigo-600"} p-2 rounded-2xl flex-row items-center`}
+              onPress={() => setResponseModal(true)}
+              className="bg-indigo-600 p-2 rounded-2xl flex-row items-center"
             >
               <MessageSquare size={12} color="white" />
-              <Text className={`${isDarkMode ? "text--gray-400" : "text-white "} ml-2 font-oswald-semibold text-[11px] uppercase`}>
+              <Text className="ml-2 text-white font-bold text-[11px] uppercase">
                 View Response
               </Text>
             </TouchableOpacity>
           )}
         </View>
 
-        <Text className={`text-3xl font-montserrat-bold ${isDarkMode ? 'text-gray-400':'text-gm-navy'} mb-6`}>
+        <Text
+          className={`text-3xl font-montserrat-bold ${isDarkMode ? "text-gray-400" : "text-gm-navy"} mb-6`}
+        >
           {selectedReport.subject}
         </Text>
 
         <View className="flex-row items-center gap-4 mb-8">
-          <View className={`flex-row items-center  ${isDarkMode ? "bg-gm-charcoal" : "bg-slate-50 "} px-3 py-2 rounded-xl`}>
-            <Calendar size={16} color={isDarkMode ? "#D4AF37":"#94a3b8"} />
+          <View
+            className={`flex-row items-center  ${isDarkMode ? "bg-gm-charcoal" : "bg-slate-50 "} px-3 py-2 rounded-xl`}
+          >
+            <Calendar size={16} color={isDarkMode ? "#D4AF37" : "#94a3b8"} />
             <Text
               className={`ml-2 text-xs font-oswald-semibold ${isDarkMode ? "text-gm-gold" : "text-slate-500 "}`}
             >
@@ -185,26 +187,44 @@ export default function ServicesReportsHistory({
         </ScrollView>
         <Modal visible={responseModal} animationType="fade" transparent>
           <View className="flex-1 justify-center items-center bg-black/60 px-6">
-            <View className="bg-white w-full rounded-[40px] p-8 shadow-2xl">
+            <View
+              className={`${isDarkMode ? "bg-gm-navy" : "bg-white"} w-full rounded-[40px] p-8 shadow-2xl`}
+            >
               <View className="flex-row justify-between items-center mb-6">
                 <View className="flex-row items-center">
-                  <View className="bg-indigo-100 p-2 rounded-xl mr-3">
-                    <ShieldAlert size={20} color="#4f46e5" />
+                  <View
+                    className={`${isDarkMode ? "bg-gm-charcoal" : "bg-indigo-100"} p-2 rounded-xl mr-3}`}
+                  >
+                    <ShieldAlert
+                      size={20}
+                      color={isDarkMode ? "#D4AF37" : "#4f46e5"}
+                    />
                   </View>
-                  <Text className="text-xl font-black text-slate-900">
+                  <Text
+                    className={`text-xl font-black ${isDarkMode ? "text-gm-gold" : "text-slate-900"} ml-2`}
+                  >
                     Admin Response
                   </Text>
                 </View>
                 <TouchableOpacity onPress={() => setResponseModal(false)}>
-                  <XCircle size={28} color="#94a3b8" />
+                  <XCircle
+                    size={28}
+                    color={isDarkMode ? "#D4AF37" : "#94a3b8"}
+                  />
                 </TouchableOpacity>
               </View>
 
-              <View className="bg-slate-50 p-6 rounded-3xl border border-slate-100 mb-6">
-                <Text className="text-[10px] font-black text-indigo-500 uppercase mb-2">
+              <View
+                className={`${isDarkMode ? "bg-gm-charcoal" : "bg-slate-50"} p-6 rounded-3xl border border-slate-100 mb-6`}
+              >
+                <Text
+                  className={`text-[10px] font-black ${isDarkMode ? "text-gm-gold" : "text-indigo-500"} uppercase mb-2`}
+                >
                   Official Feedback
                 </Text>
-                <Text className="text-base font-medium text-slate-800 leading-6">
+                <Text
+                  className={`text-base font-medium ${isDarkMode ? "text-white" : "text-slate-800"} leading-6`}
+                >
                   {selectedReport?.admin_response || "No message provided."}
                 </Text>
               </View>

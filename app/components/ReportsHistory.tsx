@@ -34,11 +34,13 @@ interface ReportsHistoryProps {
 }
 
 export default function ReportsHistory({ estate_id }: ReportsHistoryProps) {
-  const { isDarkMode } = useUser();
+  const { isDarkMode,theme } = useUser();
   const [reports, setReports] = useState<EstateReport[]>([]);
   const [fetching, setFetching] = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusType>("ALL");
-  const [selectedReport, setSelectedReport] = useState<EstateReport | null>(null);
+  const [selectedReport, setSelectedReport] = useState<EstateReport | null>(
+    null,
+  );
   const [responseModal, setResponseModal] = useState(false);
 
   const loadReports = useCallback(async () => {
@@ -60,7 +62,7 @@ export default function ReportsHistory({ estate_id }: ReportsHistoryProps) {
     } finally {
       setFetching(false);
     }
-  }, [estate_id]); 
+  }, [estate_id]);
 
   useEffect(() => {
     loadReports();
@@ -115,9 +117,13 @@ export default function ReportsHistory({ estate_id }: ReportsHistoryProps) {
     const config = configs[status as keyof typeof configs] || configs.PENDING;
 
     return (
-      <View className={`flex-row items-center px-2 py-1 rounded-lg ${config.bg}`}>
+      <View
+        className={`flex-row items-center px-2 py-1 rounded-lg ${config.bg}`}
+      >
         {config.icon}
-        <Text className={`ml-1 text-[8px] font-black uppercase ${config.color}`}>
+        <Text
+          className={`ml-1 text-[8px] font-black uppercase ${config.color}`}
+        >
           {status}
         </Text>
       </View>
@@ -127,7 +133,9 @@ export default function ReportsHistory({ estate_id }: ReportsHistoryProps) {
   // --- DETAIL VIEW ---
   if (selectedReport) {
     return (
-      <View className={`flex-1 p-6 ${isDarkMode ? "bg-slate-950" : "bg-white"}`}>
+      <View
+        className={`flex-1 p-6 ${isDarkMode ? "bg-slate-950" : "bg-white"}`}
+      >
         <View className="flex-row justify-between items-center mb-8">
           <TouchableOpacity
             onPress={() => setSelectedReport(null)}
@@ -160,12 +168,16 @@ export default function ReportsHistory({ estate_id }: ReportsHistoryProps) {
           )}
         </View>
 
-        <Text className={`text-3xl font-black mb-6 ${isDarkMode ? "text-white" : "text-slate-900"}`}>
+        <Text
+          className={`text-3xl font-black mb-6 ${isDarkMode ? "text-white" : "text-slate-900"}`}
+        >
           {selectedReport.subject}
         </Text>
 
         <View className="flex-row items-center gap-4 mb-8">
-          <View className={`flex-row items-center px-3 py-2 rounded-xl ${isDarkMode ? "bg-slate-900" : "bg-slate-50"}`}>
+          <View
+            className={`flex-row items-center px-3 py-2 rounded-xl ${isDarkMode ? "bg-slate-900" : "bg-slate-50"}`}
+          >
             <Calendar size={16} color="#94a3b8" />
             <Text className="ml-2 text-slate-500 text-xs font-bold">
               {formatReportsDate(selectedReport.created_at)}
@@ -177,33 +189,53 @@ export default function ReportsHistory({ estate_id }: ReportsHistoryProps) {
           Description
         </Text>
         <ScrollView showsVerticalScrollIndicator={false}>
-          <Text className={`text-lg font-medium leading-7 mb-10 ${isDarkMode ? "text-slate-300" : "text-slate-700"}`}>
+          <Text
+            className={`text-lg font-medium leading-7 mb-10 ${isDarkMode ? "text-slate-300" : "text-slate-700"}`}
+          >
             {selectedReport.description}
           </Text>
         </ScrollView>
 
         <Modal visible={responseModal} animationType="fade" transparent>
           <View className="flex-1 justify-center items-center bg-black/60 px-6">
-            <View className={`w-full rounded-[40px] p-8 shadow-2xl ${isDarkMode ? "bg-slate-900" : "bg-white"}`}>
+            <View
+              className={`${isDarkMode ? "bg-gm-navy" : "bg-white"} w-full rounded-[40px] p-8 shadow-2xl`}
+            >
               <View className="flex-row justify-between items-center mb-6">
                 <View className="flex-row items-center">
-                  <View className="bg-indigo-100 p-2 rounded-xl mr-3">
-                    <ShieldAlert size={20} color="#4f46e5" />
+                  <View
+                    className={`${isDarkMode ? "bg-gm-charcoal" : "bg-indigo-100"} p-2 rounded-xl mr-3}`}
+                  >
+                    <ShieldAlert
+                      size={20}
+                      color={isDarkMode ? "#D4AF37" : "#4f46e5"}
+                    />
                   </View>
-                  <Text className={`text-xl font-black ${isDarkMode ? "text-white" : "text-slate-900"}`}>
+                  <Text
+                    className={`text-xl font-black ${isDarkMode ? "text-gm-gold" : "text-slate-900"} ml-2`}
+                  >
                     Admin Response
                   </Text>
                 </View>
                 <TouchableOpacity onPress={() => setResponseModal(false)}>
-                  <XCircle size={28} color="#94a3b8" />
+                  <XCircle
+                    size={28}
+                    color={isDarkMode ? "#D4AF37" : "#94a3b8"}
+                  />
                 </TouchableOpacity>
               </View>
 
-              <View className={`p-6 rounded-3xl border mb-6 ${isDarkMode ? "bg-slate-950 border-slate-800" : "bg-slate-50 border-slate-100"}`}>
-                <Text className="text-[10px] font-black text-indigo-500 uppercase mb-2">
+              <View
+                className={`${isDarkMode ? "bg-gm-charcoal" : "bg-slate-50"} p-6 rounded-3xl border border-slate-100 mb-6`}
+              >
+                <Text
+                  className={`text-[10px] font-black ${isDarkMode ? "text-gm-gold" : "text-indigo-500"} uppercase mb-2`}
+                >
                   Official Feedback
                 </Text>
-                <Text className={`text-base font-medium leading-6 ${isDarkMode ? "text-slate-300" : "text-slate-800"}`}>
+                <Text
+                  className={`text-base font-medium ${isDarkMode ? "text-white" : "text-slate-800"} leading-6`}
+                >
                   {selectedReport?.admin_response || "No message provided."}
                 </Text>
               </View>
@@ -228,15 +260,21 @@ export default function ReportsHistory({ estate_id }: ReportsHistoryProps) {
               key={`status-${s}`}
               onPress={() => setStatusFilter(s as StatusType)}
               className={`px-5 py-2 rounded-full border ${
-                statusFilter === s 
-                  ? isDarkMode ? "bg-slate-100 border-slate-100" : "bg-slate-900 border-slate-900" 
-                  : isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"
+                statusFilter === s
+                  ? isDarkMode
+                    ? "bg-slate-100 border-slate-100"
+                    : "bg-slate-900 border-slate-900"
+                  : isDarkMode
+                    ? "bg-slate-900 border-slate-800"
+                    : "bg-white border-slate-200"
               }`}
             >
               <Text
                 className={`text-[10px] font-black ${
-                  statusFilter === s 
-                    ? isDarkMode ? "text-slate-900" : "text-white" 
+                  statusFilter === s
+                    ? isDarkMode
+                      ? "text-slate-900"
+                      : "text-white"
                     : "text-slate-500"
                 }`}
               >
@@ -252,32 +290,32 @@ export default function ReportsHistory({ estate_id }: ReportsHistoryProps) {
         keyExtractor={(item) => `report-item-${item.id}`}
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
         refreshControl={
-          <RefreshControl 
-            refreshing={fetching} 
-            onRefresh={loadReports} 
+          <RefreshControl
+            refreshing={fetching}
+            onRefresh={loadReports}
             tintColor={isDarkMode ? "#4f46e5" : undefined}
           />
         }
         renderItem={({ item }) => (
           <TouchableOpacity
             onPress={() => setSelectedReport(item)}
-            className={`p-5 rounded-[30px] mb-4 border shadow-sm flex-row items-center justify-between ${
-              isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100"
-            }`}
+            className={`p-5 rounded-[30px] mb-4 border shadow-sm flex-row items-center justify-between ${isDarkMode ? "bg-gm-navy" : "bg-white border-slate-100 "}`}
           >
             <View className="flex-1 mr-4">
               <View className="flex-row items-center mb-1 justify-between">
                 <View className="flex-1">
                   <Text
-                    className={`text-base font-black flex-shrink ${isDarkMode ? "text-white" : "text-slate-900"}`}
+                    className={`text-base font-oswald-semibold ${isDarkMode ? "text-gm-gold" : "text-gm-navy"} flex-shrink`}
                     numberOfLines={1}
                     ellipsizeMode="tail"
                   >
-                    {item.subject}
+                    {item.subject.length > 30
+                      ? `${item.subject.substring(0, 30)}...`
+                      : item.subject}
                   </Text>
                 </View>
 
-                <View className="flex-row gap-2 items-center">
+                <View className="flex-row gap-2">
                   <View
                     style={{
                       backgroundColor:
@@ -287,12 +325,15 @@ export default function ReportsHistory({ estate_id }: ReportsHistoryProps) {
                             ? "#f59e0b"
                             : "#10b981",
                     }}
-                    className="w-2.5 h-2.5 rounded-full mx-2"
+                    className="w-3 h-3 rounded-full mx-2 items-center"
                   />
 
+                  {/* Mail Icon if Admin Response exists */}
                   {item.admin_response && (
-                    <View className="bg-indigo-100 p-1.5 rounded-full">
-                      <Mail size={12} color="#4f46e5" strokeWidth={3} />
+                    <View
+                      className={`${isDarkMode ? "bg-gm-charcoal" : "bg-indigo-100"} p-1.5 rounded-full`}
+                    >
+                      <Mail size={12} color={theme.accent} strokeWidth={3} />
                     </View>
                   )}
                 </View>
@@ -305,7 +346,8 @@ export default function ReportsHistory({ estate_id }: ReportsHistoryProps) {
               </View>
             </View>
 
-            <ChevronRight size={20} color="#cbd5e1" />
+            {/* Right-side Arrow for better UX */}
+            <ChevronRight size={20} color={theme.accent} />
           </TouchableOpacity>
         )}
         ListEmptyComponent={

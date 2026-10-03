@@ -1498,6 +1498,7 @@ export const getResidentPaymentItemsApi = async (
     );
 
     const data = await response.json();
+    console.log("Payment items API response:", data);
 
     if (!response.ok) {
       return {

@@ -1,6 +1,8 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
 import {
+  AlertCircle,
   Calendar,
   ChevronDown,
   FileText,
@@ -22,6 +24,7 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
+  RefreshControl,
   ScrollView,
   Text,
   TextInput,
@@ -33,7 +36,6 @@ import PaymentReportsHistory from "./PaymentReportsHistory";
 import { useUser } from "./UserContext";
 import {
   deletePaymentLog,
-  formatDate,
   formatPaymentDate,
   getPaymentHistory,
   getResidentPaymentItemsApi,
@@ -140,10 +142,13 @@ const PaymentHistory = () => {
     }
   }, [user?.estate_ids, selectedEstateId]);
 
-  const activeEstateName = useMemo(() => {
-    if (!user?.estates || !selectedEstateId) return "";
-    return user.estates.find((e) => e.id === selectedEstateId)?.name || "";
+  const activeEstate = useMemo(() => {
+    if (!user?.estates || !selectedEstateId) return null;
+    return user.estates.find((e) => e.id === selectedEstateId) || null;
   }, [selectedEstateId, user?.estates]);
+
+  const canAccessPayments =
+    activeEstate?.plan?.selected_add_ons?.includes("payments");
 
   const fetchHistory = useCallback(async () => {
     if (!selectedEstateId) return;
@@ -153,7 +158,6 @@ const PaymentHistory = () => {
       try {
         const res = await getPaymentHistory(selectedEstateId);
         if (res.success) setHistory(res.history);
-        console.log('history data:',res.history)
       } finally {
         setLoading(false);
       }
@@ -203,8 +207,11 @@ const PaymentHistory = () => {
     const res = await getResidentPaymentItemsApi(selectedEstateId);
     if (res.success && res.payment_items) {
       setPaymentItems(res.payment_items);
-    } else {
-      Alert.alert("Failed tofetch payment items list");
+    } else if (
+      res.error &&
+      !res.error.includes("does not include the required module")
+    ) {
+      Alert.alert("Failed to fetch payment items list");
     }
   }, [selectedEstateId]);
 
@@ -381,7 +388,7 @@ const PaymentHistory = () => {
                 className={`ml-2 text-xs font-black uppercase tracking-wider ${isDarkMode ? "text-white" : "text-slate-700"} flex-1`}
                 numberOfLines={1}
               >
-                Scope: {activeEstateName || "Switch Context"}
+                Scope: {activeEstate?.name || "Switch Context"}
               </Text>
             </View>
             <ChevronDown size={16} color="#94a3b8" />
@@ -389,446 +396,602 @@ const PaymentHistory = () => {
         )}
 
         {/* Tab Switcher */}
-        <View className="flex-row gap-3 px-5 mb-4">
-          {(["UPLOAD", "HISTORY", "REPORTS"] as const).map((tab) => {
-            const isSelected = activeTab === tab;
-            let TabIcon = Upload;
-            if (tab === "HISTORY") TabIcon = History;
-            if (tab === "REPORTS") TabIcon = FileText;
-
-            return (
-              <TouchableOpacity
-                key={tab}
-                onPress={() => setActiveTab(tab)}
-                className={`flex-1 p-4 rounded-3xl border-2 flex-row items-center justify-center ${
-                  isSelected
-                    ? isDarkMode
-                      ? "bg-gm-navy border-gm-gold"
-                      : "bg-gm-navy border-gray-200"
-                    : isDarkMode
-                      ? "bg-gm-charcoal border-slate-800"
-                      : "bg-white border-slate-100"
-                }`}
-              >
-                <TabIcon
-                  size={18}
-                  color={
-                    isSelected ? "#D4AF37" : isDarkMode ? "#A0AEC0" : "#0A1F44"
-                  }
-                />
+        {!canAccessPayments ? (
+          <View className="h-full flex items-center justify-center">
+            <View
+              className={`p-5 rounded-2xl border flex-row justify-between items-center ${
+                isDarkMode
+                  ? "bg-gm-navy border-amber-500/30"
+                  : "bg-amber-500/5 border-amber-500/20"
+              }`}
+            >
+              <View className="flex-row items-center flex-1 pr-2">
+                <AlertCircle size={18} color="#f59e0b" />
                 <Text
-                  className={`ml-2 font-oswald-semibold text-xs ${isSelected ? "text-gm-gold" : isDarkMode ? "text-slate-400" : "text-gm-navy"}`}
+                  className={`ml-3 text-xs font-semibold flex-shrink ${
+                    isDarkMode ? "text-amber-400" : "text-amber-600"
+                  }`}
+                  numberOfLines={2}
                 >
-                  {tab.charAt(0) + tab.slice(1).toLowerCase()}
+                  This estate does not have the Payments feature active in its
+                  subscription plan.
                 </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+              </View>
 
-        <View className="flex-1">
-          {activeTab === "REPORTS" ? (
-            <View className="flex-1">
-              {selectedEstateId ? (
-                <PaymentReportsHistory estate_id={selectedEstateId} />
-              ) : (
-                <View className="flex-1 justify-center items-center p-6">
-                  <View className="items-center max-w-[280px]">
-                    <Text
-                      className={`text-base font-black text-center ${isDarkMode ? "text-slate-400" : "text-slate-600"}`}
-                    >
-                      No Property Selected
-                    </Text>
-                    <Text className="text-xs text-slate-400 text-center mt-2 font-medium">
-                      Please choose an active estate context from the menu above
-                      to review financial statement records.
-                    </Text>
-                  </View>
-                </View>
-              )}
+              <View className="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                <Text className="text-[10px] font-black uppercase text-amber-500">
+                  UNAVAILABLE
+                </Text>
+              </View>
             </View>
-          ) : activeTab === "UPLOAD" ? (
-            <ScrollView className="px-6" showsVerticalScrollIndicator={false}>
-              <Text
-                className={`text-xl font-montserrat-bold mb-1 ${isDarkMode ? "text-white" : "text-gm-charcoal"}`}
-              >
-                Upload Payment Info
-              </Text>
-              <Text className="text-sm text-slate-500 font-bold mb-4">
-                Logging to: {activeEstateName}
-              </Text>
+          </View>
+        ) : (
+          <>
+            <View className="flex-row gap-3 px-5 mb-4">
+              {(["UPLOAD", "HISTORY", "REPORTS"] as const).map((tab) => {
+                const isSelected = activeTab === tab;
+                let TabIcon = Upload;
+                if (tab === "HISTORY") TabIcon = History;
+                if (tab === "REPORTS") TabIcon = FileText;
 
-              <View
-                className={`p-6 rounded-[40px] border mb-10 ${isDarkMode ? "bg-gm-navy border-gm-gold" : "border-slate-100 bg-white"}`}
-              >
-                <View className="space-y-4">
-                  <InputField
-                    label="Amount Paid (₦)"
-                    placeholder="5000"
-                    placeholderTextColor="#94a3b8"
-                    keyboardType="numeric"
-                    value={form.amount}
-                    onChangeText={(v: string) =>
-                      setForm({ ...form, amount: v })
-                    }
-                    isDarkMode={isDarkMode}
-                  />
-                  <View className="mb-4">
-                    <Text
-                      className={`text-[10px] font-oswald-semibold uppercase mb-2 ${isDarkMode ? "text-gm-gold" : "text-slate-400"}`}
-                    >
-                      Payment For
-                    </Text>
-
-                    <TouchableOpacity
-                      activeOpacity={0.7}
-                      onPress={() => setIsItemModalVisible(true)}
-                      className={`w-full flex-row items-center justify-between px-4 py-3 rounded-xl border ${
-                        isDarkMode
-                          ? "bg-gm-navy border-slate-800"
-                          : "bg-white border-slate-200"
-                      }`}
-                    >
-                      <Text
-                        className={`text-sm font-semibold ${
-                          form.category
-                            ? isDarkMode
-                              ? "text-white"
-                              : "text-slate-900"
-                            : isDarkMode
-                              ? "text-slate-500"
-                              : "text-slate-400"
-                        }`}
-                      >
-                        {form.category || "Select Payment Category"}
-                      </Text>
-
-                      {/* Simple chevron down indicator */}
-                      <Text
-                        className={
-                          isDarkMode ? "text-gm-gold" : "text-slate-400"
-                        }
-                      >
-                        ▼
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Method Selector */}
-                  <View
-                    className={`p-4 rounded-3xl mb-2 ${isDarkMode ? "bg-gm-navy border border-slate-800" : "border border-slate-100 bg-slate-50"}`}
-                  >
-                    <Text
-                      className={`text-[10px] font-oswald-semibold uppercase mb-2 ${isDarkMode ? "text-gm-gold" : "text-slate-400"}`}
-                    >
-                      Select Payment Method
-                    </Text>
-                    <View className="flex-row gap-3">
-                      {[
-                        { id: "bank_transfer", label: "Bank Transfer" },
-                        { id: "card", label: "Card Payment" },
-                      ].map((item) => {
-                        const isSelected = form.payment_type === item.id;
-                        return (
-                          <TouchableOpacity
-                            key={item.id}
-                            onPress={() =>
-                              setForm({ ...form, payment_type: item.id })
-                            }
-                            activeOpacity={0.7}
-                            className={`flex-1 flex-row items-center p-3 rounded-2xl border ${
-                              isSelected
-                                ? isDarkMode
-                                  ? "bg-gm-charcoal border-gm-gold"
-                                  : "bg-indigo-50 border-indigo-600"
-                                : isDarkMode
-                                  ? "bg-gm-navy border-slate-800"
-                                  : "bg-white border-slate-100"
-                            }`}
-                          >
-                            <View
-                              className={`w-4 h-4 rounded-full border items-center justify-center mr-2.5 ${
-                                isSelected
-                                  ? isDarkMode
-                                    ? "border-gm-gold"
-                                    : "border-indigo-600"
-                                  : "border-slate-400"
-                              }`}
-                            >
-                              {isSelected && (
-                                <View
-                                  className={`w-2 h-2 rounded-full ${isDarkMode ? "bg-gm-gold" : "bg-indigo-600"}`}
-                                />
-                              )}
-                            </View>
-                            <Text
-                              className={`font-bold text-xs ${isSelected ? (isDarkMode ? "text-gm-gold" : "text-indigo-900") : "text-slate-500"}`}
-                            >
-                              {item.label}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  </View>                  
-
-                  {/* Date Input Box */}
-                  <View
-                    className={`p-4 rounded-3xl mb-2 ${isDarkMode ? "bg-gm-navy border border-slate-800" : "border border-slate-100 bg-slate-50"}`}
-                  >
-                    <Text
-                      className={`text-[10px] font-oswald-semibold uppercase mb-1.5 ${isDarkMode ? "text-gm-gold" : "text-slate-400"}`}
-                    >
-                      Payment Date
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() => setShowDatePicker("form")}
-                      className={`p-4 rounded-2xl ${isDarkMode ? "bg-gm-navy border border-slate-800" : "bg-white border-slate-100"}`}
-                    >
-                      <Text
-                        className={`${isDarkMode ? "text-white" : "text-gm-navy"} font-roboto-regular text-sm`}
-                      >
-                        {form.payment_date.toDateString()}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  <InputField
-                    label="Additional Notes"
-                    placeholder="Write details here..."
-                    placeholderTextColor="#94a3b8"
-                    multiline
-                    numberOfLines={4}
-                    textAlignVertical="top"
-                    className={`h-32 text-base font-bold p-4 ${isDarkMode ? "text-white border border-slate-800" : "text-slate-800"}`}
-                    value={form.notes}
-                    onChangeText={(v: string) => setForm({ ...form, notes: v })}
-                    isDarkMode={isDarkMode}
-                  />
-
-                  {/* Image Picker Area */}
+                return (
                   <TouchableOpacity
-                    onPress={pickImage}
-                    disabled={uploadingImage}
-                    className={`h-48 border-2 border-dashed rounded-3xl items-center justify-center overflow-hidden mt-5 ${
-                      isDarkMode
-                        ? "border-gm-gold bg-gm-navy/50"
-                        : "bg-slate-50 border-slate-200"
+                    key={tab}
+                    onPress={() => setActiveTab(tab)}
+                    className={`flex-1 p-4 rounded-3xl border-2 flex-row items-center justify-center ${
+                      isSelected
+                        ? isDarkMode
+                          ? "bg-gm-navy border-gm-gold"
+                          : "bg-gm-navy border-gray-200"
+                        : isDarkMode
+                          ? "bg-gm-charcoal border-slate-800"
+                          : "bg-white border-slate-100"
                     }`}
                   >
-                    {uploadingImage ? (
-                      <ActivityIndicator
-                        color={isDarkMode ? "#D4AF37" : "#6366f1"}
-                        size="large"
-                      />
-                    ) : form.receipt_url ? (
-                      <Image
-                        source={{ uri: form.receipt_url }}
-                        className="w-full h-full"
-                        resizeMode="cover"
-                      />
-                    ) : (
-                      <View className="items-center">
-                        <UploadCloud
-                          size={30}
-                          color={
-                            isDarkMode ? "#D4AF37" : theme?.accent || "#6366f1"
-                          }
-                        />
+                    <TabIcon
+                      size={18}
+                      color={
+                        isSelected
+                          ? "#D4AF37"
+                          : isDarkMode
+                            ? "#A0AEC0"
+                            : "#0A1F44"
+                      }
+                    />
+                    <Text
+                      className={`ml-2 font-oswald-semibold text-xs ${isSelected ? "text-gm-gold" : isDarkMode ? "text-slate-400" : "text-gm-navy"}`}
+                    >
+                      {tab.charAt(0) + tab.slice(1).toLowerCase()}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View className="flex-1">
+              {activeTab === "REPORTS" ? (
+                <View className="flex-1">
+                  {selectedEstateId ? (
+                    <PaymentReportsHistory estate_id={selectedEstateId} />
+                  ) : (
+                    <View className="flex-1 justify-center items-center p-6">
+                      <View className="items-center max-w-[280px]">
                         <Text
-                          className={`font-oswald-semibold mt-2 text-xs ${isDarkMode ? "text-gm-gold" : "text-slate-400"}`}
+                          className={`text-base font-black text-center ${isDarkMode ? "text-slate-400" : "text-slate-600"}`}
                         >
-                          Upload Receipt Photo
+                          No Property Selected
+                        </Text>
+                        <Text className="text-xs text-slate-400 text-center mt-2 font-medium">
+                          Please choose an active estate context from the menu
+                          above to review financial statement records.
                         </Text>
                       </View>
-                    )}
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={handleSubmit}
-                    disabled={uploadingRecord || uploadingImage}
-                    className={`p-5 rounded-3xl items-center mt-6 border ${isDarkMode ? "bg-gm-charcoal border-gm-gold" : "bg-slate-900 border-transparent"}`}
-                  >
-                    {uploadingRecord ? (
-                      <ActivityIndicator color="white" />
-                    ) : (
-                      <Text className="text-white font-black text-lg">
-                        Submit Record
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </ScrollView>
-          ) : (
-            <View className="flex-1 px-6">
-              {/* Filter Bar */}
-              <View className="flex-row gap-2 mb-6">
-                {(["start", "end"] as const).map((type) => (
-                  <TouchableOpacity
-                    key={type}
-                    onPress={() => setShowDatePicker(type)}
-                    className={`flex-1 p-3 rounded-2xl border flex-row items-center ${
-                      isDarkMode
-                        ? "bg-gm-navy border-slate-800"
-                        : "border-slate-100 bg-white"
-                    }`}
-                  >
-                    <Calendar
-                      size={16}
-                      color={isDarkMode ? "#D4AF37" : "#6366f1"}
-                    />
-                    <View className="ml-2">
-                      <Text
-                        className={`text-[8px] uppercase font-oswald-semibold ${isDarkMode ? "text-gm-gold" : "text-slate-400"}`}
-                      >
-                        {type === "start" ? "Start Date" : "End Date"}
-                      </Text>
-                      <Text
-                        className={`text-xs font-roboto-regular ${isDarkMode ? "text-white" : "text-gm-navy"}`}
-                      >
-                        {type === "start"
-                          ? dates.start
-                            ? dates.start.toLocaleDateString()
-                            : "Select"
-                          : dates.end
-                            ? dates.end.toLocaleDateString()
-                            : "Select"}
-                      </Text>
                     </View>
-                  </TouchableOpacity>
-                ))}
-
-                <TouchableOpacity
-                  onPress={fetchHistory}
-                  disabled={loading}
-                  className={`px-5 rounded-2xl items-center justify-center border ${
-                    isDarkMode ? "bg-gm-charcoal border-gm-gold" : "bg-gm-navy"
-                  }`}
-                >
-                  {loading ? (
-                    <ActivityIndicator color="white" size="small" />
-                  ) : (
-                    <Search size={18} color="white" />
                   )}
-                </TouchableOpacity>
-              </View>
+                </View>
+              ) : activeTab === "UPLOAD" ? (
+                <ScrollView
+                  className="px-6"
+                  showsVerticalScrollIndicator={false}
+                >
+                  <Text
+                    className={`text-xl font-montserrat-bold mb-1 ${isDarkMode ? "text-white" : "text-gm-charcoal"}`}
+                  >
+                    Upload Payment Info
+                  </Text>
+                  <Text className="text-sm text-slate-500 font-bold mb-4">
+                    Logging to: {activeEstate?.name}
+                  </Text>
 
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {history.length > 0 ? (
-                  history.map((item: any) => (
-                    <View
-                      key={item.id}
-                      className={`${isDarkMode ? "bg-gm-navy border-gm-gold" : "bg-white border-slate-100"} p-5 rounded-[30px] border mb-4 shadow-sm`}
-                    >
-                      <View className="flex-row justify-between">
-                        <View>
+                  <View
+                    className={`p-6 rounded-[40px] border mb-10 ${isDarkMode ? "bg-gm-navy border-gm-gold" : "border-slate-100 bg-white"}`}
+                  >
+                    <View className="space-y-4">
+                      <InputField
+                        label="Amount Paid (₦)"
+                        placeholder="5000"
+                        placeholderTextColor="#94a3b8"
+                        keyboardType="numeric"
+                        value={form.amount}
+                        onChangeText={(v: string) =>
+                          setForm({ ...form, amount: v })
+                        }
+                        isDarkMode={isDarkMode}
+                      />
+                      <View className="mb-4">
+                        <Text
+                          className={`text-[10px] font-oswald-semibold uppercase mb-2 ${isDarkMode ? "text-gm-gold" : "text-slate-400"}`}
+                        >
+                          Payment For
+                        </Text>
+
+                        <TouchableOpacity
+                          activeOpacity={0.7}
+                          onPress={() => setIsItemModalVisible(true)}
+                          className={`w-full flex-row items-center justify-between px-4 py-3 rounded-xl border ${
+                            isDarkMode
+                              ? "bg-gm-navy border-slate-800"
+                              : "bg-white border-slate-200"
+                          }`}
+                        >
                           <Text
-                            className={`text-[10px] font-oswald-semibold uppercase ${isDarkMode ? "text-slate-400" : "text-indigo-500"}`}
+                            className={`text-sm font-semibold ${
+                              form.category
+                                ? isDarkMode
+                                  ? "text-white"
+                                  : "text-slate-900"
+                                : isDarkMode
+                                  ? "text-slate-500"
+                                  : "text-slate-400"
+                            }`}
                           >
-                            {item.category}
+                            {form.category || "Select Payment Category"}
+                          </Text>
+
+                          {/* Simple chevron down indicator */}
+                          <Text
+                            className={
+                              isDarkMode ? "text-gm-gold" : "text-slate-400"
+                            }
+                          >
+                            ▼
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* Method Selector */}
+                      <View
+                        className={`p-4 rounded-3xl mb-2 ${isDarkMode ? "bg-gm-navy border border-slate-800" : "border border-slate-100 bg-slate-50"}`}
+                      >
+                        <Text
+                          className={`text-[10px] font-oswald-semibold uppercase mb-2 ${isDarkMode ? "text-gm-gold" : "text-slate-400"}`}
+                        >
+                          Select Payment Method
+                        </Text>
+                        <View className="flex-row gap-3">
+                          {[
+                            { id: "bank_transfer", label: "Bank Transfer" },
+                            { id: "card", label: "Card Payment" },
+                          ].map((item) => {
+                            const isSelected = form.payment_type === item.id;
+                            return (
+                              <TouchableOpacity
+                                key={item.id}
+                                onPress={() =>
+                                  setForm({ ...form, payment_type: item.id })
+                                }
+                                activeOpacity={0.7}
+                                className={`flex-1 flex-row items-center p-3 rounded-2xl border ${
+                                  isSelected
+                                    ? isDarkMode
+                                      ? "bg-gm-charcoal border-gm-gold"
+                                      : "bg-indigo-50 border-indigo-600"
+                                    : isDarkMode
+                                      ? "bg-gm-navy border-slate-800"
+                                      : "bg-white border-slate-100"
+                                }`}
+                              >
+                                <View
+                                  className={`w-4 h-4 rounded-full border items-center justify-center mr-2.5 ${
+                                    isSelected
+                                      ? isDarkMode
+                                        ? "border-gm-gold"
+                                        : "border-indigo-600"
+                                      : "border-slate-400"
+                                  }`}
+                                >
+                                  {isSelected && (
+                                    <View
+                                      className={`w-2 h-2 rounded-full ${isDarkMode ? "bg-gm-gold" : "bg-indigo-600"}`}
+                                    />
+                                  )}
+                                </View>
+                                <Text
+                                  className={`font-bold text-xs ${isSelected ? (isDarkMode ? "text-gm-gold" : "text-indigo-900") : "text-slate-500"}`}
+                                >
+                                  {item.label}
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      </View>
+
+                      {/* Date Input Box */}
+                      <View
+                        className={`p-4 rounded-3xl mb-2 ${isDarkMode ? "bg-gm-navy border border-slate-800" : "border border-slate-100 bg-slate-50"}`}
+                      >
+                        <Text
+                          className={`text-[10px] font-oswald-semibold uppercase mb-1.5 ${isDarkMode ? "text-gm-gold" : "text-slate-400"}`}
+                        >
+                          Payment Date
+                        </Text>
+                        <TouchableOpacity
+                          onPress={() => setShowDatePicker("form")}
+                          className={`p-4 rounded-2xl ${isDarkMode ? "bg-gm-navy border border-slate-800" : "bg-white border-slate-100"}`}
+                        >
+                          <Text
+                            className={`${isDarkMode ? "text-white" : "text-gm-navy"} font-roboto-regular text-sm`}
+                          >
+                            {form.payment_date.toDateString()}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      <InputField
+                        label="Additional Notes"
+                        placeholder="Write details here..."
+                        placeholderTextColor="#94a3b8"
+                        multiline
+                        numberOfLines={4}
+                        textAlignVertical="top"
+                        className={`h-32 text-base font-bold p-4 ${isDarkMode ? "text-white border border-slate-800" : "text-slate-800"}`}
+                        value={form.notes}
+                        onChangeText={(v: string) =>
+                          setForm({ ...form, notes: v })
+                        }
+                        isDarkMode={isDarkMode}
+                      />
+
+                      {/* Image Picker Area */}
+                      <TouchableOpacity
+                        onPress={pickImage}
+                        disabled={uploadingImage}
+                        className={`h-48 border-2 border-dashed rounded-3xl items-center justify-center overflow-hidden mt-5 ${
+                          isDarkMode
+                            ? "border-gm-gold bg-gm-navy/50"
+                            : "bg-slate-50 border-slate-200"
+                        }`}
+                      >
+                        {uploadingImage ? (
+                          <ActivityIndicator
+                            color={isDarkMode ? "#D4AF37" : "#6366f1"}
+                            size="large"
+                          />
+                        ) : form.receipt_url ? (
+                          <Image
+                            source={{ uri: form.receipt_url }}
+                            className="w-full h-full"
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View className="items-center">
+                            <UploadCloud
+                              size={30}
+                              color={
+                                isDarkMode
+                                  ? "#D4AF37"
+                                  : theme?.accent || "#6366f1"
+                              }
+                            />
+                            <Text
+                              className={`font-oswald-semibold mt-2 text-xs ${isDarkMode ? "text-gm-gold" : "text-slate-400"}`}
+                            >
+                              Upload Receipt Photo
+                            </Text>
+                          </View>
+                        )}
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        onPress={handleSubmit}
+                        disabled={uploadingRecord || uploadingImage}
+                        className={`p-5 rounded-3xl items-center mt-6 border ${isDarkMode ? "bg-gm-charcoal border-gm-gold" : "bg-slate-900 border-transparent"}`}
+                      >
+                        {uploadingRecord ? (
+                          <ActivityIndicator color="white" />
+                        ) : (
+                          <Text className="text-white font-black text-lg">
+                            Submit Record
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </ScrollView>
+              ) : (
+                <View className="flex-1 px-6">
+                  {/* Filter Bar */}
+                  <View className="flex-row gap-2 mb-6">
+                    {(["start", "end"] as const).map((type) => (
+                      <TouchableOpacity
+                        key={type}
+                        onPress={() => setShowDatePicker(type)}
+                        className={`flex-1 p-3 rounded-2xl border flex-row items-center ${
+                          isDarkMode
+                            ? "bg-gm-navy border-slate-800"
+                            : "border-slate-100 bg-white"
+                        }`}
+                      >
+                        <Calendar
+                          size={16}
+                          color={isDarkMode ? "#D4AF37" : "#6366f1"}
+                        />
+                        <View className="ml-2">
+                          <Text
+                            className={`text-[8px] uppercase font-oswald-semibold ${isDarkMode ? "text-gm-gold" : "text-slate-400"}`}
+                          >
+                            {type === "start" ? "Start Date" : "End Date"}
                           </Text>
                           <Text
-                            className={`text-xl font-bold mt-0.5 ${isDarkMode ? "text-gm-gold" : "text-gm-navy"}`}
+                            className={`text-xs font-roboto-regular ${isDarkMode ? "text-white" : "text-gm-navy"}`}
                           >
-                            ₦{item.amount}
+                            {type === "start"
+                              ? dates.start
+                                ? dates.start.toLocaleDateString()
+                                : "Select"
+                              : dates.end
+                                ? dates.end.toLocaleDateString()
+                                : "Select"}
                           </Text>
                         </View>
-                        <StatusBadge status={item.status} />
-                      </View>
-                      <Text className="text-xs text-slate-400 font-bold mt-2">
-                        {formatPaymentDate(item.payment_date)}
-                      </Text>
+                      </TouchableOpacity>
+                    ))}
 
-                      {item.status.toUpperCase() !== "VERIFIED" && (
-                        <View className="flex-row justify-between items-center mt-4 pt-4 border-t border-slate-800/10">
-                          <TouchableOpacity
-                            className="flex-row items-center"
-                            onPress={() => openReportModal(item)}
-                          >
-                            <ShieldAlert size={16} color="#ef4444" />
-                            <Text className="ml-2 text-rose-600 font-black text-xs uppercase tracking-tight">
-                              Make a Report / Dispute
-                            </Text>
-                          </TouchableOpacity>
-                          {item.status.toUpperCase() === "PENDING" && (
-                            <TouchableOpacity
-                              onPress={() => handleDelete(item.id)}
-                              className="p-2 bg-rose-500/10 rounded-full"
-                            >
-                              <Trash2 size={16} color="#ef4444" />
-                            </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={fetchHistory}
+                      disabled={loading}
+                      className={`px-5 rounded-2xl items-center justify-center border ${
+                        isDarkMode
+                          ? "bg-gm-charcoal border-gm-gold"
+                          : "bg-gm-navy"
+                      }`}
+                    >
+                      {loading ? (
+                        <ActivityIndicator color="white" size="small" />
+                      ) : (
+                        <Search size={18} color="white" />
+                      )}
+                    </TouchableOpacity>
+                  </View>
+
+                  <ScrollView
+                    showsVerticalScrollIndicator={false}
+                    refreshControl={
+                      <RefreshControl
+                        refreshing={loading}
+                        onRefresh={fetchHistory}
+                        colors={["#D4AF37", "#0A1F44"]}
+                        tintColor="#D4AF37"
+                      />
+                    }
+                  >
+                    {history.length > 0 ? (
+                      history.map((item: any) => (
+                        <View
+                          key={item.id}
+                          className={`${isDarkMode ? "bg-gm-navy border-gm-gold" : "bg-white border-slate-100"} p-5 rounded-[30px] border mb-4 shadow-sm`}
+                        >
+                          <View className="flex-row justify-between">
+                            <View>
+                              <Text
+                                className={`text-[10px] font-oswald-semibold uppercase ${isDarkMode ? "text-slate-400" : "text-indigo-500"}`}
+                              >
+                                {item.category}
+                              </Text>
+                              <Text
+                                className={`text-xl font-bold mt-0.5 ${isDarkMode ? "text-gm-gold" : "text-gm-navy"}`}
+                              >
+                                ₦{item.amount}
+                              </Text>
+                            </View>
+                            <StatusBadge status={item.status} />
+                          </View>
+                          <Text className="text-xs text-slate-400 font-bold mt-2">
+                            {formatPaymentDate(item.payment_date)}
+                          </Text>
+
+                          {item.status.toUpperCase() !== "VERIFIED" && (
+                            <View className="flex-row justify-between items-center mt-4 pt-4 border-t border-slate-800/10">
+                              <TouchableOpacity
+                                className="flex-row items-center"
+                                onPress={() => openReportModal(item)}
+                              >
+                                <ShieldAlert size={16} color="#ef4444" />
+                                <Text className="ml-2 text-rose-600 font-black text-xs uppercase tracking-tight">
+                                  Make a Report / Dispute
+                                </Text>
+                              </TouchableOpacity>
+                              {item.status.toUpperCase() === "PENDING" && (
+                                <TouchableOpacity
+                                  onPress={() => handleDelete(item.id)}
+                                  className="p-2 bg-rose-500/10 rounded-full"
+                                >
+                                  <Trash2 size={16} color="#ef4444" />
+                                </TouchableOpacity>
+                              )}
+                            </View>
                           )}
                         </View>
-                      )}
-                    </View>
-                  ))
-                ) : (
-                  <Text className="text-center text-slate-400 mt-10 font-medium">
-                    No records found for this estate.
-                  </Text>
-                )}
-              </ScrollView>
-            </View>
-          )}
-
-          {/* Dispute Handling Modal */}
-          <Modal visible={reportModal} animationType="slide" transparent>
-            <View className="flex-1 justify-end bg-black/50">
-              <View
-                className={`${isDarkMode ? "bg-slate-900 border-t border-gm-gold" : "bg-white"} rounded-t-[40px] p-8 h-[70%]`}
-              >
-                <View className="flex-row justify-between items-center mb-6">
-                  <Text
-                    className={`text-xl font-montserrat-bold ${isDarkMode ? "text-gm-gold" : "text-gm-navy"}`}
-                  >
-                    Report Issue
-                  </Text>
-                  <TouchableOpacity onPress={() => setReportModal(false)}>
-                    <XCircle
-                      size={24}
-                      color={isDarkMode ? "#D4AF37" : "#0A1F44"}
-                    />
-                  </TouchableOpacity>
-                </View>
-                <ScrollView showsVerticalScrollIndicator={false}>
-                  <InputField
-                    label="Subject"
-                    value={reportSubject}
-                    onChangeText={setReportSubject}
-                    isDarkMode={isDarkMode}
-                  />
-                  <InputField
-                    label="Description"
-                    placeholder="Explain the discrepancy..."
-                    placeholderTextColor="#94a3b8"
-                    multiline
-                    numberOfLines={6}
-                    textAlignVertical="top"
-                    className={`h-40 text-base font-bold p-4 ${isDarkMode ? "text-white" : "text-slate-800"}`}
-                    value={reportDescription}
-                    onChangeText={setReportDescription}
-                    isDarkMode={isDarkMode}
-                  />
-                  <TouchableOpacity
-                    onPress={handleReportSubmit}
-                    disabled={submittingReport}
-                    className={`p-5 rounded-3xl items-center mt-6 border ${isDarkMode ? "bg-gm-charcoal border-gm-gold" : "bg-gm-navy"}`}
-                  >
-                    {submittingReport ? (
-                      <ActivityIndicator color="white" />
+                      ))
                     ) : (
-                      <Text className="text-white font-black text-lg">
-                        Submit Complaint
+                      <Text className="text-center text-slate-400 mt-10 font-medium">
+                        No records found for this estate.
                       </Text>
                     )}
-                  </TouchableOpacity>
-                </ScrollView>
-              </View>
-            </View>
-          </Modal>
-        </View>
+                  </ScrollView>
+                </View>
+              )}
 
+              {/* Dispute Handling Modal */}
+              <Modal visible={reportModal} animationType="slide" transparent>
+                <View className="flex-1 justify-end bg-black/50">
+                  <View
+                    className={`${isDarkMode ? "bg-slate-900 border-t border-gm-gold" : "bg-white"} rounded-t-[40px] p-8 h-[70%]`}
+                  >
+                    <View className="flex-row justify-between items-center mb-6">
+                      <Text
+                        className={`text-xl font-montserrat-bold ${isDarkMode ? "text-gm-gold" : "text-gm-navy"}`}
+                      >
+                        Report Issue
+                      </Text>
+                      <TouchableOpacity onPress={() => setReportModal(false)}>
+                        <XCircle
+                          size={24}
+                          color={isDarkMode ? "#D4AF37" : "#0A1F44"}
+                        />
+                      </TouchableOpacity>
+                    </View>
+                    <ScrollView showsVerticalScrollIndicator={false}>
+                      <InputField
+                        label="Subject"
+                        value={reportSubject}
+                        onChangeText={setReportSubject}
+                        isDarkMode={isDarkMode}
+                      />
+                      <InputField
+                        label="Description"
+                        placeholder="Explain the discrepancy..."
+                        placeholderTextColor="#94a3b8"
+                        multiline
+                        numberOfLines={6}
+                        textAlignVertical="top"
+                        className={`h-40 text-base font-bold p-4 ${isDarkMode ? "text-white" : "text-slate-800"}`}
+                        value={reportDescription}
+                        onChangeText={setReportDescription}
+                        isDarkMode={isDarkMode}
+                      />
+                      <TouchableOpacity
+                        onPress={handleReportSubmit}
+                        disabled={submittingReport}
+                        className={`p-5 rounded-3xl items-center mt-6 border ${isDarkMode ? "bg-gm-charcoal border-gm-gold" : "bg-gm-navy"}`}
+                      >
+                        {submittingReport ? (
+                          <ActivityIndicator color="white" />
+                        ) : (
+                          <Text className="text-white font-black text-lg">
+                            Submit Complaint
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    </ScrollView>
+                  </View>
+                </View>
+              </Modal>
+            </View>
+
+            {showDatePicker && (
+              <DateTimePicker
+                value={
+                  showDatePicker === "form"
+                    ? form.payment_date
+                    : showDatePicker === "start"
+                      ? dates.start || new Date()
+                      : dates.end || new Date()
+                }
+                mode="date"
+                display="default"
+                onChange={handleDateChange}
+              />
+            )}
+            <Modal
+              visible={isItemModalVisible}
+              transparent
+              animationType="fade"
+              onRequestClose={() => setIsItemModalVisible(false)}
+            >
+              <TouchableOpacity
+                activeOpacity={1}
+                onPress={() => setIsItemModalVisible(false)}
+                className="flex-1 justify-center items-center bg-black/60 p-5"
+              >
+                <TouchableOpacity
+                  activeOpacity={1}
+                  className={`w-full max-h-[70%] rounded-3xl p-5 ${
+                    isDarkMode ? "bg-gm-navy" : "bg-white"
+                  }`}
+                >
+                  {/* Modal Header */}
+                  <View className="flex-row justify-between items-center pb-4 mb-2 border-b border-slate-700/30">
+                    <Text
+                      className={`text-base font-bold ${isDarkMode ? "text-white" : "text-slate-900"}`}
+                    >
+                      Select Payment Category
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => setIsItemModalVisible(false)}
+                    >
+                      <Text className="text-slate-400 font-bold text-base px-2">
+                        ✕
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Item List */}
+                  <FlatList
+                    data={paymentItems}
+                    keyExtractor={(item) => item}
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={{ paddingVertical: 4 }}
+                    renderItem={({ item }) => {
+                      const isSelected = form.category === item;
+                      return (
+                        <TouchableOpacity
+                          onPress={() => {
+                            setForm((prev) => ({ ...prev, category: item }));
+                            setIsItemModalVisible(false);
+                          }}
+                          className={`flex-row items-center justify-between p-4 my-1 rounded-xl border ${
+                            isSelected
+                              ? isDarkMode
+                                ? "bg-gm-charcoal border-gm-gold"
+                                : "bg-indigo-50 border-indigo-600"
+                              : isDarkMode
+                                ? "bg-slate-800/40 border-transparent"
+                                : "bg-slate-50 border-transparent"
+                          }`}
+                        >
+                          <Text
+                            className={`text-sm font-semibold ${
+                              isSelected
+                                ? isDarkMode
+                                  ? "text-gm-gold"
+                                  : "text-indigo-900"
+                                : isDarkMode
+                                  ? "text-slate-200"
+                                  : "text-slate-700"
+                            }`}
+                          >
+                            {item}
+                          </Text>
+                          {isSelected && (
+                            <Text
+                              className={
+                                isDarkMode ? "text-gm-gold" : "text-indigo-600"
+                              }
+                            >
+                              ✓
+                            </Text>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    }}
+                  />
+                </TouchableOpacity>
+              </TouchableOpacity>
+            </Modal>
+          </>
+        )}
         {/* Dynamic Context Picker Modal */}
         <Modal
           visible={estatePickerVisible}
@@ -886,113 +1049,16 @@ const PaymentHistory = () => {
                   );
                 }}
               />
-              <TouchableOpacity
-                onPress={() => setEstatePickerVisible(false)}
-                className="mt-2 p-4 bg-slate-200 rounded-2xl items-center"
-              >
-                <Text className="text-slate-700 font-bold">Cancel</Text>
-              </TouchableOpacity>
+              {selectedEstateId && (
+                <TouchableOpacity
+                  onPress={() => setEstatePickerVisible(false)}
+                  className="mt-2 p-4 bg-slate-200 rounded-2xl items-center"
+                >
+                  <Text className="text-slate-700 font-bold">Cancel</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
-        </Modal>
-
-        {showDatePicker && (
-          <DateTimePicker
-            value={
-              showDatePicker === "form"
-                ? form.payment_date
-                : showDatePicker === "start"
-                  ? dates.start || new Date()
-                  : dates.end || new Date()
-            }
-            mode="date"
-            display="default"
-            onChange={handleDateChange}
-          />
-        )}
-        <Modal
-          visible={isItemModalVisible}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setIsItemModalVisible(false)}
-        >
-          <TouchableOpacity
-            activeOpacity={1}
-            onPress={() => setIsItemModalVisible(false)}
-            className="flex-1 justify-center items-center bg-black/60 p-5"
-          >
-            <TouchableOpacity
-              activeOpacity={1}
-              className={`w-full max-h-[70%] rounded-3xl p-5 ${
-                isDarkMode ? "bg-gm-navy" : "bg-white"
-              }`}
-            >
-              {/* Modal Header */}
-              <View className="flex-row justify-between items-center pb-4 mb-2 border-b border-slate-700/30">
-                <Text
-                  className={`text-base font-bold ${isDarkMode ? "text-white" : "text-slate-900"}`}
-                >
-                  Select Payment Category
-                </Text>
-                <TouchableOpacity onPress={() => setIsItemModalVisible(false)}>
-                  <Text className="text-slate-400 font-bold text-base px-2">
-                    ✕
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Item List */}
-              <FlatList
-                data={paymentItems}
-                keyExtractor={(item) => item}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingVertical: 4 }}
-                renderItem={({ item }) => {
-                  const isSelected = form.category === item;
-                  return (
-                    <TouchableOpacity
-                      onPress={() => {
-                        setForm((prev) => ({ ...prev, category: item }));
-                        setIsItemModalVisible(false);
-                      }}
-                      className={`flex-row items-center justify-between p-4 my-1 rounded-xl border ${
-                        isSelected
-                          ? isDarkMode
-                            ? "bg-gm-charcoal border-gm-gold"
-                            : "bg-indigo-50 border-indigo-600"
-                          : isDarkMode
-                            ? "bg-slate-800/40 border-transparent"
-                            : "bg-slate-50 border-transparent"
-                      }`}
-                    >
-                      <Text
-                        className={`text-sm font-semibold ${
-                          isSelected
-                            ? isDarkMode
-                              ? "text-gm-gold"
-                              : "text-indigo-900"
-                            : isDarkMode
-                              ? "text-slate-200"
-                              : "text-slate-700"
-                        }`}
-                      >
-                        {item}
-                      </Text>
-                      {isSelected && (
-                        <Text
-                          className={
-                            isDarkMode ? "text-gm-gold" : "text-indigo-600"
-                          }
-                        >
-                          ✓
-                        </Text>
-                      )}
-                    </TouchableOpacity>
-                  );
-                }}
-              />
-            </TouchableOpacity>
-          </TouchableOpacity>
         </Modal>
       </KeyboardAvoidingView>
     </SafeAreaView>

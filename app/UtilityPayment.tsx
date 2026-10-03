@@ -198,7 +198,10 @@ export default function UtilityPaymentRouter() {
                 </TouchableOpacity>
               </>
             ) : (
-              <MissingDetailsMessage type="Portal Link" isDarkMode={isDarkMode} />
+              <MissingDetailsMessage
+                type="Portal Link"
+                isDarkMode={isDarkMode}
+              />
             )}
           </View>
         )}
@@ -247,7 +250,10 @@ export default function UtilityPaymentRouter() {
                 </View>
               </>
             ) : (
-              <MissingDetailsMessage type="Account Details" isDarkMode={isDarkMode} />
+              <MissingDetailsMessage
+                type="Account Details"
+                isDarkMode={isDarkMode}
+              />
             )}
           </View>
         )}
@@ -297,12 +303,14 @@ export default function UtilityPaymentRouter() {
                 </TouchableOpacity>
               )}
             />
-            <TouchableOpacity
+            {selectedEstateId && (
+              <TouchableOpacity
                 onPress={() => setEstatePickerVisible(false)}
                 className="mt-2 p-4 bg-slate-200 rounded-2xl items-center"
               >
                 <Text className="text-slate-700 font-bold">Cancel</Text>
               </TouchableOpacity>
+            )}
           </View>
         </View>
       </Modal>
@@ -318,8 +326,10 @@ export const MissingDetailsMessage = ({
   isDarkMode: boolean;
 }) => (
   <View className="items-center py-4">
-    <View className={`${isDarkMode ? 'bg-gm-charcoal':'bg-amber-50'} p-4 rounded-full mb-4`}>
-      <Info size={24} color={isDarkMode ? "#D4AF37":"#f59e0b"} />
+    <View
+      className={`${isDarkMode ? "bg-gm-charcoal" : "bg-amber-50"} p-4 rounded-full mb-4`}
+    >
+      <Info size={24} color={isDarkMode ? "#D4AF37" : "#f59e0b"} />
     </View>
     <Text
       className={`${isDarkMode ? "text-gm-gold" : "text-gm-navy"} font-montserrat-bold text-center text-lg`}

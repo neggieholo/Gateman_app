@@ -8,7 +8,7 @@ import {
   MapPin,
   Shield,
   Users,
-  X
+  X,
 } from "lucide-react-native";
 import React, { useEffect, useMemo, useState } from "react";
 import {
@@ -26,15 +26,19 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import SecurityReportsHistory from "./SecurityReportsHistory";
 import { getSecurityColleagues, submitEstateReport } from "./services/api";
-import { useUser } from "./UserContext"; 
+import { useUser } from "./UserContext";
 
 export default function SubmitReport() {
   const { user, isDarkMode } = useUser();
   const params = useLocalSearchParams();
 
   // States
-  const [reportType, setReportType] = useState<"GENERAL" | "SECURITY">("SECURITY");
-  const [category, setCategory] = useState<"COMPLAINT" | "INFORMATION">("COMPLAINT");
+  const [reportType, setReportType] = useState<"GENERAL" | "SECURITY">(
+    "SECURITY",
+  );
+  const [category, setCategory] = useState<"COMPLAINT" | "INFORMATION">(
+    "COMPLAINT",
+  );
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [allGuards, setAllGuards] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -67,10 +71,13 @@ export default function SubmitReport() {
     }
   }, [user?.estate_ids, selectedEstateId]);
 
-  const activeEstateName = useMemo(() => {
-    if (!user?.estates || !selectedEstateId) return "";
-    return user.estates.find((e) => e.id === selectedEstateId)?.name || "";
+  const activeEstate = useMemo(() => {
+    if (!user?.estates || !selectedEstateId) return null;
+    return user.estates.find((e) => e.id === selectedEstateId) || null;
   }, [selectedEstateId, user?.estates]);
+
+  const canAccessSecurity =
+    activeEstate?.plan?.selected_add_ons?.includes("security") || false;
 
   const fetchGuards = async (estateId: string) => {
     setFetching(true);
@@ -79,11 +86,16 @@ export default function SubmitReport() {
       if (res.success) {
         setAllGuards(res.securityGuards || []);
       } else {
-        Alert.alert("Error", res.error || "Could not load security personnel.");
+        if (!res.error.includes("not include the required module")) {
+          Alert.alert("Error", res.error || "Could not load security personnel.");
+        }
       }
     } catch (error) {
       console.error("Fetch Guards Error:", error);
-      Alert.alert("Network Error", "Please check your internet connection and try again.");
+      Alert.alert(
+        "Network Error",
+        "Please check your internet connection and try again.",
+      );
     } finally {
       setFetching(false);
     }
@@ -127,75 +139,47 @@ export default function SubmitReport() {
     setLoading(false);
 
     if (res.success) {
-      Alert.alert("Success", "Your report has been submitted to estate management.");
+      Alert.alert(
+        "Success",
+        "Your report has been submitted to estate management.",
+      );
       router.back();
     } else {
       Alert.alert("Submission Failed", res.error || "Something went wrong.");
     }
   };
 
-  const canShowInputs = category === "INFORMATION" || selectedGuardIds.length > 0;
+  const canShowInputs =
+    category === "INFORMATION" || selectedGuardIds.length > 0;
 
   if (!selectedEstateId && user?.estate_ids && user.estate_ids.length > 1) {
     return (
-      <View className={`flex-1 justify-center items-center p-6 ${isDarkMode ? "bg-slate-950" : "bg-slate-50"}`}>
+      <View
+        className={`flex-1 justify-center items-center p-6 ${isDarkMode ? "bg-slate-950" : "bg-slate-50"}`}
+      >
         <TouchableOpacity
           onPress={() => setEstatePickerVisible(true)}
           className={`px-8 py-4 rounded-3xl border shadow-sm ${isDarkMode ? "bg-gm-charcoal border-gm-gold" : "bg-slate-900 border-transparent"}`}
         >
-          <Text className="text-white font-black text-base">Select An Estate to File Report</Text>
+          <Text className="text-white font-black text-base">
+            Select An Estate to File Report
+          </Text>
         </TouchableOpacity>
       </View>
     );
   }
 
   return (
-    <View className={`flex-1 p-5 pt-12 ${isDarkMode ? "bg-slate-950" : "bg-slate-50"}`}>
-      
-      {/* Tab Switcher Actions */}
-      <View className="flex-row gap-3 mb-4">
-        {[
-          { id: "GENERAL", label: "General", icon: FileText, check: !displayHistory && category === "INFORMATION" },
-          { id: "PERSONNEL", label: "Personnel", icon: Shield, check: !displayHistory && category === "COMPLAINT" },
-          { id: "HISTORY", label: "History", icon: History, check: displayHistory }
-        ].map((tab) => {
-          const IconComponent = tab.icon;
-          return (
-            <TouchableOpacity
-              key={tab.id}
-              onPress={() => {
-                if (tab.id === "GENERAL") {
-                  setCategory("INFORMATION");
-                  setSelectedGuardIds([]);
-                  setDsplayHistory(false);
-                } else if (tab.id === "PERSONNEL") {
-                  setCategory("COMPLAINT");
-                  setDsplayHistory(false);
-                } else {
-                  setDsplayHistory(true);
-                }
-              }}
-              className={`flex-1 p-4 rounded-3xl border-2 flex-row items-center justify-center ${
-                tab.check
-                  ? isDarkMode ? "bg-gm-navy border-gm-gold" : "bg-gm-navy border-gray-200"
-                  : isDarkMode ? "bg-gm-charcoal border-slate-800" : "bg-white border-slate-100"
-              }`}
-            >
-              <IconComponent size={18} color={tab.check ? "#D4AF37" : isDarkMode ? "#A0AEC0" : "#0A1F44"} />
-              <Text className={`ml-2 font-oswald-semibold text-xs ${tab.check ? "text-gm-gold" : isDarkMode ? "text-slate-400" : "text-gm-navy"}`}>
-                {tab.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      {/* Dynamic Context Banner Switcher */}
-      {!displayHistory && user?.estate_ids && user.estate_ids.length > 1 && (
+    <View
+      className={`flex-1 p-5 py-4 ${isDarkMode ? "bg-slate-950" : "bg-slate-50"}`}
+    >
+      {user?.estate_ids && user.estate_ids.length > 1 && (
         <TouchableOpacity
           onPress={() => setEstatePickerVisible(true)}
           className={`mb-4 flex-row items-center justify-between p-4 rounded-3xl border ${
-            isDarkMode ? "bg-gm-navy border-gm-gold" : "bg-white border-slate-100"
+            isDarkMode
+              ? "bg-gm-navy border-gm-gold"
+              : "bg-white border-slate-100"
           } shadow-sm`}
         >
           <View className="flex-row items-center flex-1">
@@ -204,185 +188,363 @@ export default function SubmitReport() {
               className={`ml-2 text-xs font-black uppercase tracking-wider ${isDarkMode ? "text-white" : "text-slate-600"} flex-1`}
               numberOfLines={1}
             >
-              Filing to: {activeEstateName || "Switch Context"}
+              Filing to: {activeEstate?.name || "Switch Context"}
             </Text>
           </View>
           <ChevronDown size={16} color="#94a3b8" />
         </TouchableOpacity>
       )}
 
-      {displayHistory && selectedEstateId ? (
-        <View className="flex-1">
-          <SecurityReportsHistory estate_id={selectedEstateId} />
-        </View>
-      ) : displayHistory ? (
-        <View className="flex-1 items-center justify-center">
-          <Text className="text-slate-400 font-medium">Please select an estate context</Text>
+      {!canAccessSecurity ? (
+        <View className="h-full flex items-center justify-center">
+          <View
+            className={`p-5 rounded-2xl border flex-row justify-between items-center ${
+              isDarkMode
+                ? "bg-gm-navy border-amber-500/30"
+                : "bg-amber-500/5 border-amber-500/20"
+            }`}
+          >
+            <View className="flex-row items-center flex-1 pr-2">
+              <AlertCircle size={18} color="#f59e0b" />
+              <Text
+                className={`ml-3 text-xs font-semibold flex-shrink ${
+                  isDarkMode ? "text-amber-400" : "text-amber-600"
+                }`}
+                numberOfLines={2}
+              >
+                This estate does not have the Security feature active in its
+                subscription plan.
+              </Text>
+            </View>
+
+            <View className="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30">
+              <Text className="text-[10px] font-black uppercase text-amber-500">
+                UNAVAILABLE
+              </Text>
+            </View>
+          </View>
         </View>
       ) : (
         <>
-          <View className={`p-4 rounded-2xl mb-6 border ${isDarkMode ? "bg-gm-navy border-slate-800" : "bg-slate-100/50 border-slate-200"}`}>
-            <Text className={`text-xs leading-5 ${isDarkMode ? "text-slate-300" : "text-slate-500"}`}>
-              {category === "INFORMATION"
-                ? `Use this for general estate security issues, infrastructure, or suggestions on ${activeEstateName || "your property"}.`
-                : "Report specific interactions or professional conduct regarding security personnel."}
-            </Text>
-          </View>
-
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {category === "COMPLAINT" && (
-              <TouchableOpacity
-                onPress={() => setIsModalVisible(true)}
-                className={`p-5 rounded-3xl border mb-4 flex-row items-center justify-between ${
-                  isDarkMode ? "bg-gm-navy border-slate-800" : "bg-white border-slate-200"
-                }`}
-              >
-                <View className="flex-row items-center">
-                  <Users size={20} color={isDarkMode ? "#D4AF37" : "#6366f1"} />
-                  <Text className={`ml-3 font-bold ${isDarkMode ? "text-white" : "text-slate-700"}`}>
-                    {selectedGuardIds.length > 0 ? `${selectedGuardIds.length} Selected` : "Select Personnel"}
-                  </Text>
-                </View>
-                <Text className={`font-bold ${isDarkMode ? "text-gm-gold" : "text-indigo-600"}`}>Edit</Text>
-              </TouchableOpacity>
-            )}
-
-            {canShowInputs ? (
-              <View className="flex gap-4">
-                <View>
-                  <Text className={`text-[10px] uppercase tracking-widest font-oswald-semibold mb-2 ml-1 ${isDarkMode ? "text-gm-gold" : "text-slate-400"}`}>
-                    Subject
-                  </Text>
-                  <TextInput
-                    value={subject}
-                    onChangeText={setSubject}
-                    placeholder="e.g., Gate malfunction, Guard sleeping..."
-                    placeholderTextColor={isDarkMode ? "#475569" : "#cbd5e1"}
-                    className={`p-4 rounded-3xl border text-base font-bold ${
-                      isDarkMode ? "bg-gm-navy border-slate-800 text-white" : "bg-white border-slate-200 text-slate-800"
-                    }`}
-                  />
-                </View>
-
-                <View>
-                  <Text className={`text-[10px] uppercase tracking-widest font-oswald-semibold mb-2 ml-1 ${isDarkMode ? "text-gm-gold" : "text-slate-400"}`}>
-                    Detailed Description
-                  </Text>
-                  <TextInput
-                    value={description}
-                    onChangeText={setDescription}
-                    placeholder="Provide as much detail as possible..."
-                    placeholderTextColor={isDarkMode ? "#475569" : "#cbd5e1"}
-                    multiline
-                    numberOfLines={6}
-                    textAlignVertical="top"
-                    className={`p-5 rounded-[40px] border text-base min-h-[150px] font-medium ${
-                      isDarkMode ? "bg-gm-navy border-slate-800 text-white" : "bg-white border-slate-200 text-slate-800"
-                    }`}
-                  />
-                </View>
-
+          <View className="flex-row gap-3 mb-4">
+            {[
+              {
+                id: "GENERAL",
+                label: "General",
+                icon: FileText,
+                check: !displayHistory && category === "INFORMATION",
+              },
+              {
+                id: "PERSONNEL",
+                label: "Personnel",
+                icon: Shield,
+                check: !displayHistory && category === "COMPLAINT",
+              },
+              {
+                id: "HISTORY",
+                label: "History",
+                icon: History,
+                check: displayHistory,
+              },
+            ].map((tab) => {
+              const IconComponent = tab.icon;
+              return (
                 <TouchableOpacity
-                  onPress={handleSubmit}
-                  disabled={loading}
-                  className={`p-5 rounded-3xl mt-4 items-center border shadow-sm ${
-                    loading
-                      ? isDarkMode ? "bg-gm-navy border-slate-800" : "bg-slate-300"
-                      : isDarkMode ? "bg-gm-charcoal border-gm-gold" : "bg-slate-900 border-transparent"
+                  key={tab.id}
+                  onPress={() => {
+                    if (tab.id === "GENERAL") {
+                      setCategory("INFORMATION");
+                      setSelectedGuardIds([]);
+                      setDsplayHistory(false);
+                    } else if (tab.id === "PERSONNEL") {
+                      setCategory("COMPLAINT");
+                      setDsplayHistory(false);
+                    } else {
+                      setDsplayHistory(true);
+                    }
+                  }}
+                  className={`flex-1 p-4 rounded-3xl border-2 flex-row items-center justify-center ${
+                    tab.check
+                      ? isDarkMode
+                        ? "bg-gm-navy border-gm-gold"
+                        : "bg-gm-navy border-gray-200"
+                      : isDarkMode
+                        ? "bg-gm-charcoal border-slate-800"
+                        : "bg-white border-slate-100"
                   }`}
                 >
-                  {loading ? (
-                    <ActivityIndicator color={isDarkMode ? "#D4AF37" : "white"} />
-                  ) : (
-                    <Text className="text-white font-black text-lg">Submit Report</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View className="items-center mt-10">
-                <AlertCircle size={40} color={isDarkMode ? "#475569" : "#cbd5e1"} />
-                <Text className="text-slate-400 mt-2 font-medium">Please select personnel to continue</Text>
-              </View>
-            )}
-          </ScrollView>
-
-          {/* Personnel Selection Slide-up Sheet */}
-          <Modal visible={isModalVisible} animationType="slide" transparent>
-            <SafeAreaView className="flex-1 bg-black/50 justify-end">
-              <View className={`h-[75%] rounded-t-[40px] p-6 border-t ${isDarkMode ? "bg-slate-900 border-gm-gold" : "bg-white border-transparent"}`}>
-                <View className="flex-row justify-between items-center mb-6">
-                  <View>
-                    <Text className={`text-xl font-black ${isDarkMode ? "text-gm-gold" : "text-slate-900"}`}>
-                      Security Personnel
-                    </Text>
-                    <Text className="text-slate-400 text-xs font-bold">{activeEstateName}</Text>
-                  </View>
-                  <TouchableOpacity onPress={() => setIsModalVisible(false)}>
-                    <X size={24} color={isDarkMode ? "#D4AF37" : "#000"} />
-                  </TouchableOpacity>
-                </View>
-
-                {fetching ? (
-                  <View className="flex-1 justify-center items-center">
-                    <ActivityIndicator size="large" color={isDarkMode ? "#D4AF37" : "#6366f1"} />
-                    <Text className="text-slate-400 mt-4 font-medium">Fetching personnel...</Text>
-                  </View>
-                ) : (
-                  <FlatList
-                    data={allGuards}
-                    keyExtractor={(item) => item.id}
-                    renderItem={({ item }) => {
-                      const isSelected = selectedGuardIds.includes(item.id);
-                      return (
-                        <TouchableOpacity
-                          onPress={() => toggleGuardSelection(item.id)}
-                          className={`flex-row items-center p-4 rounded-2xl mb-2 border ${
-                            isSelected 
-                              ? isDarkMode ? "border-gm-gold bg-gm-navy" : "border-indigo-600 bg-indigo-50" 
-                              : isDarkMode ? "border-slate-800 bg-slate-800/40" : "border-slate-100"
-                          }`}
-                        >
-                          <Image
-                            source={{ uri: item.avatar || "https://via.placeholder.com/150" }}
-                            className="w-10 h-10 rounded-full"
-                          />
-                          <Text className={`ml-4 flex-1 font-bold ${isDarkMode ? "text-white" : "text-slate-700"}`}>
-                            {item.name}
-                          </Text>
-                          {isSelected && <Check size={20} color={isDarkMode ? "#D4AF37" : "#4f46e5"} />}
-                        </TouchableOpacity>
-                      );
-                    }}
-                    ListEmptyComponent={
-                      <View className="items-center mt-12">
-                        <Users size={40} color={isDarkMode ? "#475569" : "#cbd5e1"} />
-                        <Text className="text-slate-400 mt-2 text-sm font-medium">
-                          No personnel tracked under this account.
-                        </Text>
-                      </View>
+                  <IconComponent
+                    size={18}
+                    color={
+                      tab.check ? "#D4AF37" : isDarkMode ? "#A0AEC0" : "#0A1F44"
                     }
                   />
-                )}
-                <TouchableOpacity
-                  onPress={() => setIsModalVisible(false)}
-                  className={`p-5 rounded-3xl mt-4 border ${isDarkMode ? "bg-gm-charcoal border-gm-gold" : "bg-slate-900 border-transparent"}`}
-                >
-                  <Text className="text-white text-center font-black">
-                    Confirm ({selectedGuardIds.length})
+                  <Text
+                    className={`ml-2 font-oswald-semibold text-xs ${tab.check ? "text-gm-gold" : isDarkMode ? "text-slate-400" : "text-gm-navy"}`}
+                  >
+                    {tab.label}
                   </Text>
                 </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {displayHistory && selectedEstateId ? (
+            <View className="flex-1">
+              <SecurityReportsHistory estate_id={selectedEstateId} />
+            </View>
+          ) : displayHistory ? (
+            <View className="flex-1 items-center justify-center">
+              <Text className="text-slate-400 font-medium">
+                Please select an estate context
+              </Text>
+            </View>
+          ) : (
+            <>
+              <View
+                className={`p-4 rounded-2xl mb-6 border ${isDarkMode ? "bg-gm-navy border-slate-800" : "bg-slate-100/50 border-slate-200"}`}
+              >
+                <Text
+                  className={`text-xs leading-5 ${isDarkMode ? "text-slate-300" : "text-slate-500"}`}
+                >
+                  {category === "INFORMATION"
+                    ? `Use this for general estate security issues, infrastructure, or suggestions on ${activeEstate?.name || "your property"}.`
+                    : "Report specific interactions or professional conduct regarding security personnel."}
+                </Text>
               </View>
-            </SafeAreaView>
-          </Modal>
+
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {category === "COMPLAINT" && (
+                  <TouchableOpacity
+                    onPress={() => setIsModalVisible(true)}
+                    className={`p-5 rounded-3xl border mb-4 flex-row items-center justify-between ${
+                      isDarkMode
+                        ? "bg-gm-navy border-slate-800"
+                        : "bg-white border-slate-200"
+                    }`}
+                  >
+                    <View className="flex-row items-center">
+                      <Users
+                        size={20}
+                        color={isDarkMode ? "#D4AF37" : "#6366f1"}
+                      />
+                      <Text
+                        className={`ml-3 font-bold ${isDarkMode ? "text-white" : "text-slate-700"}`}
+                      >
+                        {selectedGuardIds.length > 0
+                          ? `${selectedGuardIds.length} Selected`
+                          : "Select Personnel"}
+                      </Text>
+                    </View>
+                    <Text
+                      className={`font-bold ${isDarkMode ? "text-gm-gold" : "text-indigo-600"}`}
+                    >
+                      Edit
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+                {canShowInputs ? (
+                  <View className="flex gap-4">
+                    <View>
+                      <Text
+                        className={`text-[10px] uppercase tracking-widest font-oswald-semibold mb-2 ml-1 ${isDarkMode ? "text-gm-gold" : "text-slate-400"}`}
+                      >
+                        Subject
+                      </Text>
+                      <TextInput
+                        value={subject}
+                        onChangeText={setSubject}
+                        placeholder="e.g., Gate malfunction, Guard sleeping..."
+                        placeholderTextColor={
+                          isDarkMode ? "#475569" : "#cbd5e1"
+                        }
+                        className={`p-4 rounded-3xl border text-base font-bold ${
+                          isDarkMode
+                            ? "bg-gm-navy border-slate-800 text-white"
+                            : "bg-white border-slate-200 text-slate-800"
+                        }`}
+                      />
+                    </View>
+
+                    <View>
+                      <Text
+                        className={`text-[10px] uppercase tracking-widest font-oswald-semibold mb-2 ml-1 ${isDarkMode ? "text-gm-gold" : "text-slate-400"}`}
+                      >
+                        Detailed Description
+                      </Text>
+                      <TextInput
+                        value={description}
+                        onChangeText={setDescription}
+                        placeholder="Provide as much detail as possible..."
+                        placeholderTextColor={
+                          isDarkMode ? "#475569" : "#cbd5e1"
+                        }
+                        multiline
+                        numberOfLines={6}
+                        textAlignVertical="top"
+                        className={`p-5 rounded-[40px] border text-base min-h-[150px] font-medium ${
+                          isDarkMode
+                            ? "bg-gm-navy border-slate-800 text-white"
+                            : "bg-white border-slate-200 text-slate-800"
+                        }`}
+                      />
+                    </View>
+
+                    <TouchableOpacity
+                      onPress={handleSubmit}
+                      disabled={loading}
+                      className={`p-5 rounded-3xl mt-4 items-center border shadow-sm ${
+                        loading
+                          ? isDarkMode
+                            ? "bg-gm-navy border-slate-800"
+                            : "bg-slate-300"
+                          : isDarkMode
+                            ? "bg-gm-charcoal border-gm-gold"
+                            : "bg-slate-900 border-transparent"
+                      }`}
+                    >
+                      {loading ? (
+                        <ActivityIndicator
+                          color={isDarkMode ? "#D4AF37" : "white"}
+                        />
+                      ) : (
+                        <Text className="text-white font-black text-lg">
+                          Submit Report
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View className="items-center mt-10">
+                    <AlertCircle
+                      size={40}
+                      color={isDarkMode ? "#475569" : "#cbd5e1"}
+                    />
+                    <Text className="text-slate-400 mt-2 font-medium">
+                      Please select personnel to continue
+                    </Text>
+                  </View>
+                )}
+              </ScrollView>
+
+              {/* Personnel Selection Slide-up Sheet */}
+              <Modal visible={isModalVisible} animationType="slide" transparent>
+                <SafeAreaView className="flex-1 bg-black/50 justify-end">
+                  <View
+                    className={`h-[75%] rounded-t-[40px] p-6 border-t ${isDarkMode ? "bg-slate-900 border-gm-gold" : "bg-white border-transparent"}`}
+                  >
+                    <View className="flex-row justify-between items-center mb-6">
+                      <View>
+                        <Text
+                          className={`text-xl font-black ${isDarkMode ? "text-gm-gold" : "text-slate-900"}`}
+                        >
+                          Security Personnel
+                        </Text>
+                        <Text className="text-slate-400 text-xs font-bold">
+                          {activeEstate?.name}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => setIsModalVisible(false)}
+                      >
+                        <X size={24} color={isDarkMode ? "#D4AF37" : "#000"} />
+                      </TouchableOpacity>
+                    </View>
+
+                    {fetching ? (
+                      <View className="flex-1 justify-center items-center">
+                        <ActivityIndicator
+                          size="large"
+                          color={isDarkMode ? "#D4AF37" : "#6366f1"}
+                        />
+                        <Text className="text-slate-400 mt-4 font-medium">
+                          Fetching personnel...
+                        </Text>
+                      </View>
+                    ) : (
+                      <FlatList
+                        data={allGuards}
+                        keyExtractor={(item) => item.id}
+                        renderItem={({ item }) => {
+                          const isSelected = selectedGuardIds.includes(item.id);
+                          return (
+                            <TouchableOpacity
+                              onPress={() => toggleGuardSelection(item.id)}
+                              className={`flex-row items-center p-4 rounded-2xl mb-2 border ${
+                                isSelected
+                                  ? isDarkMode
+                                    ? "border-gm-gold bg-gm-navy"
+                                    : "border-indigo-600 bg-indigo-50"
+                                  : isDarkMode
+                                    ? "border-slate-800 bg-slate-800/40"
+                                    : "border-slate-100"
+                              }`}
+                            >
+                              <Image
+                                source={{
+                                  uri:
+                                    item.avatar ||
+                                    "https://via.placeholder.com/150",
+                                }}
+                                className="w-10 h-10 rounded-full"
+                              />
+                              <Text
+                                className={`ml-4 flex-1 font-bold ${isDarkMode ? "text-white" : "text-slate-700"}`}
+                              >
+                                {item.name}
+                              </Text>
+                              {isSelected && (
+                                <Check
+                                  size={20}
+                                  color={isDarkMode ? "#D4AF37" : "#4f46e5"}
+                                />
+                              )}
+                            </TouchableOpacity>
+                          );
+                        }}
+                        ListEmptyComponent={
+                          <View className="items-center mt-12">
+                            <Users
+                              size={40}
+                              color={isDarkMode ? "#475569" : "#cbd5e1"}
+                            />
+                            <Text className="text-slate-400 mt-2 text-sm font-medium">
+                              No personnel tracked under this account.
+                            </Text>
+                          </View>
+                        }
+                      />
+                    )}
+                    <TouchableOpacity
+                      onPress={() => setIsModalVisible(false)}
+                      className={`p-5 rounded-3xl mt-4 border ${isDarkMode ? "bg-gm-charcoal border-gm-gold" : "bg-slate-900 border-transparent"}`}
+                    >
+                      <Text className="text-white text-center font-black">
+                        Confirm ({selectedGuardIds.length})
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </SafeAreaView>
+              </Modal>
+            </>
+          )}
         </>
       )}
 
       {/* Dynamic Context Picker Modal */}
-      <Modal visible={estatePickerVisible} animationType="slide" transparent={true}>
-        <View className="flex-1 justify-end bg-black/50">
-          <View className={`${isDarkMode ? "bg-slate-900 border-t border-gm-gold" : "bg-white"} rounded-t-[2.5rem] p-6 max-h-[60%]`}>
-            <View className="w-12 h-1 bg-slate-300 rounded-full align-self-center mb-6 mx-auto" />
-            <Text className={`text-xl font-bold mb-4 ${isDarkMode ? "text-gm-gold" : "text-slate-900"}`}>
+      <Modal
+        visible={estatePickerVisible}
+        animationType="slide"
+        transparent={true}
+      >
+        <View className="flex-1 justify-center px-4 bg-black/50">
+          <View
+            className={`${isDarkMode ? "bg-slate-900" : "bg-white"} p-6 max-h-[65%]`}
+          >
+            <Text
+              className={`text-xl font-bold mb-4 ${isDarkMode ? "text-gm-gold" : "text-slate-900"}`}
+            >
               Select Active Property Context
             </Text>
             <FlatList
@@ -398,13 +560,28 @@ export default function SubmitReport() {
                     }}
                     className={`p-4 rounded-2xl mb-3 border flex-row items-center ${
                       isSelected
-                        ? isDarkMode ? "border-gm-gold bg-gm-navy" : "border-indigo-500 bg-indigo-50/40"
-                        : isDarkMode ? "border-slate-800 bg-slate-800/40" : "border-slate-100 bg-slate-50"
+                        ? isDarkMode
+                          ? "border-gm-gold bg-gm-navy"
+                          : "border-indigo-500 bg-indigo-50/40"
+                        : isDarkMode
+                          ? "border-slate-800 bg-slate-800/40"
+                          : "border-slate-100 bg-slate-50"
                     }`}
                   >
-                    <MapPin size={20} color={isSelected ? (isDarkMode ? "#D4AF37" : "#4f46e5") : "#94a3b8"} />
+                    <MapPin
+                      size={20}
+                      color={
+                        isSelected
+                          ? isDarkMode
+                            ? "#D4AF37"
+                            : "#4f46e5"
+                          : "#94a3b8"
+                      }
+                    />
                     <View className="ml-3 flex-1">
-                      <Text className={`font-bold text-sm ${isSelected && isDarkMode ? "text-gm-gold" : isDarkMode ? "text-white" : "text-slate-800"}`}>
+                      <Text
+                        className={`font-bold text-sm ${isSelected && isDarkMode ? "text-gm-gold" : isDarkMode ? "text-white" : "text-slate-800"}`}
+                      >
                         {item.name}
                       </Text>
                     </View>
@@ -415,9 +592,9 @@ export default function SubmitReport() {
             {selectedEstateId && (
               <TouchableOpacity
                 onPress={() => setEstatePickerVisible(false)}
-                className={`mt-2 p-4 rounded-2xl items-center ${isDarkMode ? "bg-gm-charcoal border border-slate-800" : "bg-slate-200"}`}
+                className="mt-2 p-4 bg-slate-200 rounded-2xl items-center"
               >
-                <Text className={`font-bold ${isDarkMode ? "text-slate-300" : "text-slate-700"}`}>Cancel</Text>
+                <Text className="text-slate-700 font-bold">Cancel</Text>
               </TouchableOpacity>
             )}
           </View>
