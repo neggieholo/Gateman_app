@@ -1,7 +1,12 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { InvitationCard } from "@/app/components/InvitationCard";
 import TrackGuestView from "@/app/components/TrackGuest";
-import { getS3UploadedUrl, invitationApi } from "@/app/services/api";
+import {
+  getLocalDateString,
+  getS3UploadedUrl,
+  invitationApi,
+  isOvernightSchedule,
+} from "@/app/services/api";
 import { LocationPair } from "@/app/services/interfaces";
 import { useUser } from "@/app/UserContext";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -82,6 +87,7 @@ const InviteGuestForm = ({
   const [permittedDays, setPermittedDays] = useState<number[]>([
     1, 2, 3, 4, 5, 6, 0,
   ]);
+  const [isOverNight, setIsOverNight] = useState(false);
 
   const canInvite = activeEstate?.plan?.selected_add_ons?.includes("security");
 
@@ -140,13 +146,32 @@ const InviteGuestForm = ({
       return;
     }
 
-    const currentDate = selectedDate || new Date();
-    const dateString = currentDate.toISOString().split("T")[0];
+    const pickerType = showPicker.type;
     setShowPicker({ type: "", visible: false });
 
-    if (showPicker.type === "startDate") setStartDate(currentDate);
-    if (showPicker.type === "endDate") {
-      if (currentDate < startDate) {
+    const currentDate = selectedDate || new Date();
+    const now = new Date();
+
+    if (pickerType === "startDate" && currentDate < now) {
+      Alert.alert("Invalid Date/Time", "Selected date cannot be in the past.");
+      setShowPicker({ type: "", visible: false });
+      return;
+    }
+
+    const dateString = currentDate.toISOString().split("T")[0];
+
+    if (pickerType === "startDate") {
+      if (endDate && currentDate > endDate) {
+        Alert.alert(
+          "Invalid Range",
+          "Start date cannot be later than end date.",
+        );
+        return;
+      }
+      setStartDate(currentDate);
+    }
+    if (pickerType === "endDate") {
+      if (startDate && currentDate < startDate) {
         Alert.alert(
           "Invalid Range",
           "End date cannot be earlier than start date.",
@@ -155,10 +180,24 @@ const InviteGuestForm = ({
       }
       setEndDate(currentDate);
     }
-    if (showPicker.type === "from") setFromTime(currentDate);
-    if (showPicker.type === "to") setToTime(currentDate);
+    if (pickerType === "from") {
+      const timeString = currentDate.toTimeString().split(" ")[0].slice(0, 5);
+      const toTimeString = toTime.toTimeString().split(" ")[0].slice(0, 5);
 
-    if (showPicker.type === "exclude") {
+      const isOverNight = isOvernightSchedule(timeString, toTimeString);
+      setIsOverNight(isOverNight);
+      setFromTime(currentDate);
+    }
+    if (pickerType === "to") {
+      const timeString = fromTime.toTimeString().split(" ")[0].slice(0, 5);
+      const toTimeString = currentDate.toTimeString().split(" ")[0].slice(0, 5);
+
+      const isOverNight = isOvernightSchedule(timeString, toTimeString);
+      setIsOverNight(isOverNight);
+      setToTime(currentDate);
+    }
+
+    if (pickerType === "exclude") {
       const rangeStart = new Date(startDate.setHours(0, 0, 0, 0));
       const rangeEnd = endDate
         ? new Date(endDate.setHours(0, 0, 0, 0))
@@ -346,7 +385,7 @@ const InviteGuestForm = ({
       }
 
       let finalEndDate: string | null = endDate
-        ? endDate.toISOString().split("T")[0]
+        ? getLocalDateString(endDate)
         : null;
 
       if (guestType === "one_time") {
@@ -356,7 +395,7 @@ const InviteGuestForm = ({
         if (toVal < fromVal) {
           nextDay.setDate(nextDay.getDate() + 1);
         }
-        finalEndDate = nextDay.toISOString().split("T")[0];
+        finalEndDate = getLocalDateString(nextDay);
       }
 
       let computedExclusions: string[] = [...excludedDates];
@@ -368,7 +407,7 @@ const InviteGuestForm = ({
         guest_image_url: uploadedUrl,
         invite_type: guestType,
         staff_position: guestType === "staff_entry" ? staffPosition : null,
-        start_date: startDate.toISOString().split("T")[0],
+        start_date: getLocalDateString(startDate),
         end_date: finalEndDate,
         start_time: fromTime.toTimeString().split(" ")[0].slice(0, 5),
         end_time: toTime.toTimeString().split(" ")[0].slice(0, 5),
@@ -839,54 +878,66 @@ const InviteGuestForm = ({
               )}
 
               {/* Time Range Selectors */}
-              <View className="flex-row justify-between gap-3">
-                <View className="flex-1">
-                  <Text
-                    className={`font-medium mb-1 ${isDarkMode ? "text-slate-300" : "text-gray-600"}`}
-                  >
-                    From:
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() =>
-                      setShowPicker({ type: "from", visible: true })
-                    }
-                    className={`flex-row items-center p-4 rounded-lg border ${
-                      isDarkMode
-                        ? "bg-slate-900 border-slate-800"
-                        : "bg-white border-gray-300"
-                    }`}
-                  >
-                    <Clock size={18} color="#4f46e5" className="mr-2" />
+              <View className="flex">
+                <View className="flex-row justify-between gap-3">
+                  <View className="flex-1">
                     <Text
-                      className={`font-medium ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                      className={`font-medium mb-1 ${isDarkMode ? "text-slate-300" : "text-gray-600"}`}
                     >
-                      {formatTime(fromTime)}
+                      From:
                     </Text>
-                  </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() =>
+                        setShowPicker({ type: "from", visible: true })
+                      }
+                      className={`flex-row items-center p-4 rounded-lg border ${
+                        isDarkMode
+                          ? "bg-slate-900 border-slate-800"
+                          : "bg-white border-gray-300"
+                      }`}
+                    >
+                      <Clock size={18} color="#4f46e5" className="mr-2" />
+                      <Text
+                        className={`font-medium ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                      >
+                        {formatTime(fromTime)}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <View className="flex-1">
+                    <Text
+                      className={`font-medium mb-1 ${isDarkMode ? "text-slate-300" : "text-gray-600"}`}
+                    >
+                      To:
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() =>
+                        setShowPicker({ type: "to", visible: true })
+                      }
+                      className={`flex-row items-center p-4 rounded-lg border ${
+                        isDarkMode
+                          ? "bg-slate-900 border-slate-800"
+                          : "bg-white border-gray-300"
+                      }`}
+                    >
+                      <Clock size={18} color="#4f46e5" className="mr-2" />
+                      <Text
+                        className={`font-medium ${isDarkMode ? "text-white" : "text-gray-900"}`}
+                      >
+                        {formatTime(toTime)}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
 
-                <View className="flex-1">
-                  <Text
-                    className={`font-medium mb-1 ${isDarkMode ? "text-slate-300" : "text-gray-600"}`}
-                  >
-                    To:
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => setShowPicker({ type: "to", visible: true })}
-                    className={`flex-row items-center p-4 rounded-lg border ${
-                      isDarkMode
-                        ? "bg-slate-900 border-slate-800"
-                        : "bg-white border-gray-300"
-                    }`}
-                  >
-                    <Clock size={18} color="#4f46e5" className="mr-2" />
-                    <Text
-                      className={`font-medium ${isDarkMode ? "text-white" : "text-gray-900"}`}
-                    >
-                      {formatTime(toTime)}
+                {isOverNight && (
+                  <View className="p-1 flex-row justify-end gap-1">
+                    <Text className="text-indigo-600 italic text-sm font-medium">
+                      Overnight
                     </Text>
-                  </TouchableOpacity>
-                </View>
+                  </View>
+                )}
               </View>
 
               {showPicker.visible && (

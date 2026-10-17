@@ -20,6 +20,7 @@ import {
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { calculateEndDateIfNeeded, isOvernightSchedule, normalizeDateStr } from "../services/api";
 import { Invitation } from "../services/interfaces";
 import { useUser } from "../UserContext";
 
@@ -53,6 +54,12 @@ const DAYS_OF_WEEK = [
   { label: "S", value: 7 },
 ];
 
+const parseLocalDate = (dateStr?: string) => {
+  if (!dateStr) return new Date();
+  const [year, month, day] = dateStr.split("-").map(Number);
+  return new Date(year, month - 1, day);
+};
+
 export const EditInvitationModal = ({
   visible,
   onClose,
@@ -60,24 +67,32 @@ export const EditInvitationModal = ({
   onUpdate,
 }: EditModalProps) => {
   const insets = useSafeAreaInsets();
-  const { isDarkMode, theme } = useUser();
+  const { isDarkMode } = useUser();
   const [formData, setFormData] = useState<Partial<Invitation>>({});
+  const [initialData, setInitialData] = useState<Partial<Invitation>>({});
   const [showPicker, setShowPicker] = useState({ type: "", visible: false });
   const [positionModalVisible, setPositionModalVisible] = useState(false);
+  const [isOverNight, setIsOverNight] = useState(false);
 
   useEffect(() => {
     if (invitation) {
-      setFormData({
+      const initialData = {
         ...invitation,
+        start_date: normalizeDateStr(invitation.start_date),
+        end_date: normalizeDateStr(invitation.end_date),
         permitted_days: invitation.permitted_days || [],
         excluded_dates: invitation.excluded_dates || [],
+        // excluded_dates: (invitation.excluded_dates || []).map(normalizeDateStr),
         is_activated:
           invitation.is_activated !== undefined
             ? invitation.is_activated
             : true,
         staff_position: invitation.staff_position || "",
-      });
+      };
+      setInitialData(initialData);
+      setFormData(initialData);
     }
+    // console.log("Invitation data loaded into form:", invitation);
   }, [invitation]);
 
   const isStaffEntry = invitation?.invite_type === "staff_entry";
@@ -112,8 +127,14 @@ export const EditInvitationModal = ({
   };
 
   const onPickerChange = (event: any, selectedDate?: Date) => {
+    if (event.type === "dismissed" || !selectedDate) {
+      setShowPicker({ type: "", visible: false });
+      return;
+    }
+
+    // Capture the current picker type before resetting the state
+    const currentPickerType = showPicker.type;
     setShowPicker({ type: "", visible: false });
-    if (event.type === "dismissed" || !selectedDate) return;
 
     const year = selectedDate.getFullYear();
     const month = String(selectedDate.getMonth() + 1).padStart(2, "0");
@@ -126,12 +147,56 @@ export const EditInvitationModal = ({
       hour12: false,
     });
 
-    if (showPicker.type === "startDate")
-      setFormData({ ...formData, start_date: dateString });
-    if (showPicker.type === "endDate")
-      setFormData({ ...formData, end_date: dateString });
+    const currentDate = selectedDate;
+    const now = new Date();
 
-    if (showPicker.type === "exclude") {
+    if (currentPickerType === "startDate" && currentDate < now) {
+      Alert.alert("Invalid Date/Time", "Selected date cannot be in the past.");
+      return;
+    }
+
+    if (currentPickerType === "startDate") {
+      // Calculate how many days the old end_date was ahead of the old start_date
+      let newEndDate = formData.end_date;
+
+      if (formData.start_date && formData.end_date) {
+        const oldStart = new Date(formData.start_date);
+        const oldEnd = new Date(formData.end_date);
+        const diffTime = oldEnd.getTime() - oldStart.getTime();
+        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+        // Apply the same day offset to the newly selected start date
+        const newStartObj = new Date(dateString);
+        newStartObj.setDate(newStartObj.getDate() + diffDays);
+
+        const year = newStartObj.getFullYear();
+        const month = String(newStartObj.getMonth() + 1).padStart(2, "0");
+        const day = String(newStartObj.getDate()).padStart(2, "0");
+        newEndDate = `${year}-${month}-${day}`;
+      } else {
+        newEndDate = dateString;
+      }
+
+      setFormData({
+        ...formData,
+        start_date: dateString,
+        end_date: newEndDate,
+      });
+      return;
+    }
+
+    if (currentPickerType === "endDate") {
+      if (formData.start_date && currentDate < new Date(formData.start_date)) {
+        Alert.alert(
+          "Invalid Range",
+          "End date cannot be earlier than start date.",
+        );
+        return;
+      }
+      setFormData({ ...formData, end_date: dateString });
+    }
+
+    if (currentPickerType === "exclude") {
       const rangeStart = formData.start_date
         ? new Date(formData.start_date)
         : null;
@@ -160,10 +225,43 @@ export const EditInvitationModal = ({
       }
     }
 
-    if (showPicker.type === "start_time")
-      setFormData({ ...formData, start_time: timeString });
-    if (showPicker.type === "end_time")
-      setFormData({ ...formData, end_time: timeString });
+    if (currentPickerType === "start_time") {
+      let updatedEndDate: string | undefined = formData.end_date;
+      if (formData.invite_type === "one_time") {
+        updatedEndDate = calculateEndDateIfNeeded(
+          formData.start_date,
+          timeString,
+          formData.end_time,
+          formData.end_date,
+        );
+      }
+      const isOverNight = isOvernightSchedule(timeString, formData.end_time);
+      setIsOverNight(isOverNight);
+      setFormData({
+        ...formData,
+        start_time: timeString,
+        end_date: updatedEndDate,
+      });
+    }
+
+    if (currentPickerType === "end_time") {
+      let updatedEndDate: string | undefined = formData.end_date;
+      if (formData.invite_type === "one_time") {
+        updatedEndDate = calculateEndDateIfNeeded(
+          formData.start_date,
+          formData.start_time,
+          timeString,
+          formData.end_date,
+        );
+      }
+      const isOverNight = isOvernightSchedule(formData.start_time, timeString);
+      setIsOverNight(isOverNight);
+      setFormData({
+        ...formData,
+        end_time: timeString,
+        end_date: updatedEndDate,
+      });
+    }
   };
 
   const removeExclusion = (dateStr: string) => {
@@ -175,6 +273,13 @@ export const EditInvitationModal = ({
     });
   };
 
+  const handleDiscard = () => {
+    if (invitation && initialData) {
+      setFormData(initialData);
+    }
+    onClose();
+  };
+
   return (
     <>
       <Modal
@@ -184,7 +289,7 @@ export const EditInvitationModal = ({
         onRequestClose={onClose}
         statusBarTranslucent
       >
-        <View className="flex-1 bg-black/50">
+        <View className="flex-1 bg-black/50 pb-10">
           <KeyboardAwareScrollView
             className="flex-1"
             contentContainerStyle={{ flexGrow: 1, justifyContent: "flex-end" }}
@@ -196,20 +301,26 @@ export const EditInvitationModal = ({
             />
 
             <View
-              className={`rounded-t-[32px] p-6 shadow-2xl border-t ${
-                isDarkMode ? "bg-gm-charcoal border-slate-800" : "bg-white border-transparent"
+              className={`rounded-t-[32px] p-6 border-t ${
+                isDarkMode
+                  ? "bg-gm-charcoal border-slate-800"
+                  : "bg-white border-transparent"
               }`}
               style={{ paddingBottom: Math.max(insets.bottom, 24) }}
             >
               {/* Top Drag Indicator */}
               <View className="items-center mb-4">
-                <View className={`w-12 h-1.5 rounded-full ${isDarkMode ? "bg-slate-700" : "bg-gray-200"}`} />
+                <View
+                  className={`w-12 h-1.5 rounded-full ${isDarkMode ? "bg-slate-700" : "bg-gray-200"}`}
+                />
               </View>
 
               {/* Header Title */}
               <View className="flex-row justify-between items-center mb-6">
                 <View>
-                  <Text className={`text-xl font-bold font-sans ${isDarkMode ? "text-gm-gold" : "text-gm-navy"}`}>
+                  <Text
+                    className={`text-xl font-bold font-sans ${isDarkMode ? "text-gm-gold" : "text-gm-navy"}`}
+                  >
                     Edit Pass
                   </Text>
                   <Text className="text-gray-400 text-xs font-sans">
@@ -217,7 +328,7 @@ export const EditInvitationModal = ({
                   </Text>
                 </View>
                 <TouchableOpacity
-                  onPress={onClose}
+                  onPress={handleDiscard}
                   className={`p-2 rounded-full ${isDarkMode ? "bg-gm-charcoal" : "bg-gray-100"}`}
                 >
                   <X size={20} color={isDarkMode ? "#D4AF37" : "#4B5563"} />
@@ -228,17 +339,24 @@ export const EditInvitationModal = ({
                 <View className="gap-y-4">
                   {/* --- Staff Management Tools Section --- */}
                   {isStaffEntry && (
-                    <View className={`border p-4 rounded-2xl gap-y-4 mb-2 ${
-                      isDarkMode ? "bg-gm-charcoal/40 border-slate-800" : "bg-slate-50 border-slate-100"
-                    }`}>
+                    <View
+                      className={`border p-4 rounded-2xl gap-y-4 mb-2 ${
+                        isDarkMode
+                          ? "bg-gm-charcoal/40 border-slate-800"
+                          : "bg-slate-50 border-slate-100"
+                      }`}
+                    >
                       {/* Activation Control */}
                       <View className="flex-row justify-between items-center">
                         <View className="flex-1 pr-4">
-                          <Text className={`font-bold font-sans text-sm ${isDarkMode ? "text-gray-200" : "text-gray-900"}`}>
+                          <Text
+                            className={`font-bold font-sans text-sm ${isDarkMode ? "text-gray-200" : "text-gray-900"}`}
+                          >
                             Pass Activation Status
                           </Text>
                           <Text className="text-gray-400 text-xs font-sans mt-0.5">
-                            Toggle to instantly suspend or allow gatehouse passage
+                            Toggle to instantly suspend or allow gatehouse
+                            passage
                           </Text>
                         </View>
                         <Switch
@@ -253,7 +371,9 @@ export const EditInvitationModal = ({
                                 ? "#64748b"
                                 : "#cbd5e1"
                           }
-                          ios_backgroundColor={isDarkMode ? "#334155" : "#f1f5f9"}
+                          ios_backgroundColor={
+                            isDarkMode ? "#334155" : "#f1f5f9"
+                          }
                           onValueChange={(val) =>
                             setFormData({ ...formData, is_activated: val })
                           }
@@ -261,7 +381,9 @@ export const EditInvitationModal = ({
                         />
                       </View>
 
-                      <View className={`h-[1px] ${isDarkMode ? "bg-slate-800" : "bg-gray-200/60"}`} />
+                      <View
+                        className={`h-[1px] ${isDarkMode ? "bg-slate-800" : "bg-gray-200/60"}`}
+                      />
 
                       {/* Staff Position Role Selector */}
                       <View>
@@ -270,13 +392,20 @@ export const EditInvitationModal = ({
                         </Text>
                         <TouchableOpacity
                           onPress={() => setPositionModalVisible(true)}
-                          className={`border rounded-2xl p-4 flex-row justify-between items-center shadow-sm ${
-                            isDarkMode ? "bg-gm-navy border-slate-800" : "bg-white border-gray-200"
+                          className={`border rounded-2xl p-4 flex-row justify-between items-center ${
+                            isDarkMode
+                              ? "bg-gm-navy border-slate-800"
+                              : "bg-white border-gray-200"
                           }`}
                         >
                           <View className="flex-row items-center">
-                            <Briefcase size={16} color={isDarkMode ? "#D4AF37" : "#4f46e5"} />
-                            <Text className={`ml-2 font-semibold font-sans ${isDarkMode ? "text-gray-200" : "text-gray-900"}`}>
+                            <Briefcase
+                              size={16}
+                              color={isDarkMode ? "#D4AF37" : "#4f46e5"}
+                            />
+                            <Text
+                              className={`ml-2 font-semibold font-sans ${isDarkMode ? "text-gray-200" : "text-gray-900"}`}
+                            >
                               {formData.staff_position || "Select Role"}
                             </Text>
                           </View>
@@ -287,7 +416,9 @@ export const EditInvitationModal = ({
                         </TouchableOpacity>
                       </View>
 
-                      <View className={`h-[1px] ${isDarkMode ? "bg-slate-800" : "bg-gray-200/60"}`} />
+                      <View
+                        className={`h-[1px] ${isDarkMode ? "bg-slate-800" : "bg-gray-200/60"}`}
+                      />
 
                       {/* Permitted Access Days */}
                       <View>
@@ -295,7 +426,8 @@ export const EditInvitationModal = ({
                           Permitted Access Days
                         </Text>
                         <Text className="text-gray-400 text-xs font-sans mb-2">
-                          Select the days this staff member is authorized to access the estate
+                          Select the days this staff member is authorized to
+                          access the estate
                         </Text>
                         <View className="flex-row justify-between mt-1">
                           {DAYS_OF_WEEK.map((day) => {
@@ -347,73 +479,113 @@ export const EditInvitationModal = ({
                           setShowPicker({ type: "startDate", visible: true })
                         }
                         className={`border rounded-2xl p-4 flex-row items-center ${
-                          isDarkMode ? "bg-gm-charcoal border-slate-800" : "bg-gray-50 border-gray-200"
+                          isDarkMode
+                            ? "bg-gm-charcoal border-slate-800"
+                            : "bg-gray-50 border-gray-200"
                         }`}
                       >
-                        <Calendar size={16} color={isDarkMode ? "#D4AF37" : "#4f46e5"} />
-                        <Text className={`ml-2 font-semibold font-sans ${isDarkMode ? "text-gray-200" : "text-gray-900"}`}>
+                        <Calendar
+                          size={16}
+                          color={isDarkMode ? "#D4AF37" : "#4f46e5"}
+                        />
+                        <Text
+                          className={`ml-2 font-semibold font-sans ${isDarkMode ? "text-gray-200" : "text-gray-900"}`}
+                        >
                           {formatDisplayName(formData.start_date)}
                         </Text>
                       </TouchableOpacity>
                     </View>
-                    <View className="flex-1">
-                      <Text className="text-gray-400 text-[10px] font-bold font-sans mb-1 uppercase tracking-wider">
-                        End Date
-                      </Text>
-                      <TouchableOpacity
-                        onPress={() =>
-                          setShowPicker({ type: "endDate", visible: true })
-                        }
-                        className={`border rounded-2xl p-4 flex-row items-center ${
-                          isDarkMode ? "bg-gm-charcoal border-slate-800" : "bg-gray-50 border-gray-200"
-                        }`}
-                      >
-                        <Calendar size={16} color={isDarkMode ? "#D4AF37" : "#4f46e5"} />
-                        <Text className={`ml-2 font-semibold font-sans ${isDarkMode ? "text-gray-200" : "text-gray-900"}`}>
-                          {formatDisplayName(formData.end_date) || "No Expiry"}
+                    {formData.invite_type !== "one_time" && (
+                      <View className="flex-1">
+                        <Text className="text-gray-400 text-[10px] font-bold font-sans mb-1 uppercase tracking-wider">
+                          End Date
                         </Text>
-                      </TouchableOpacity>
-                    </View>
+                        <TouchableOpacity
+                          onPress={() =>
+                            setShowPicker({ type: "endDate", visible: true })
+                          }
+                          className={`border rounded-2xl p-4 flex-row items-center ${
+                            isDarkMode
+                              ? "bg-gm-charcoal border-slate-800"
+                              : "bg-gray-50 border-gray-200"
+                          }`}
+                        >
+                          <Calendar
+                            size={16}
+                            color={isDarkMode ? "#D4AF37" : "#4f46e5"}
+                          />
+                          <Text
+                            className={`ml-2 font-semibold font-sans ${isDarkMode ? "text-gray-200" : "text-gray-900"}`}
+                          >
+                            {formatDisplayName(formData.end_date) ||
+                              "No Expiry"}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
                   </View>
 
                   {/* Time Selectors */}
-                  <View className="flex-row gap-x-3">
-                    <View className="flex-1">
-                      <Text className="text-gray-400 text-[10px] font-bold font-sans mb-1 uppercase tracking-wider">
-                        Entry Time
-                      </Text>
-                      <TouchableOpacity
-                        onPress={() =>
-                          setShowPicker({ type: "start_time", visible: true })
-                        }
-                        className={`border rounded-2xl p-4 flex-row items-center ${
-                          isDarkMode ? "bg-gm-charcoal border-slate-800" : "bg-gray-50 border-gray-200"
-                        }`}
-                      >
-                        <Clock size={16} color={isDarkMode ? "#D4AF37" : "#4f46e5"} />
-                        <Text className={`ml-2 font-semibold font-sans ${isDarkMode ? "text-gray-200" : "text-gray-900"}`}>
-                          {formatDisplayTime(formData.start_time)}
+                  <View className="flex">
+                    <View className="flex-row gap-x-3">
+                      <View className="flex-1">
+                        <Text className="text-gray-400 text-[10px] font-bold font-sans mb-1 uppercase tracking-wider">
+                          Entry Time
                         </Text>
-                      </TouchableOpacity>
-                    </View>
-                    <View className="flex-1">
-                      <Text className="text-gray-400 text-[10px] font-bold font-sans mb-1 uppercase tracking-wider">
-                        Expiry Time
-                      </Text>
-                      <TouchableOpacity
-                        onPress={() =>
-                          setShowPicker({ type: "end_time", visible: true })
-                        }
-                        className={`border rounded-2xl p-4 flex-row items-center ${
-                          isDarkMode ? "bg-gm-charcoal border-slate-800" : "bg-gray-50 border-gray-200"
-                        }`}
-                      >
-                        <Clock size={16} color={isDarkMode ? "#D4AF37" : "#4f46e5"} />
-                        <Text className={`ml-2 font-semibold font-sans ${isDarkMode ? "text-gray-200" : "text-gray-900"}`}>
-                          {formatDisplayTime(formData.end_time)}
+                        <TouchableOpacity
+                          onPress={() =>
+                            setShowPicker({ type: "start_time", visible: true })
+                          }
+                          className={`border rounded-2xl p-4 flex-row items-center ${
+                            isDarkMode
+                              ? "bg-gm-charcoal border-slate-800"
+                              : "bg-gray-50 border-gray-200"
+                          }`}
+                        >
+                          <Clock
+                            size={16}
+                            color={isDarkMode ? "#D4AF37" : "#4f46e5"}
+                          />
+                          <Text
+                            className={`ml-2 font-semibold font-sans ${isDarkMode ? "text-gray-200" : "text-gray-900"}`}
+                          >
+                            {formatDisplayTime(formData.start_time)}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                      <View className="flex-1">
+                        <Text className="text-gray-400 text-[10px] font-bold font-sans mb-1 uppercase tracking-wider">
+                          Expiry Time
                         </Text>
-                      </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() =>
+                            setShowPicker({ type: "end_time", visible: true })
+                          }
+                          className={`border rounded-2xl p-4 flex-row items-center ${
+                            isDarkMode
+                              ? "bg-gm-charcoal border-slate-800"
+                              : "bg-gray-50 border-gray-200"
+                          }`}
+                        >
+                          <Clock
+                            size={16}
+                            color={isDarkMode ? "#D4AF37" : "#4f46e5"}
+                          />
+                          <Text
+                            className={`ml-2 font-semibold font-sans ${isDarkMode ? "text-gray-200" : "text-gray-900"}`}
+                          >
+                            {formatDisplayTime(formData.end_time)}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
+                    {isOverNight && (
+                      <View className="p-1 flex-row justify-end gap-1">
+                        <Text className="text-indigo-600 italic text-sm font-medium">
+                          Overnight
+                        </Text>
+                      </View>
+                    )}
                   </View>
 
                   {/* Blacklisted Dates Section — Enforced ONLY for multi-entry */}
@@ -433,15 +605,21 @@ export const EditInvitationModal = ({
                               : "bg-indigo-50 border-indigo-100"
                           }`}
                         >
-                          <Text className={`text-[10px] font-bold font-sans ${isDarkMode ? "text-gm-gold" : "text-indigo-600"}`}>
+                          <Text
+                            className={`text-[10px] font-bold font-sans ${isDarkMode ? "text-gm-gold" : "text-indigo-600"}`}
+                          >
                             + Add
                           </Text>
                         </TouchableOpacity>
                       </View>
 
-                      <View className={`border rounded-2xl p-3 min-h-[80px] ${
-                        isDarkMode ? "bg-gm-charcoal/40 border-slate-800" : "bg-gray-50 border-transparent"
-                      }`}>
+                      <View
+                        className={`border rounded-2xl p-3 min-h-[80px] ${
+                          isDarkMode
+                            ? "bg-gm-charcoal/40 border-slate-800"
+                            : "bg-gray-50 border-transparent"
+                        }`}
+                      >
                         {formData.excluded_dates &&
                         formData.excluded_dates.length > 0 ? (
                           <View className="flex-row flex-wrap gap-2">
@@ -449,10 +627,14 @@ export const EditInvitationModal = ({
                               <View
                                 key={date}
                                 className={`border pl-3 pr-1 py-1 rounded-full flex-row items-center ${
-                                  isDarkMode ? "bg-gm-navy border-slate-800" : "bg-white border-gray-200"
+                                  isDarkMode
+                                    ? "bg-gm-navy border-slate-800"
+                                    : "bg-white border-gray-200"
                                 }`}
                               >
-                                <Text className={`text-xs font-medium font-sans mr-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                                <Text
+                                  className={`text-xs font-medium font-sans mr-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}
+                                >
                                   {formatDisplayName(date)}
                                 </Text>
                                 <TouchableOpacity
@@ -478,7 +660,7 @@ export const EditInvitationModal = ({
               {/* Action Buttons */}
               <View className="flex-row gap-x-3 mt-2">
                 <TouchableOpacity
-                  onPress={onClose}
+                  onPress={handleDiscard}
                   className={`flex-1 py-4 rounded-2xl items-center border ${
                     isDarkMode
                       ? "bg-gm-charcoal border-slate-800"
@@ -494,10 +676,12 @@ export const EditInvitationModal = ({
                   className={`flex-1 py-4 rounded-2xl items-center border ${
                     isDarkMode
                       ? "bg-gm-navy border-gm-gold"
-                      : "bg-indigo-600 border-transparent shadow-md shadow-indigo-200"
+                      : "bg-indigo-600 border-transparent"
                   }`}
                 >
-                  <Text className={`font-bold font-sans ${isDarkMode ? "text-gm-gold" : "text-white"}`}>
+                  <Text
+                    className={`font-bold font-sans ${isDarkMode ? "text-gm-gold" : "text-white"}`}
+                  >
                     Save Changes
                   </Text>
                 </TouchableOpacity>
@@ -508,7 +692,9 @@ export const EditInvitationModal = ({
           {showPicker.visible && (
             <DateTimePicker
               value={
-                formData.start_date ? new Date(formData.start_date) : new Date()
+                formData.start_date
+                  ? parseLocalDate(formData.start_date)
+                  : new Date()
               }
               mode={
                 ["start_time", "end_time"].includes(showPicker.type)
@@ -527,13 +713,21 @@ export const EditInvitationModal = ({
       {/* --- Inline Staff Position Selection Sub-Modal --- */}
       <Modal visible={positionModalVisible} transparent animationType="fade">
         <View className="flex-1 justify-end bg-black/40">
-          <View className={`rounded-t-3xl p-5 max-h-[60%] border-t ${
-            isDarkMode ? "bg-gm-navy border-slate-800" : "bg-white border-transparent"
-          }`}>
-            <View className={`flex-row justify-between items-center mb-4 pb-2 border-b ${
-              isDarkMode ? "border-slate-800" : "border-gray-100"
-            }`}>
-              <Text className={`text-base font-bold font-sans ${isDarkMode ? "text-gm-gold" : "text-gray-900"}`}>
+          <View
+            className={`rounded-t-3xl p-5 max-h-[60%] border-t ${
+              isDarkMode
+                ? "bg-gm-navy border-slate-800"
+                : "bg-white border-transparent"
+            }`}
+          >
+            <View
+              className={`flex-row justify-between items-center mb-4 pb-2 border-b ${
+                isDarkMode ? "border-slate-800" : "border-gray-100"
+              }`}
+            >
+              <Text
+                className={`text-base font-bold font-sans ${isDarkMode ? "text-gm-gold" : "text-gray-900"}`}
+              >
                 Select Staff Role
               </Text>
               <TouchableOpacity

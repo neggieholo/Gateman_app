@@ -2,7 +2,7 @@
 // app/context/UserContext.tsx
 import firestore from "@react-native-firebase/firestore";
 import * as Notifications from "expo-notifications";
-import { router } from "expo-router";
+import { router, usePathname } from "expo-router";
 import React, {
   createContext,
   ReactNode,
@@ -11,12 +11,18 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Alert, Platform, useColorScheme } from "react-native";
+import {
+  Alert,
+  AppState,
+  AppStateStatus,
+  Platform,
+  useColorScheme,
+} from "react-native";
 // import RNCallKeep from "react-native-callkeep";
 import { Colors } from "@/constants/Colors";
 import { io, Socket } from "socket.io-client";
 import { ExpiredSubscriptionModal } from "./components/ExpiredSubscriptionModal";
-import { fetchNotifications, fetchRequests } from "./services/api";
+import { checkSession, fetchNotifications, fetchRequests } from "./services/api";
 import { notification, tempNotification, User } from "./services/interfaces";
 
 export type Theme = typeof Colors.light;
@@ -212,6 +218,77 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       unsubGroups();
     };
   }, [user?.id, contextEstateId, hasNoEstates]);
+
+  const pathname = usePathname();
+
+  // Pure Session Verification Function
+  const verifySession = async () => {
+    if (!user || pathname === "/") return;
+
+    try {
+      const res = await checkSession();
+
+      if (res && res.success) {
+        return
+      } else {
+        console.warn("Session check returned invalid/unauthorized.");
+        handleSessionExpiration();
+      }
+    } catch (err) {
+      console.error("Session check network error:", err);
+    }
+  };
+
+  // Redirection Handler
+  const handleSessionExpiration = () => {
+
+    if (pathname !== "/") {
+      Alert.alert(
+        "Session Expired",
+        "Your session has ended. Please sign in again.",
+        [
+          {
+            text: "OK",
+            onPress: () => router.replace("/"),
+          },
+        ],
+      );
+    }
+  };
+
+  // 1. Session check on App Focus (Foreground transition)
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (nextAppState === "active" && user && pathname !== "/") {
+        verifySession();
+      }
+    };
+
+    const subscription = AppState.addEventListener(
+      "change",
+      handleAppStateChange,
+    );
+
+    return () => {
+      subscription.remove();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, pathname]);
+
+  useEffect(() => {
+    if (!user || pathname === "/") return;
+
+    const intervalId = setInterval(
+      () => {
+        verifySession();
+      },
+      10 * 60 * 1000,
+    );
+
+    return () => clearInterval(intervalId);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, pathname]);
+
 
   useEffect(() => {
     if (!sessionId) {

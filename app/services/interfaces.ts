@@ -488,3 +488,8 @@ export interface FetchPaymentItemsResponse {
   payment_items?: string[];
   error?: string;
 }
+
+export interface sessionResponse {
+  success: boolean;
+  user: User | null;
+}

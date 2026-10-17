@@ -18,6 +18,7 @@ import {
   Invitation,
   LocationBooking,
   PaymentSettingsResponse,
+  sessionResponse,
   SubmitReportPayload,
   tempNotification,
 } from "./interfaces";
@@ -674,7 +675,6 @@ export const invitationApi = {
   // --- 1. GET ALL INVITATIONS (BY ESTATE) ---
   getInvitations: async (estateId: string) => {
     try {
-      console.log("Estate_id for invites:", estateId);
       const response = await fetch(
         `${BASE_URL}/invitations/resident/get-all?estate_id=${estateId}`,
       );
@@ -712,7 +712,6 @@ export const invitationApi = {
   },
 
   updateInvitation: async (id: string, data: Partial<Invitation>) => {
-    console.log("Updating invitation with ID:", id, "and data:", data);
     const response = await fetch(`${BASE_URL}/invitations/edit/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -722,12 +721,15 @@ export const invitationApi = {
   },
 
   // --- 3. DELETE / CANCEL AN INVITATION ---
-  deleteInvitation: async (inviteId: string) => {
+  deleteInvitation: async (inviteId: string, estateId: string) => {
     try {
-      const response = await fetch(`${BASE_URL}/invitations/${inviteId}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-      });
+      const response = await fetch(
+        `${BASE_URL}/invitations/${inviteId}?estate_id=${estateId}`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+        },
+      );
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -740,6 +742,28 @@ export const invitationApi = {
     } catch (error) {
       console.error("deleteInvitation Error:", error);
       throw error; // Throw so the UI can catch it and show a Toast/Alert
+    }
+  },
+
+  deleteHistory: async (ids: string[], estateId: string) => {
+    try {
+      const response = await fetch(`${BASE_URL}/invitations/delete-history`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids, estate_id: estateId }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.error || `HTTP error! status: ${response.status}`,
+        );
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error("bulkCancelInvitations Error:", error);
+      throw error;
     }
   },
 };
@@ -1564,4 +1588,72 @@ export const formatReportsDate = (dateString?: string) => {
   }
 
   return parsedDate.toLocaleDateString();
+};
+
+export const checkSession = async (): Promise<sessionResponse> => {
+  try {
+    const response = await fetch(`${BASE_URL}/session-check`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    });
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("❌ Session Check Error:", error);
+    return { success: false, user: null };
+  }
+};
+
+export const isOvernightSchedule = (
+  startTimeStr?: string,
+  endTimeStr?: string,
+): boolean => {
+  if (!startTimeStr || !endTimeStr) return false;
+
+  const [startH, startM] = startTimeStr.split(":").map(Number);
+  const [endH, endM] = endTimeStr.split(":").map(Number);
+
+  const startVal = startH * 60 + startM;
+  const endVal = endH * 60 + endM;
+
+  return endVal < startVal;
+};
+
+export const calculateEndDateIfNeeded = (
+  startDateStr: string | undefined,
+  startTimeStr: string | undefined,
+  endTimeStr: string | undefined,
+  currentEndDate: string | undefined,
+) => {
+  if (!startDateStr || !startTimeStr || !endTimeStr) return currentEndDate;
+
+  const startDateObj = new Date(startDateStr);
+
+  if (isOvernightSchedule(startTimeStr, endTimeStr)) {
+    startDateObj.setDate(startDateObj.getDate() + 1);
+  }
+
+  const year = startDateObj.getFullYear();
+  const month = String(startDateObj.getMonth() + 1).padStart(2, "0");
+  const day = String(startDateObj.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+export const normalizeDateStr = (dateStr?: string) => {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr; // fallback if invalid
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+export const getLocalDateString = (d: Date) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 };

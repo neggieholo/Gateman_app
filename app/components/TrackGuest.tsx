@@ -34,7 +34,7 @@ import {
   View,
 } from "react-native";
 import { captureRef } from "react-native-view-shot";
-import { invitationApi } from "../services/api";
+import { invitationApi, isOvernightSchedule } from "../services/api";
 import { Invitation } from "../services/interfaces";
 import { useUser } from "../UserContext";
 import { EditInvitationModal } from "./EditInvitationModal";
@@ -63,6 +63,7 @@ const TrackGuestView = ({
   const [isSharing, setIsSharing] = useState(false);
   const [selectedInvitation, setSelectedInvitation] =
     useState<Invitation | null>(null);
+  const [historyInvites, setHistoryInvites] = useState<string[]>([]);
 
   // Sync internal estate state if parent container passes a different estate down
   useEffect(() => {
@@ -129,7 +130,7 @@ const TrackGuestView = ({
           style: "destructive",
           onPress: async () => {
             try {
-              await invitationApi.deleteInvitation(id);
+              await invitationApi.deleteInvitation(id, selectedEstateId);
               setInvitations((prev) => prev.filter((item) => item.id !== id));
             } catch (err: any) {
               Alert.alert("Error", err.message);
@@ -156,6 +157,37 @@ const TrackGuestView = ({
     } catch (err) {
       Alert.alert("Error", "Failed to update invitation.");
     }
+  };
+
+  const handleClearHistory = () => {
+    if (historyInvites.length === 0) return;
+
+    Alert.alert(
+      "Clear History",
+      `Are you sure you want to clear ${historyInvites.length} past/completed invitation(s)?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Yes, Clear",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await invitationApi.deleteHistory(
+                historyInvites,
+                selectedEstateId,
+              );
+              // Remove the cleared history invites from local state
+              setInvitations((prev) =>
+                prev.filter((item) => !historyInvites.includes(item.id!)),
+              );
+              setHistoryInvites([]);
+            } catch (err: any) {
+              Alert.alert("Error", err.message || "Failed to clear history.");
+            }
+          },
+        },
+      ],
+    );
   };
 
   const handleShare = async (item: Invitation) => {
@@ -212,16 +244,18 @@ const TrackGuestView = ({
   };
 
   const getMultiEntryStatus = (invite: Invitation) => {
+    const isOverNight = isOvernightSchedule(invite.start_time, invite.end_time);
+
     if (invite.is_cancelled) {
       return {
         label: "CANCELLED",
-        container: isDarkMode
-          ? "bg-red-950/40 border border-red-900/30"
-          : "bg-rose-100",
-        text: "text-rose-500",
+        container: "bg-rose-100",
+        text: "text-rose-700",
       };
     }
+
     const now = new Date();
+
     const toLocalDateStr = (d: any): string => {
       if (!d) return "";
       return new Date(d).toLocaleDateString("en-CA");
@@ -231,45 +265,47 @@ const TrackGuestView = ({
     const checkinDateStr = toLocalDateStr(invite.actual_checkin_date);
     const checkoutDateStr = toLocalDateStr(invite.actual_checkout_date);
 
-    const [startH, startM] = invite.start_time.split(":");
-    const [endH, endM] = invite.end_time.split(":");
+    const startDate = toLocalDateStr(invite.start_date);
+    const endDate = toLocalDateStr(invite.end_date);
 
-    const todayStart = new Date();
-    todayStart.setHours(parseInt(startH), parseInt(startM), 0, 0);
+    // Setup today's time window.
+    const [startH, startM] = invite.start_time.split(":").map(Number);
+    const [endH, endM] = invite.end_time.split(":").map(Number);
 
-    const todayEnd = new Date();
-    todayEnd.setHours(parseInt(endH), parseInt(endM), 0, 0);
+    const todayStart = new Date(now);
+    todayStart.setHours(startH, startM, 0, 0);
 
+    const todayEnd = new Date(now);
+    todayEnd.setHours(endH, endM, 0, 0);
+
+    // 1. GLOBAL EXPIRY: end_date + end_time is the exact final expiry.
     const overallExpiry = new Date(invite.end_date);
-    overallExpiry.setHours(parseInt(endH), parseInt(endM), 0);
-    if (now > overallExpiry) {
+    overallExpiry.setHours(endH, endM, 0, 0);
+
+    if (now >= overallExpiry) {
       return {
         label: "EXPIRED",
-        container: isDarkMode
-          ? "bg-red-950/20 border border-red-900/20"
-          : "bg-rose-50",
-        text: "text-rose-400",
+        container: "bg-rose-50",
+        text: "text-rose-500",
       };
     }
 
+    // 2. EXCLUSION CHECK.
     if (invite.excluded_dates?.includes(todayStr)) {
       return {
         label: "NOT ALLOWED TODAY",
-        container: isDarkMode
-          ? "bg-amber-950/40 border border-amber-900/30"
-          : "bg-amber-100",
-        text: "text-amber-500",
+        container: "bg-amber-100",
+        text: "text-amber-700",
       };
     }
 
+    // 3. OVERSTAYED FROM A PREVIOUS DAY.
     if (checkinDateStr && checkinDateStr < todayStr) {
       if (!checkoutDateStr || checkoutDateStr < checkinDateStr) {
         return {
           label: "OVERSTAYED (PAST)",
-          container: isDarkMode
-            ? "bg-red-950/50 border border-red-900/40"
-            : "bg-red-100",
-          text: "text-red-500",
+          container: "bg-red-100",
+          text: "text-red-700",
         };
       }
     }
@@ -277,72 +313,106 @@ const TrackGuestView = ({
     const isCheckedInToday = checkinDateStr === todayStr;
     const isCheckedOutToday = checkoutDateStr === todayStr;
 
+    // Determine whether the current time falls within today's window
+    // or the overnight window that started yesterday.
+    const previousDayStart = new Date(todayStart);
+    previousDayStart.setDate(previousDayStart.getDate() - 1);
+
+    const previousDayEnd = new Date(now);
+    previousDayEnd.setHours(endH, endM, 0, 0);
+
+    const isWithinPreviousOvernightWindow =
+      isOverNight && now >= previousDayStart && now <= previousDayEnd;
+
+    const isWithinTodayWindow = isOverNight
+      ? now >= todayStart || now <= todayEnd
+      : now >= todayStart && now <= todayEnd;
+
+    const isWithinWindow =
+      isWithinTodayWindow || isWithinPreviousOvernightWindow;
+
+    // 4. GUEST CURRENTLY INSIDE.
     if (isCheckedInToday && !isCheckedOutToday) {
-      if (now > todayEnd) {
+      if (!isWithinWindow) {
         return {
           label: "OVERSTAYED TODAY",
-          container: isDarkMode
-            ? "bg-red-950/50 border border-red-900/40"
-            : "bg-red-100",
-          text: "text-red-500",
+          container: "bg-red-100",
+          text: "text-red-700",
         };
       }
+
       return {
         label: "INSIDE",
-        container: isDarkMode
-          ? "bg-emerald-950/40 border border-emerald-900/30"
-          : "bg-emerald-100",
-        text: "text-emerald-500",
+        container: "bg-emerald-100",
+        text: "text-emerald-700",
       };
     }
 
+    // 5. DEPARTED TODAY.
     if (isCheckedOutToday) {
       return {
         label: "DEPARTED TODAY",
-        container: isDarkMode
-          ? "bg-blue-950/40 border border-blue-900/30"
-          : "bg-blue-100",
-        text: "text-blue-400",
+        container: "bg-blue-100",
+        text: "text-blue-700",
       };
     }
 
-    if (!isCheckedInToday && now > todayEnd) {
+    // 6. CHECK THE INVITATION DATE RANGE.
+    if (startDate && todayStr < startDate) {
       return {
-        label: "EXPIRED TODAY",
-        container: isDarkMode
-          ? "bg-red-950/20 border border-red-900/20"
-          : "bg-rose-50",
-        text: "text-rose-400",
+        label: "UPCOMING",
+        container: "bg-slate-50",
+        text: "text-slate-400",
       };
     }
 
-    const startDate = toLocalDateStr(invite.start_date);
-    const endDate = toLocalDateStr(invite.end_date);
+    if (endDate && todayStr > endDate) {
+      return {
+        label: "EXPIRED",
+        container: "bg-rose-50",
+        text: "text-rose-500",
+      };
+    }
 
-    if (startDate && endDate && todayStr >= startDate && todayStr <= endDate) {
-      if (now < todayStart) {
-        return {
-          label: "NOT ARRIVED TODAY",
-          container: isDarkMode
-            ? "bg-slate-900 border border-slate-800"
-            : "bg-slate-100",
-          text: "text-slate-400",
-        };
-      }
+    // 7. READY FOR ENTRY DURING AN OVERNIGHT WINDOW.
+    // For example, 8 PM–6 AM: after midnight, the window
+    // that started yesterday is still active until 6 AM.
+    if (isWithinPreviousOvernightWindow) {
       return {
         label: "READY FOR ENTRY",
-        container: isDarkMode
-          ? "bg-slate-900 border border-gm-gold/30"
-          : "bg-indigo-100",
-        text: isDarkMode ? "text-gm-gold" : "text-indigo-700",
+        container: "bg-indigo-100",
+        text: "text-indigo-700",
+      };
+    }
+
+    // 8. NOT ARRIVED TODAY.
+    if (startDate && endDate && todayStr >= startDate && todayStr <= endDate) {
+      if (isWithinTodayWindow) {
+        return {
+          label: "READY FOR ENTRY",
+          container: "bg-indigo-100",
+          text: "text-indigo-700",
+        };
+      }
+
+      if (now < todayStart) {
+        return {
+          label: "NOT YET READY TODAY",
+          container: "bg-slate-100",
+          text: "text-slate-500",
+        };
+      }
+
+      return {
+        label: "EXPIRED TODAY",
+        container: "bg-rose-50",
+        text: "text-rose-400",
       };
     }
 
     return {
       label: "UPCOMING",
-      container: isDarkMode
-        ? "bg-slate-900 border border-slate-800"
-        : "bg-slate-50",
+      container: "bg-slate-50",
       text: "text-slate-400",
     };
   };
@@ -353,62 +423,88 @@ const TrackGuestView = ({
     startDate: string,
     isCancelled: boolean,
     startTime: string,
+    endDate: string,
+    endTime: string,
   ) => {
     if (isCancelled) {
       return {
         label: "CANCELLED",
-        container: isDarkMode
-          ? "bg-red-950/40 border border-red-900/30"
-          : "bg-rose-100",
-        text: "text-rose-500",
+        container: "bg-rose-100",
+        text: "text-rose-700",
       };
     }
 
     const now = new Date();
-    const start = new Date(startDate);
-    const today = new Date(new Date().setHours(0, 0, 0, 0));
-    const startDay = new Date(start.setHours(0, 0, 0, 0));
+
+    const [startYear, startMonth, startDayOfMonth] = startDate
+      .split("T")[0]
+      .split("-")
+      .map(Number);
+
+    const start = new Date(startYear, startMonth - 1, startDayOfMonth);
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startDay = new Date(
+      start.getFullYear(),
+      start.getMonth(),
+      start.getDate(),
+    );
 
     if (status === "pending" && today < startDay) {
       return {
         label: "UPCOMING",
-        container: isDarkMode
-          ? "bg-slate-900 border border-slate-800"
-          : "bg-indigo-50",
-        text: isDarkMode ? "text-slate-400" : "text-indigo-500",
+        container: "bg-indigo-50",
+        text: "text-indigo-500",
       };
     }
 
-    if (status === "pending" && isExpired) {
+    const [endYear, endMonth, endDayOfMonth] = endDate
+      .split("T")[0]
+      .split("-")
+      .map(Number);
+
+    const [endH, endM] = endTime.split(":").map(Number);
+    const overallExpiry = new Date(
+      endYear,
+      endMonth - 1,
+      endDayOfMonth,
+      endH,
+      endM,
+    );
+
+    if (status === "pending" && (isExpired || now >= overallExpiry)) {
       return {
         label: "EXPIRED",
-        container: isDarkMode
-          ? "bg-red-950/20 border border-red-900/20"
-          : "bg-rose-50",
-        text: "text-rose-400",
+        container: "bg-rose-50",
+        text: "text-rose-500",
       };
     }
 
     if (status === "pending") {
-      const [startH, startM] = startTime.split(":");
-      const todayStartTime = new Date();
-      todayStartTime.setHours(parseInt(startH), parseInt(startM), 0, 0);
+      const [startH, startM] = startTime.split(":").map(Number);
+      const todayStartTime = new Date(start);
+      todayStartTime.setHours(startH, startM, 0, 0);
 
-      if (now >= todayStartTime) {
+      const todayEndTime = new Date(start);
+      todayEndTime.setHours(endH, endM, 0, 0);
+
+      const isOverNight = todayStartTime > todayEndTime;
+
+      const isWithinWindow = isOverNight
+        ? now >= todayStartTime || now <= todayEndTime
+        : now >= todayStartTime && now <= todayEndTime;
+
+      if (isWithinWindow) {
         return {
           label: "READY FOR ENTRY",
-          container: isDarkMode
-            ? "bg-slate-900 border border-gm-gold/30"
-            : "bg-indigo-100",
-          text: isDarkMode ? "text-gm-gold" : "text-indigo-700",
+          container: "bg-indigo-100",
+          text: "text-indigo-700",
         };
       }
+
       return {
-        label: "NOT ARRIVED",
-        container: isDarkMode
-          ? "bg-slate-900 border border-slate-800"
-          : "bg-slate-100",
-        text: "text-slate-400",
+        label: now < todayStartTime ? "NOT YET READY" : "EXPIRED",
+        container: now < todayStartTime ? "bg-slate-100" : "bg-rose-50",
+        text: now < todayStartTime ? "text-slate-600" : "text-rose-500",
       };
     }
 
@@ -416,34 +512,26 @@ const TrackGuestView = ({
       case "checked_in":
         return {
           label: "INSIDE",
-          container: isDarkMode
-            ? "bg-emerald-950/40 border border-emerald-900/30"
-            : "bg-emerald-100",
-          text: "text-emerald-500",
+          container: "bg-emerald-100",
+          text: "text-emerald-700",
         };
       case "checked_out":
         return {
           label: "DEPARTED",
-          container: isDarkMode
-            ? "bg-blue-950/40 border border-blue-900/30"
-            : "bg-blue-100",
-          text: "text-blue-400",
+          container: "bg-blue-100",
+          text: "text-blue-700",
         };
       case "overstayed":
         return {
           label: "OVERSTAYED",
-          container: isDarkMode
-            ? "bg-red-950/50 border border-red-900/40"
-            : "bg-amber-100",
-          text: "text-red-500",
+          container: "bg-amber-100",
+          text: "text-amber-700",
         };
       default:
         return {
           label: status.toUpperCase(),
-          container: isDarkMode
-            ? "bg-slate-900 border border-slate-800"
-            : "bg-slate-100",
-          text: "text-slate-400",
+          container: "bg-slate-100",
+          text: "text-slate-600",
         };
     }
   };
@@ -566,11 +654,23 @@ const TrackGuestView = ({
             </View>
           ) : (
             <>
-              <Text className="text-gray-500 font-medium mb-4 px-4 mt-2">
-                {searchQuery
-                  ? `Search Results (${filteredInvitations.length})`
-                  : `Active Passes (${invitations.length})`}
-              </Text>
+              <View className="flex-row items-center justify-between py-3">
+                <Text className="text-gray-500 font-oswald-semibold">
+                  {searchQuery
+                    ? `Search Results (${filteredInvitations.length})`
+                    : `Active Passes (${invitations.length})`}
+                </Text>
+                {historyInvites.length > 0 && (
+                  <TouchableOpacity
+                    className="bg-red-500 rounded-sm"
+                    onPress={handleClearHistory}
+                  >
+                    <Text className="text-white px-1 font-oswald-semibold">
+                      Clear All History/Expired({historyInvites.length})
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
 
               <ScrollView
                 className="flex-1 px-4"
@@ -594,10 +694,11 @@ const TrackGuestView = ({
                   const isStaffEntry = item.invite_type === "staff_entry";
                   const isDone =
                     item.status === "checked_out" || (isPending && isExpired);
+                  if (isDone && !historyInvites.includes(item.id!)) {
+                    setHistoryInvites((prev) => [...prev, item.id!]);
+                  }
 
-                  const canEdit =
-                    isStaffEntry ||
-                    (item.status !== "checked_out" && !isExpired);
+                  const canEdit = isStaffEntry || item.status !== "checked_out";
                   const canCancel = isPending && !isExpired && !isStaffEntry;
                   const canShare = isPending && !isExpired;
 
@@ -609,8 +710,16 @@ const TrackGuestView = ({
                         item.start_date,
                         item.is_cancelled,
                         item.start_time,
+                        item.end_date,
+                        item.end_time,
                       );
 
+                  if (
+                    statusInfo.label === "EXPIRED" &&
+                    !historyInvites.includes(item.id!)
+                  ) {
+                    setHistoryInvites((prev) => [...prev, item.id!]);
+                  }
                   return (
                     <View
                       key={item.id}
@@ -700,12 +809,19 @@ const TrackGuestView = ({
                                     </Text>
                                   </>
                                 ) : (
-                                  <Text
-                                    className={`${isDarkMode ? "text-slate-300" : "text-gray-600"} text-xs font-semibold`}
-                                  >
-                                    Activated:{" "}
-                                    {formatDisplayName(item.start_date)}
-                                  </Text>
+                                  <>
+                                    <Text
+                                      className={`${isDarkMode ? "text-slate-300" : "text-gray-600"} text-xs font-semibold`}
+                                    >
+                                      Activated:{" "}
+                                      {formatDisplayName(item.start_date)}
+                                    </Text>
+                                    <Text className="text-gray-400 text-[10px]">
+                                      Daily:{" "}
+                                      {formatDisplayTime(item.start_time)} —{" "}
+                                      {formatDisplayTime(item.end_time)}
+                                    </Text>
+                                  </>
                                 )}
                               </>
                             ) : isMultiEntry ? (
@@ -797,7 +913,7 @@ const TrackGuestView = ({
                             </TouchableOpacity>
                           )}
 
-                          {canShare && (
+                          {(canShare || isStaffEntry) && (
                             <TouchableOpacity
                               onPress={() => handleShare(item)}
                               disabled={isSharing}
