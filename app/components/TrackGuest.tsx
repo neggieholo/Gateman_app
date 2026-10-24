@@ -237,10 +237,21 @@ const TrackGuestView = ({
 
   const isPastTime = (endDate: string, endTime: string) => {
     if (!endDate || !endTime) return false;
-    const [hours, minutes] = endTime.split(":");
-    const expiry = new Date(endDate);
-    expiry.setHours(parseInt(hours), parseInt(minutes), 0);
-    return new Date() > expiry;
+
+    const expiryDate = new Date(endDate);
+    const [hours, minutes] = endTime.split(":").map(Number);
+
+    const expiry = new Date(
+      expiryDate.getFullYear(),
+      expiryDate.getMonth(),
+      expiryDate.getDate(),
+      hours,
+      minutes,
+      0,
+      0,
+    );
+
+    return new Date() >= expiry;
   };
 
   const getMultiEntryStatus = (invite: Invitation) => {
@@ -279,8 +290,17 @@ const TrackGuestView = ({
     todayEnd.setHours(endH, endM, 0, 0);
 
     // 1. GLOBAL EXPIRY: end_date + end_time is the exact final expiry.
-    const overallExpiry = new Date(invite.end_date);
-    overallExpiry.setHours(endH, endM, 0, 0);
+    const expiryDate = new Date(invite.end_date);
+
+    const overallExpiry = new Date(
+      expiryDate.getFullYear(),
+      expiryDate.getMonth(),
+      expiryDate.getDate(),
+      endH,
+      endM,
+      0,
+      0,
+    );
 
     if (now >= overallExpiry) {
       return {
@@ -436,13 +456,10 @@ const TrackGuestView = ({
 
     const now = new Date();
 
-    const [startYear, startMonth, startDayOfMonth] = startDate
-      .split("T")[0]
-      .split("-")
-      .map(Number);
+    const start = new Date(startDate);
 
-    const start = new Date(startYear, startMonth - 1, startDayOfMonth);
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
     const startDay = new Date(
       start.getFullYear(),
       start.getMonth(),
@@ -457,21 +474,25 @@ const TrackGuestView = ({
       };
     }
 
-    const [endYear, endMonth, endDayOfMonth] = endDate
-      .split("T")[0]
-      .split("-")
-      .map(Number);
-
     const [endH, endM] = endTime.split(":").map(Number);
-    const overallExpiry = new Date(
-      endYear,
-      endMonth - 1,
-      endDayOfMonth,
-      endH,
-      endM,
-    );
+    const expiryDate = endDate ? new Date(endDate) : null;
 
-    if (status === "pending" && (isExpired || now >= overallExpiry)) {
+    const overallExpiry = expiryDate
+      ? new Date(
+          expiryDate.getFullYear(),
+          expiryDate.getMonth(),
+          expiryDate.getDate(),
+          endH,
+          endM,
+          0,
+          0,
+        )
+      : null;
+
+    if (
+      status === "pending" &&
+      (isExpired || (overallExpiry && now >= overallExpiry))
+    ) {
       return {
         label: "EXPIRED",
         container: "bg-rose-50",
